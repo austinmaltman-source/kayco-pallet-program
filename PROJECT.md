@@ -1,19 +1,25 @@
 # Kayco Pallet Program
 
 ## Overview
-TBD - awaiting project details.
+3D Pallet Display Builder for Kayco's holiday pallet program. Design pallets in 3D: assign SKUs to shelf positions, drag-and-drop products onto display surfaces, spin/orbit the pallet, and export planograms (PDF, image, JSON).
+
+Two pallet types:
+- **Full Pallet** — 4-sided display tower with 4 shelf rows per side
+- **Half Pallet** — 1 front product wall + 2 solid branded side panels (sits against wall/endcap)
+
+See `reference/` for photos of real pallets. See `PLAN.md` for full implementation plan.
 
 ## Tech Stack
 - Next.js 15 (App Router) + TypeScript
+- Three.js / React Three Fiber / @react-three/drei (3D rendering)
+- Zustand + Immer (state management)
 - Tailwind CSS
-- Neon Postgres (via Vercel integration) + Drizzle ORM
-- Better Auth
-- React Query for data fetching
-- Framer Motion for animations
+- Radix UI (dialogs, tabs, selects, tooltips)
+- PapaParse + xlsx (CSV/Excel import)
+- jsPDF + html2canvas (PDF/image export)
 
 ## Hosting
 - **App:** Vercel
-- **Database:** Neon Postgres (Vercel integration)
 
 ## Deploy
 ```bash
@@ -27,20 +33,25 @@ npm run build
 vercel
 ```
 
-## Environment Variables
-See `.env.local.example` for required variables.
-
 ## Project Structure
 ```
-app/                    # Next.js App Router pages + API routes
-├── api/               # Backend API routes
-components/            # Shared UI components
-db/                    # Database connection + Drizzle schema
-lib/                   # Utilities
+app/                    # Next.js App Router pages
+components/
+  layout/              # AppShell, panels, toolbar
+  catalog/             # Product catalog, import, search
+  properties/          # Right panel property editors
+  scene/               # All React Three Fiber 3D components
+    pallet/            # PalletBase, ShelfWall, StripDivider, etc.
+    items/             # PlacedProduct, ProductGhost
+    interaction/       # PlacementController, SnapEngine, WallSelector
+stores/                # Zustand stores (project, pallet, product, placement, UI)
+hooks/                 # Custom hooks (drag-drop, grid snap, shortcuts)
+lib/                   # Utilities, constants, presets
 types/                 # TypeScript type definitions
-drizzle/               # Database migration files
+reference/             # Real pallet photos for design reference
+public/textures/       # Wood, cardboard, HDR environment textures
 ```
 
-## External Services
-- Neon Postgres via Vercel integration
-- Vercel deployment
+## Reference Images
+- `FULL_PASS26*.png` — Full pallet (4 product-facing sides)
+- `HALF_PASS26*.png` — Half pallet (1 front + 2 branded side panels)
