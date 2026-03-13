@@ -3,15 +3,25 @@
 import { useState } from "react";
 import { nanoid } from "nanoid";
 
-import { defaultProductDraft } from "@/stores/useProductStore";
-import type { Product } from "@/types/product";
+import type { HolidayType, Product } from "@/types/product";
+
+const DEFAULT_DRAFT = {
+  sku: "",
+  name: "",
+  category: "Imported",
+  holiday: "everyday" as HolidayType,
+  width: 8,
+  height: 9,
+  depth: 4,
+  color: "#6f8ca8",
+};
 
 export function ProductForm({
   onCreate,
 }: {
   onCreate: (product: Product) => void;
 }) {
-  const [draft, setDraft] = useState(defaultProductDraft);
+  const [draft, setDraft] = useState(DEFAULT_DRAFT);
 
   return (
     <form
@@ -39,7 +49,7 @@ export function ProductForm({
           unitsPerCase: 12,
         });
 
-        setDraft(defaultProductDraft);
+        setDraft(DEFAULT_DRAFT);
       }}
     >
       <div className="grid grid-cols-2 gap-3">

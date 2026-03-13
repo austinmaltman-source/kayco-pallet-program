@@ -23,6 +23,7 @@ interface PlacementStore {
     gridCol: number;
   }) => { ok: boolean; reason?: string; placementId?: string };
   removeSelected: () => void;
+  removePlacement: (id: string) => void;
   updatePlacement: (id: string, patch: Partial<PlacedItem>) => void;
   rotateSelected: (products: Product[], pallet: PalletConfig) => void;
   clear: () => void;
@@ -93,6 +94,18 @@ export const usePlacementStore = create<PlacementStore>()(
           (placement) => placement.id !== state.selectedPlacementId,
         );
         state.selectedPlacementId = null;
+      }),
+    removePlacement: (id) =>
+      set((state) => {
+        state.past.push(clonePlacements(state.placements));
+        state.future = [];
+        state.placements = state.placements.filter(
+          (placement) => placement.id !== id,
+        );
+
+        if (state.selectedPlacementId === id) {
+          state.selectedPlacementId = null;
+        }
       }),
     updatePlacement: (id, patch) =>
       set((state) => {

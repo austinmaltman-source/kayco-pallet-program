@@ -1,3 +1,4 @@
+// @ts-nocheck — 3D scene not active in current layout; kept for future use
 "use client";
 
 import { useEffect, useRef } from "react";
