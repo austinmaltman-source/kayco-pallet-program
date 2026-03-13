@@ -66,7 +66,9 @@ export function ProductCard({
             </span>
           </div>
 
-          <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{product.description}</p>
+          {product.description ? (
+            <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{product.description}</p>
+          ) : null}
 
           <div className="mt-3 flex items-center justify-between text-xs text-[var(--muted)]">
             <span>

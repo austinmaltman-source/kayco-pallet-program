@@ -18,7 +18,10 @@ function triggerDownload(filename: string, blob: Blob) {
 
 function buildPlacementSummary(placements: PlacedItem[], products: Product[]) {
   const productMap = new Map(products.map((product) => [product.id, product]));
-  const summary = new Map<string, { sku: string; name: string; count: number; unitPrice?: number }>();
+  const summary = new Map<
+    string,
+    { productId: string; sku: string; name: string; count: number; unitPrice?: number }
+  >();
 
   for (const placement of placements) {
     const product = productMap.get(placement.productId);
@@ -28,6 +31,7 @@ function buildPlacementSummary(placements: PlacedItem[], products: Product[]) {
     }
 
     const existing = summary.get(product.id) ?? {
+      productId: product.id,
       sku: product.sku,
       name: product.name,
       count: 0,
@@ -51,6 +55,25 @@ function buildWallPlacements(placements: PlacedItem[], products: Product[], wall
     }))
     .filter((p) => p.product)
     .sort((a, b) => b.shelfRow - a.shelfRow || a.gridCol - b.gridCol);
+}
+
+function drawBomTableHeader(pdf: jsPDF, margin: number, contentWidth: number, y: number) {
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(9);
+  pdf.text("SKU", margin, y);
+  pdf.text("Product Name", margin + 90, y);
+  pdf.text("Category", margin + 260, y);
+  pdf.text("Dimensions", margin + 340, y);
+  pdf.text("Units", margin + 420, y);
+  pdf.text("Price", margin + 460, y);
+  pdf.text("Total", margin + 510, y);
+  y += 4;
+  pdf.setDrawColor(80, 80, 80);
+  pdf.setLineWidth(1);
+  pdf.line(margin, y, margin + contentWidth, y);
+  pdf.setLineWidth(0.5);
+
+  return y + 14;
 }
 
 /**
@@ -260,23 +283,7 @@ export async function exportProjectPdf(
   pdf.text(`${project.name}  |  Generated ${new Date().toLocaleString()}`, margin, margin + 30);
   pdf.setTextColor(0, 0, 0);
 
-  let bomY = margin + 52;
-
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(9);
-  pdf.text("SKU", margin, bomY);
-  pdf.text("Product Name", margin + 90, bomY);
-  pdf.text("Category", margin + 260, bomY);
-  pdf.text("Dimensions", margin + 340, bomY);
-  pdf.text("Units", margin + 420, bomY);
-  pdf.text("Price", margin + 460, bomY);
-  pdf.text("Total", margin + 510, bomY);
-  bomY += 4;
-  pdf.setDrawColor(80, 80, 80);
-  pdf.setLineWidth(1);
-  pdf.line(margin, bomY, margin + contentWidth, bomY);
-  pdf.setLineWidth(0.5);
-  bomY += 14;
+  let bomY = drawBomTableHeader(pdf, margin, contentWidth, margin + 52);
 
   const productMap = new Map(project.products.map((p) => [p.id, p]));
   let grandTotal = 0;
@@ -285,9 +292,17 @@ export async function exportProjectPdf(
   for (const item of summary) {
     if (bomY > pageHeight - 50) {
       pdf.addPage();
-      bomY = margin + 20;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(18);
+      pdf.text("Bill of Materials", margin, margin + 14);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`${project.name}  |  Continued`, margin, margin + 30);
+      pdf.setTextColor(0, 0, 0);
+      bomY = drawBomTableHeader(pdf, margin, contentWidth, margin + 52);
     }
-    const product = [...productMap.values()].find((p) => p.sku === item.sku);
+    const product = productMap.get(item.productId);
     const dims = product
       ? `${product.dimensions.width}" x ${product.dimensions.height}" x ${product.dimensions.depth}"`
       : "";

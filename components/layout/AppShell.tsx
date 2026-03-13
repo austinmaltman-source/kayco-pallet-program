@@ -35,19 +35,22 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 export function AppShell() {
+  const fallbackCustomer = getCustomerById("kroger") ?? CUSTOMERS[0] ?? null;
   const pallet = usePalletStore((state) => state.pallet);
   const products = useProductStore((state) => state.products);
   const replaceProducts = useProductStore((state) => state.replaceProducts);
 
   const placements = usePlacementStore((state) => state.placements);
   const placeProduct = usePlacementStore((state) => state.placeProduct);
+  const pastLength = usePlacementStore((state) => state.past.length);
+  const futureLength = usePlacementStore((state) => state.future.length);
   const selectPlacement = usePlacementStore((state) => state.selectPlacement);
   const selectedPlacementId = usePlacementStore((state) => state.selectedPlacementId);
   const removeSelected = usePlacementStore((state) => state.removeSelected);
   const removePlacement = usePlacementStore((state) => state.removePlacement);
   const undo = usePlacementStore((state) => state.undo);
   const redo = usePlacementStore((state) => state.redo);
-  const clearPlacements = usePlacementStore((state) => state.clear);
+  const replacePlacements = usePlacementStore((state) => state.replacePlacements);
 
   const selectedCustomerId = useUIStore((state) => state.selectedCustomerId);
   const setSelectedCustomerId = useUIStore((state) => state.setSelectedCustomerId);
@@ -56,18 +59,30 @@ export function AppShell() {
   const draggingProductId = useUIStore((state) => state.draggingProductId);
 
   const saveProject = useProjectStore((state) => state.saveProject);
+  const activeCustomer = getCustomerById(selectedCustomerId) ?? fallbackCustomer;
+  const defaultStatusMessage = activeCustomer
+    ? `Loaded ${activeCustomer.products.length} products for ${activeCustomer.name}.`
+    : "Select a customer to get started.";
 
   const [projectName, setProjectName] = useState("Holiday Program Layout");
-  const [statusMessage, setStatusMessage] = useState("Select a customer to get started.");
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   // Load products when customer changes
   useEffect(() => {
     const customer = getCustomerById(selectedCustomerId);
-    if (customer) {
-      replaceProducts(customer.products);
-      setStatusMessage(`Loaded ${customer.products.length} products for ${customer.name}.`);
+
+    if (!customer) {
+      if (fallbackCustomer && selectedCustomerId !== fallbackCustomer.id) {
+        setSelectedCustomerId(fallbackCustomer.id);
+        return;
+      }
+
+      replaceProducts([]);
+      return;
     }
-  }, [selectedCustomerId, replaceProducts]);
+
+    replaceProducts(customer.products);
+  }, [fallbackCustomer, replaceProducts, selectedCustomerId, setSelectedCustomerId]);
 
   function snapshotProject(nameOverride?: string) {
     return saveProject({
@@ -79,22 +94,43 @@ export function AppShell() {
   }
 
   function handleCustomerChange(customerId: string) {
+    const customer = getCustomerById(customerId);
+
+    if (!customer || customerId === selectedCustomerId) {
+      return;
+    }
+
     setSelectedCustomerId(customerId);
-    clearPlacements();
-    selectPlacement(null);
+    replacePlacements([]);
+    setStatusMessage(null);
   }
 
   useKeyboardShortcuts({
     onDelete: () => {
+      if (!selectedPlacementId) {
+        setStatusMessage("Select a placement to remove.");
+        return;
+      }
+
       removeSelected();
       setStatusMessage("Removed selected placement.");
     },
     onRotate: () => {},
     onUndo: () => {
+      if (pastLength === 0) {
+        setStatusMessage("Nothing to undo.");
+        return;
+      }
+
       undo();
       setStatusMessage("Undid last change.");
     },
     onRedo: () => {
+      if (futureLength === 0) {
+        setStatusMessage("Nothing to redo.");
+        return;
+      }
+
       redo();
       setStatusMessage("Redid last change.");
     },
@@ -119,7 +155,7 @@ export function AppShell() {
               className="mt-1 text-sm text-[var(--muted)]"
               role="status"
             >
-              {statusMessage}
+              {statusMessage ?? defaultStatusMessage}
             </p>
           </div>
 
@@ -269,7 +305,13 @@ export function AppShell() {
                   setStatusMessage("Removed placement.");
                 }}
                 onPlace={({ wall, shelfRow, gridCol, product }) => {
-                  placeProduct({ pallet, product, wall, shelfRow, gridCol });
+                  const result = placeProduct({ pallet, product, wall, shelfRow, gridCol });
+
+                  if (!result.ok) {
+                    setStatusMessage(result.reason ?? "Unable to place product there.");
+                    return;
+                  }
+
                   setStatusMessage(`Placed ${product.name} on ${WALL_LABELS[wall]} wall.`);
                 }}
                 onSelectPlacement={selectPlacement}

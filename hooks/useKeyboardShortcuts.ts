@@ -27,12 +27,6 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers) {
       return;
     }
 
-    if (meta && key === "z" && event.shiftKey) {
-      event.preventDefault();
-      handlers.onRedo();
-      return;
-    }
-
     if ((meta && key === "y") || (meta && key === "z" && event.shiftKey)) {
       event.preventDefault();
       handlers.onRedo();
