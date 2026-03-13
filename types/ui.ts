@@ -10,9 +10,8 @@ export interface DropPreview {
 }
 
 export interface UIState {
-  activeView: CameraView;
   selectedWall: WallFace;
-  showGrid: boolean;
+  selectedCustomerId: string;
   draggingProductId: string | null;
   dropPreview: DropPreview | null;
 }
