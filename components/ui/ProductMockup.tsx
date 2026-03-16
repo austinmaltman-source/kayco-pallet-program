@@ -1,6 +1,5 @@
 "use client";
 
-import { Package } from "lucide-react";
 import type { PackagingShape } from "@/types/product";
 
 interface ProductMockupProps {
@@ -208,11 +207,9 @@ export function ProductMockup({
           textAlign: "center",
         }}
       >
-        <Package
+        <ShapeSilhouette
+          shape={shape}
           size={cfg.iconSize}
-          color="rgba(255,255,255,0.9)"
-          strokeWidth={1.5}
-          style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))", flexShrink: 0 }}
         />
         {name && (
           <span
@@ -332,4 +329,53 @@ export function ProductMockup({
       </div>
     </div>
   );
+}
+
+function ShapeSilhouette({ shape, size }: { shape: PackagingShape; size: number }) {
+  const style: React.CSSProperties = {
+    filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.3))",
+    flexShrink: 0,
+  };
+
+  switch (shape) {
+    case "bottle":
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} style={style} fill="rgba(255,255,255,0.9)" stroke="none">
+          <path d="M10 2h4v3.5l2.5 3V20a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2V8.5L10 5.5V2z" />
+        </svg>
+      );
+    case "jar":
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} style={style} fill="rgba(255,255,255,0.9)" stroke="none">
+          <rect x="8" y="2" width="8" height="3" rx="1" />
+          <path d="M6 5h12l.5 14a2.5 2.5 0 0 1-2.5 2.5h-8A2.5 2.5 0 0 1 5.5 19L6 5z" />
+        </svg>
+      );
+    case "bag":
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} style={style} fill="rgba(255,255,255,0.9)" stroke="none">
+          <path d="M7 2L4 6v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6l-3-4H7z" />
+        </svg>
+      );
+    case "tin":
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} style={style} fill="rgba(255,255,255,0.9)" stroke="none">
+          <ellipse cx="12" cy="5" rx="8" ry="2.5" />
+          <path d="M4 5v13c0 1.38 3.58 2.5 8 2.5s8-1.12 8-2.5V5" />
+        </svg>
+      );
+    case "pouch":
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} style={style} fill="rgba(255,255,255,0.9)" stroke="none">
+          <path d="M8 2h8s0 1-1 2c-1 1.5-1 2-1 3v11a2 2 0 0 1-2 2h-0a2 2 0 0 1-2-2V7c0-1 0-1.5-1-3S8 2 8 2z" />
+          <path d="M7 7c0-1 .5-2 1.5-3h7c1 1 1.5 2 1.5 3v11a3 3 0 0 1-3 3h-4a3 3 0 0 1-3-3V7z" />
+        </svg>
+      );
+    default: // box
+      return (
+        <svg viewBox="0 0 24 24" width={size} height={size} style={style} fill="rgba(255,255,255,0.9)" stroke="none">
+          <path d="M12 2L3 7v10l9 5 9-5V7l-9-5z" />
+        </svg>
+      );
+  }
 }
