@@ -32,7 +32,7 @@ export function SceneRoot() {
 
   return (
     <div
-      className="relative h-full w-full overflow-hidden rounded-2xl"
+      className="relative h-full min-w-0 w-full overflow-hidden rounded-2xl"
       onWheel={(e) => e.stopPropagation()}
     >
       <Canvas

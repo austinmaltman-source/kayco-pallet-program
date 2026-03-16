@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Package2, Trash2 } from "lucide-react";
+import { Layers, Package2, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { detectPlacementConflict, getProductColSpan } from "@/lib/gridMath";
@@ -14,6 +14,7 @@ interface ShelfGridProps {
   wall: WallFace;
   placements: PlacedItem[];
   products: Product[];
+  activeProduct: Product | null;
   draggingProductId: string | null;
   selectedPlacementId: string | null;
   onPlace: (params: {
@@ -38,6 +39,7 @@ export function ShelfGrid({
   wall,
   placements,
   products,
+  activeProduct,
   draggingProductId,
   selectedPlacementId,
   onPlace,
@@ -58,6 +60,7 @@ export function ShelfGrid({
   const draggingProduct = draggingProductId
     ? productMap.get(draggingProductId) ?? null
     : null;
+  const placementProduct = draggingProduct ?? activeProduct;
 
   const wallPlacements = useMemo(
     () => placements.filter((p) => p.wall === wall),
@@ -135,20 +138,26 @@ export function ShelfGrid({
     setHoverCell(null);
   }
 
+  /* ─── Non-shelf wall state ─── */
   if (wallConfig.wallType !== "shelves") {
     return (
-      <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-[var(--line)] p-12 text-center text-[var(--muted)]">
-        <div>
-          <p className="text-lg font-semibold">
-            {wallConfig.wallType === "branded-panel"
-              ? "Branded Panel"
-              : "Open Back"}
-          </p>
-          <p className="mt-2 text-sm">
-            {wallConfig.wallType === "branded-panel"
-              ? "This wall displays a branded graphic panel."
-              : "This wall is open for against-wall placement."}
-          </p>
+      <div className="flex flex-1 items-center justify-center rounded-xl border-2 border-dashed border-[var(--line)] p-12 text-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--surface-2)]">
+            <Layers className="h-5 w-5 text-[var(--muted)]" />
+          </div>
+          <div>
+            <p className="text-base font-semibold text-[var(--foreground)]">
+              {wallConfig.wallType === "branded-panel"
+                ? "Branded Panel"
+                : "Open Back"}
+            </p>
+            <p className="mt-1.5 text-sm text-[var(--muted)] max-w-xs">
+              {wallConfig.wallType === "branded-panel"
+                ? "This wall displays a branded graphic panel."
+                : "This wall is open for against-wall placement."}
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -157,14 +166,16 @@ export function ShelfGrid({
   return (
     <div
       className="flex flex-1 flex-col"
+      role="grid"
+      aria-label={`Shelf grid for ${wall} wall`}
       onClick={() => onSelectPlacement(null)}
     >
       {/* Column headers */}
-      <div className="mb-1 flex pl-14">
+      <div className="mb-2 flex pl-14" role="row" aria-hidden="true">
         {Array.from({ length: columns }).map((_, col) => (
           <div
             key={col}
-            className="flex-1 text-center text-xs font-medium text-[var(--muted)]"
+            className="flex-1 text-center text-[11px] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide"
           >
             Col {col + 1}
           </div>
@@ -172,29 +183,29 @@ export function ShelfGrid({
       </div>
 
       {/* Grid rows - top row = highest shelf number */}
-      <div className="flex flex-1 flex-col gap-1">
+      <div className="flex flex-1 flex-col gap-1.5">
         {Array.from({ length: rows }).map((_, visualRow) => {
           const shelfRow = rows - 1 - visualRow;
 
           return (
-            <div key={shelfRow} className="flex items-stretch gap-0">
+            <div key={shelfRow} className="flex items-stretch gap-0" role="row">
               {/* Row label */}
-              <div className="flex w-14 shrink-0 items-center justify-end pr-3 text-xs font-medium text-[var(--muted)]">
-                Row {shelfRow + 1}
+              <div className="flex w-14 shrink-0 items-center justify-end pr-3" role="rowheader">
+                <span className="text-[11px] font-semibold text-[var(--muted-foreground)] tabular-nums">
+                  Row {shelfRow + 1}
+                </span>
               </div>
 
               {/* Cells */}
-              <div className="flex flex-1 gap-0">
+              <div className="flex flex-1 gap-1">
                 {Array.from({ length: columns }).map((_, col) => {
                   const existingPlacement = getPlacementAt(shelfRow, col);
                   const existingProduct = existingPlacement
                     ? productMap.get(existingPlacement.productId)
                     : null;
 
-                  // Only render the placement block on its first column
                   const isPlacementStart =
                     existingPlacement && existingPlacement.gridCol === col;
-                  // Skip rendering on spanned columns (they're covered by the wide block)
                   const isSpannedCell =
                     existingPlacement && existingPlacement.gridCol !== col;
 
@@ -209,44 +220,62 @@ export function ShelfGrid({
 
                   if (isSpannedCell) return null;
 
+                  /* ─── Placed product cell ─── */
                   if (isPlacementStart && existingProduct) {
                     return (
                       <div
                         key={col}
+                        role="gridcell"
+                        aria-label={`${existingProduct.name}, row ${shelfRow + 1}, column ${col + 1}`}
                         className={cn(
-                          "relative flex min-h-[80px] cursor-pointer items-center gap-2 rounded-xl border-2 p-3 transition-colors",
+                          "relative flex min-h-[76px] cursor-pointer items-center gap-3 rounded-lg border-2 p-3 transition-all duration-150",
                           isSelected
-                            ? "border-[var(--primary)] ring-2 ring-[var(--primary)]/20"
-                            : "border-transparent hover:border-[var(--line-strong)]",
+                            ? "border-[var(--primary)] bg-[var(--primary-soft)] shadow-sm"
+                            : "border-transparent hover:border-[var(--line-strong)] hover:shadow-sm",
                         )}
                         onClick={(e) => {
                           e.stopPropagation();
                           onSelectPlacement(existingPlacement.id);
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onSelectPlacement(existingPlacement.id);
+                          }
+                          if (e.key === "Delete" || e.key === "Backspace") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onDeletePlacement(existingPlacement.id);
+                          }
+                        }}
+                        tabIndex={0}
                         style={{
                           flex: existingPlacement.colSpan,
-                          backgroundColor: existingProduct.color + "18",
+                          backgroundColor: isSelected
+                            ? undefined
+                            : existingProduct.color + "12",
                         }}
                       >
                         <div
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg shadow-sm"
                           style={{ backgroundColor: existingProduct.color }}
                         >
                           <Package2 className="h-4 w-4 text-white" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold leading-tight">
+                          <p className="truncate text-[13px] font-semibold text-[var(--foreground)] leading-tight">
                             {existingProduct.name}
                           </p>
-                          <p className="mt-0.5 truncate text-xs text-[var(--muted)]">
-                            {existingProduct.sku} - x
+                          <p className="mt-0.5 truncate text-[11px] font-medium text-[var(--muted)]">
+                            {existingProduct.sku} &middot; x
                             {existingPlacement.quantity}
                           </p>
                         </div>
                         {isSelected && (
                           <button
-                            aria-label="Remove placement"
-                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--danger)] text-white transition-colors hover:bg-[#853632]"
+                            aria-label={`Remove ${existingProduct.name}`}
+                            className="btn btn-danger btn-icon btn-sm shrink-0"
                             onClick={(e) => {
                               e.stopPropagation();
                               onDeletePlacement(existingPlacement.id);
@@ -260,25 +289,68 @@ export function ShelfGrid({
                     );
                   }
 
-                  // Empty cell - drop target
+                  /* ─── Empty cell — drop target ─── */
                   return (
                     <div
                       key={col}
+                      role="gridcell"
+                      aria-label={`Empty cell, row ${shelfRow + 1}, column ${col + 1}${activeProduct ? `, click to place ${activeProduct.name}` : ""}`}
                       className={cn(
-                        "flex min-h-[80px] flex-1 items-center justify-center rounded-xl border-2 border-dashed transition-colors",
+                        "flex min-h-[76px] flex-1 items-center justify-center rounded-lg border-2 border-dashed transition-all duration-150",
                         isHovered && hoverCell?.valid
-                          ? "border-[var(--success)] bg-[var(--success)]/8"
+                          ? "border-[var(--success)] bg-[var(--success-soft)]"
                           : isHovered && !hoverCell?.valid
-                            ? "border-[var(--danger)] bg-[var(--danger)]/8"
-                            : "border-[var(--line)] bg-white/40 hover:bg-white/60",
+                            ? "border-[var(--danger)] bg-[var(--danger-soft)]"
+                            : "border-[var(--line)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)] hover:border-[var(--line-strong)]",
+                        activeProduct && "cursor-copy",
                       )}
+                      tabIndex={activeProduct ? 0 : -1}
+                      onClick={(event) => {
+                        event.stopPropagation();
+
+                        if (!activeProduct) {
+                          return;
+                        }
+
+                        onPlace({
+                          wall,
+                          shelfRow,
+                          gridCol: col,
+                          product: activeProduct,
+                        });
+                      }}
+                      onKeyDown={(e) => {
+                        if (!activeProduct) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onPlace({
+                            wall,
+                            shelfRow,
+                            gridCol: col,
+                            product: activeProduct,
+                          });
+                        }
+                      }}
                       onDragLeave={() => setHoverCell(null)}
                       onDragOver={(e) => handleDragOver(e, shelfRow, col)}
                       onDrop={(e) => handleDrop(e, shelfRow, col)}
                     >
-                      {isHovered && draggingProduct && (
-                        <span className="text-xs font-medium text-[var(--muted)]">
+                      {isHovered && placementProduct && (
+                        <span
+                          className={cn(
+                            "text-[11px] font-semibold",
+                            hoverCell?.valid
+                              ? "text-[var(--success-fg)]"
+                              : "text-[var(--danger)]",
+                          )}
+                        >
                           {hoverCell?.valid ? "Drop here" : "Occupied"}
+                        </span>
+                      )}
+                      {!isHovered && activeProduct && !draggingProduct && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]/40">
+                          Place
                         </span>
                       )}
                     </div>
@@ -290,13 +362,15 @@ export function ShelfGrid({
         })}
       </div>
 
-      {/* Strip divider accent */}
-      <div className="mt-3 flex items-center gap-3 pl-14">
-        <div className="h-1 flex-1 rounded-full bg-[var(--primary)]/15" />
-        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--primary)]/50">
-          {wallConfig.stripText || "Shelf display"}
+      {/* Strip divider */}
+      <div className="mt-4 flex items-center gap-3 pl-14">
+        <div className="h-px flex-1 bg-[var(--line)]" />
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
+          {activeProduct
+            ? `Click open cells to place ${activeProduct.name}`
+            : wallConfig.stripText || "Shelf display"}
         </span>
-        <div className="h-1 flex-1 rounded-full bg-[var(--primary)]/15" />
+        <div className="h-px flex-1 bg-[var(--line)]" />
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { Package, Search } from "lucide-react";
 
 import { useProductStore } from "@/stores/useProductStore";
 import { ProductCard } from "@/components/catalog/ProductCard";
@@ -36,17 +37,25 @@ export function ProductCatalog() {
 
   return (
     <div className="flex flex-col gap-3">
-      <input
-        aria-label="Search products"
-        className="w-full rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm font-medium outline-none transition-all placeholder:text-slate-400 focus:border-[var(--primary)] focus:bg-white focus:shadow-md focus:shadow-[var(--primary)]/10"
-        onChange={(event) => setSearch(event.target.value)}
-        placeholder="Search SKU, name, or category"
-        value={search}
-      />
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)] pointer-events-none" />
+        <input
+          id="product-search"
+          aria-label="Search products"
+          className="input pl-9"
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search products..."
+          type="search"
+          value={search}
+        />
+      </div>
+
+      {/* Category filter */}
       {categories.length > 2 && (
         <select
           aria-label="Filter by category"
-          className="w-full rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm font-medium outline-none transition-all focus:border-[var(--primary)] focus:bg-white focus:shadow-md focus:shadow-[var(--primary)]/10"
+          className="input text-[13px]"
           onChange={(event) => setCategory(event.target.value)}
           value={category}
         >
@@ -58,21 +67,52 @@ export function ProductCatalog() {
         </select>
       )}
 
-      <div className="space-y-2">
+      {/* Product list */}
+      <div className="space-y-2" role="list" aria-label="Product catalog">
         {filteredProducts.map((product) => (
-          <ProductCard
-            active={activeProductId === product.id}
-            key={product.id}
-            onSelect={() => setActiveProduct(product.id)}
-            product={product}
-          />
+          <div key={product.id} role="listitem">
+            <ProductCard
+              active={activeProductId === product.id}
+              onSelect={() => setActiveProduct(product.id)}
+              product={product}
+            />
+          </div>
         ))}
 
         {filteredProducts.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-[var(--line)] px-4 py-6 text-center text-sm text-[var(--muted)]">
-            {products.length === 0
-              ? "Select a customer to load products."
-              : "No products match your search."}
+          <div className="flex flex-col items-center rounded-xl border border-dashed border-[var(--line-strong)] px-4 py-8 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--surface-2)] mb-3">
+              <Package className="h-5 w-5 text-[var(--muted)]" />
+            </div>
+            {products.length === 0 ? (
+              <>
+                <p className="text-sm font-medium text-[var(--foreground)]">
+                  No products loaded
+                </p>
+                <p className="mt-1 text-[13px] text-[var(--muted)]">
+                  Select a customer from the sidebar to load their products.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-[var(--foreground)]">
+                  No results found
+                </p>
+                <p className="mt-1 text-[13px] text-[var(--muted)]">
+                  Try a different search term or category.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm mt-3"
+                  onClick={() => {
+                    setSearch("");
+                    setCategory("all");
+                  }}
+                >
+                  Clear filters
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

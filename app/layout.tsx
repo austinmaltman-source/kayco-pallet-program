@@ -1,21 +1,17 @@
 import type { Metadata } from "next";
-import { Inter, Outfit } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
   subsets: ["latin"],
-});
-
-const outfit = Outfit({
-  variable: "--font-outfit",
-  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
-  title: "Kayco Pallet Builder",
+  title: "Kayco — Pallet Display Builder",
   description:
-    "3D concept workspace for designing full and half holiday pallet displays.",
+    "Design, visualize, and export holiday pallet displays for retail customers.",
 };
 
 export default function RootLayout({
@@ -26,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.variable} ${outfit.variable} antialiased`}
+        className={`${jakarta.variable} antialiased`}
         suppressHydrationWarning
       >
         {children}
