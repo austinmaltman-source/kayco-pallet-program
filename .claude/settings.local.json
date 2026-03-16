@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "WebSearch",
+      "Agent",
+      "Skill",
+      "mcp__pencil__*",
+      "mcp__claude_ai_Gamma__*",
+      "mcp__claude_ai_Vercel__*",
+      "mcp__claude_ai_Granola__*",
+      "Bash(# Copy all skills \\(except ui-ux-pro-max which has symlinks\\) and src data\ncp -r /tmp/ui-ux-pro-max-skill/.claude/skills \"C:/Users/clond/kayco-pallet-program/.claude/skills\" && cp -r /tmp/ui-ux-pro-max-skill/src \"C:/Users/clond/kayco-pallet-program/src/ui-ux-pro-max-skill-src\" 2>/dev/null; echo \"Done copying skills\")"
+    ]
+  }
+}
