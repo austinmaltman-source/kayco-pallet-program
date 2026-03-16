@@ -68,28 +68,29 @@ export function ProductsPage() {
 
   return (
     <DashboardLayout searchPlaceholder="Search by SKU, name or category...">
-      <div className="flex-1 overflow-y-auto p-6 lg:p-10">
+      <div className="flex-1 overflow-y-auto">
         {/* Page Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-2 text-xs text-muted mb-2">
+        <div className="px-6 lg:px-10 pt-8 pb-6 border-b border-[var(--line)] bg-surface-0">
+          <div className="flex items-center gap-2 text-xs text-muted mb-3">
             <span>Warehouse</span>
             <ChevronRight className="size-3" />
             <span className="text-foreground font-medium">Product Catalog</span>
           </div>
-          <div className="flex items-center justify-between">
+
+          <div className="flex items-end justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-black tracking-tight">
                 Product Catalog
               </h1>
               <p className="text-sm text-muted mt-1">
                 {activeCustomer
-                  ? `Manage products for ${activeCustomer.name}`
+                  ? `Showing products for ${activeCustomer.name}`
                   : "Select a customer to view products"}
               </p>
             </div>
             <Dialog.Root open={showAddModal} onOpenChange={setShowAddModal}>
               <Dialog.Trigger asChild>
-                <button className="btn btn-primary shadow-[var(--shadow-primary)]">
+                <button className="btn btn-primary">
                   <Plus className="size-4" /> Add Product
                 </button>
               </Dialog.Trigger>
@@ -101,14 +102,13 @@ export function ProductsPage() {
               />
             </Dialog.Root>
           </div>
-        </div>
 
-        {/* Filters Bar */}
-        <div className="bg-surface-0 border border-[var(--line)] rounded-xl p-4 mb-8 shadow-[var(--shadow-xs)]">
+          {/* Filters — inline in header */}
           <div className="flex flex-wrap items-center gap-3">
             <select
               aria-label="Select customer"
-              className="input !w-auto !min-w-[180px]"
+              className="h-10 px-3 border border-[var(--line-strong)] bg-surface-1 text-sm font-medium cursor-pointer rounded-lg appearance-none pr-8"
+              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center" }}
               value={selectedCustomerId ?? ""}
               onChange={(e) => handleCustomerChange(e.target.value)}
             >
@@ -121,7 +121,8 @@ export function ProductsPage() {
 
             <select
               aria-label="Filter by category"
-              className="input !w-auto !min-w-[160px]"
+              className="h-10 px-3 border border-[var(--line-strong)] bg-surface-1 text-sm font-medium cursor-pointer rounded-lg appearance-none pr-8"
+              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center" }}
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             >
@@ -132,83 +133,86 @@ export function ProductsPage() {
               ))}
             </select>
 
-            <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted pointer-events-none" />
               <input
-                className="input !pl-9"
+                className="h-10 pl-9 pr-4 w-64 border border-[var(--line-strong)] bg-surface-1 text-sm rounded-lg outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
                 placeholder="Search products..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
 
-            <div className="ml-auto text-sm text-muted tabular-nums">
-              <span className="font-semibold text-foreground">{filtered.length}</span>{" "}
-              of {products.length} products
-            </div>
+            <span className="ml-auto text-xs text-muted tabular-nums">
+              <span className="font-bold text-foreground">{filtered.length}</span> of{" "}
+              {products.length} products
+            </span>
           </div>
         </div>
 
         {/* Product Grid */}
-        {filtered.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
-            {filtered.map((product) => (
-              <Link
-                key={product.id}
-                href={`/products/${product.id}`}
-                className="card-elevated group hover:border-primary/40 hover:shadow-[var(--shadow-md)] transition-all duration-200 overflow-hidden"
-              >
-                {/* Product Preview */}
-                <div className="h-36 flex items-center justify-center relative scene-frame">
-                  <ProductMockup
-                    shape={product.packaging}
-                    color={product.color}
-                    artworkUrl={product.artworkUrl}
-                    name={product.name}
-                    size="sm"
-                  />
-                  <span className="badge badge-primary absolute top-3 right-3 text-[10px]">
-                    {product.category}
-                  </span>
-                </div>
-
-                {/* Product Info */}
-                <div className="p-4">
-                  <h3 className="font-bold text-sm leading-snug mb-1 truncate group-hover:text-primary transition-colors">
-                    {product.name}
-                  </h3>
-                  <p className="text-muted text-xs font-mono mb-3">
-                    {product.sku}
-                  </p>
-                  <div className="flex items-center justify-between pt-3 border-t border-[var(--line)]">
-                    {product.unitPrice != null ? (
-                      <span className="text-base font-black text-primary">
-                        ${product.unitPrice.toFixed(2)}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-muted">No price set</span>
-                    )}
-                    <span className="badge badge-muted text-[10px]">
-                      {product.holiday.replace("-", " ")}
+        <div className="px-6 lg:px-10 py-8">
+          {filtered.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+              {filtered.map((product) => (
+                <Link
+                  key={product.id}
+                  href={`/products/${product.id}`}
+                  className="bg-surface-0 border border-[var(--line)] rounded-2xl overflow-hidden group hover:shadow-[var(--shadow-lg)] hover:border-[var(--line-strong)] transition-all duration-200"
+                >
+                  {/* Product Preview */}
+                  <div className="aspect-[4/3] flex items-center justify-center relative bg-gradient-to-b from-surface-1 to-surface-2">
+                    <ProductMockup
+                      shape={product.packaging}
+                      color={product.color}
+                      artworkUrl={product.artworkUrl}
+                      name={product.name}
+                      size="sm"
+                    />
+                    <span className="absolute top-3 left-3 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-surface-0/90 text-muted rounded-md backdrop-blur-sm">
+                      {product.category}
                     </span>
                   </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="size-16 flex items-center justify-center bg-surface-2 mb-5 rounded-2xl">
-              <Package className="size-7 text-muted" />
+
+                  {/* Product Info */}
+                  <div className="px-4 pt-4 pb-5">
+                    <p className="text-[11px] font-mono text-muted mb-1 tracking-wide">
+                      {product.sku}
+                    </p>
+                    <h3 className="font-bold text-[15px] leading-snug truncate group-hover:text-primary transition-colors">
+                      {product.name}
+                    </h3>
+
+                    <div className="flex items-center justify-between mt-4">
+                      {product.unitPrice != null ? (
+                        <span className="text-lg font-black text-foreground">
+                          ${product.unitPrice.toFixed(2)}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted italic">No price</span>
+                      )}
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted bg-surface-2 px-2 py-1 rounded-md">
+                        {product.holiday.replace("-", " ")}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
             </div>
-            <p className="font-bold text-lg mb-1">No products found</p>
-            <p className="text-sm text-muted max-w-sm">
-              {products.length === 0
-                ? "Select a customer to load their product catalog."
-                : "Try adjusting your search or category filter."}
-            </p>
-          </div>
-        )}
+          ) : (
+            <div className="flex flex-col items-center justify-center py-32 text-center">
+              <div className="size-16 flex items-center justify-center bg-surface-2 mb-5 rounded-2xl">
+                <Package className="size-7 text-muted" />
+              </div>
+              <p className="font-bold text-lg mb-1">No products found</p>
+              <p className="text-sm text-muted max-w-xs">
+                {products.length === 0
+                  ? "Select a customer to load their product catalog."
+                  : "Try adjusting your search or category filter."}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </DashboardLayout>
   );
