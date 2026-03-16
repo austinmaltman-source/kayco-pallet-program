@@ -59,10 +59,10 @@ export function ProductDetailPage({ productId }: { productId: string }) {
 
   // Seed the product into the store on mount so updates have somewhere to go
   useEffect(() => {
-    if (baseResult) {
+    if (baseResult && !storeProduct) {
       upsertProduct({ ...baseResult.product });
     }
-  }, [productId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [baseResult, storeProduct, upsertProduct]);
 
   // Read live values from the store (falls back to base data before store is seeded)
   const product: Product | null = storeProduct ?? baseResult?.product ?? null;
