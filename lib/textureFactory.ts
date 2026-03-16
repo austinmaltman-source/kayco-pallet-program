@@ -9,17 +9,7 @@ const labelCache = new Map<string, CanvasTexture>();
  * Create a product label texture for the front face of 3D product boxes.
  * Cached by product ID to avoid re-creating canvases.
  */
-export function getProductLabelTexture(product: Product): CanvasTexture {
-  const cacheKey = `${product.id}-${product.color}`;
-  const cached = labelCache.get(cacheKey);
-  if (cached) return cached;
-
-  const size = 256;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d")!;
-
+function drawLabelContent(ctx: CanvasRenderingContext2D, product: Product, size: number) {
   // Background fill with product color
   ctx.fillStyle = product.color;
   ctx.fillRect(0, 0, size, size);
@@ -76,12 +66,56 @@ export function getProductLabelTexture(product: Product): CanvasTexture {
   ctx.font = `${18}px Arial, sans-serif`;
   ctx.fillStyle = "rgba(255,255,255,0.7)";
   ctx.fillText(product.sku, size / 2, textBlockY + lines.length * lineH + 8);
+}
+
+function drawArtworkLabel(ctx: CanvasRenderingContext2D, img: HTMLImageElement, product: Product, size: number) {
+  // Draw artwork image covering the full canvas
+  ctx.drawImage(img, 0, 0, size, size);
+
+  // Semi-transparent product color overlay at 15% opacity
+  ctx.globalAlpha = 0.15;
+  ctx.fillStyle = product.color;
+  ctx.fillRect(0, 0, size, size);
+  ctx.globalAlpha = 1;
+
+  // Thin white border
+  ctx.strokeStyle = "rgba(255,255,255,0.25)";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(8, 8, size - 16, size - 16);
+}
+
+export function getProductLabelTexture(product: Product): CanvasTexture {
+  const cacheKey = `${product.id}-${product.color}-${product.artworkUrl || ""}`;
+  const cached = labelCache.get(cacheKey);
+  if (cached) return cached;
+
+  const size = 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
 
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
   texture.minFilter = LinearFilter;
   texture.magFilter = LinearFilter;
-  texture.needsUpdate = true;
+
+  if (product.artworkUrl) {
+    // Draw placeholder label immediately
+    drawLabelContent(ctx, product, size);
+    texture.needsUpdate = true;
+
+    // Async load artwork image and update texture when ready
+    const img = new Image();
+    img.onload = () => {
+      drawArtworkLabel(ctx, img, product, size);
+      texture.needsUpdate = true;
+    };
+    img.src = product.artworkUrl;
+  } else {
+    drawLabelContent(ctx, product, size);
+    texture.needsUpdate = true;
+  }
 
   labelCache.set(cacheKey, texture);
   return texture;

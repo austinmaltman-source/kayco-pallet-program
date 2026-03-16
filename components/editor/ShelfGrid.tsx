@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
+import { useDroppable } from "@dnd-kit/core";
+import { motion, AnimatePresence } from "framer-motion";
 import { Layers, Package2, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -27,12 +29,48 @@ interface ShelfGridProps {
   onDeletePlacement: (id: string) => void;
 }
 
-interface HoverCell {
-  row: number;
-  col: number;
+/* ─── Droppable cell wrapper ─── */
+function DroppableCell({
+  id,
+  valid,
+  children,
+}: {
+  id: string;
   valid: boolean;
-  colSpan: number;
+  children: (isOver: boolean) => React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id,
+    data: { valid },
+  });
+
+  return (
+    <div ref={setNodeRef} className="flex flex-1">
+      {children(isOver)}
+    </div>
+  );
 }
+
+/* ─── Spring config for placed items ─── */
+const placedItemVariants = {
+  initial: { scale: 0.85, opacity: 0, y: 8 },
+  animate: {
+    scale: 1,
+    opacity: 1,
+    y: 0,
+    transition: {
+      type: "spring" as const,
+      stiffness: 400,
+      damping: 22,
+      mass: 0.8,
+    },
+  },
+  exit: {
+    scale: 0.85,
+    opacity: 0,
+    transition: { duration: 0.15, ease: "easeIn" as const },
+  },
+};
 
 export function ShelfGrid({
   pallet,
@@ -46,8 +84,6 @@ export function ShelfGrid({
   onSelectPlacement,
   onDeletePlacement,
 }: ShelfGridProps) {
-  const [hoverCell, setHoverCell] = useState<HoverCell | null>(null);
-
   const wallConfig = pallet.display.walls[wall];
   const columns = wallConfig.gridColumns;
   const rows = pallet.display.shelfRows;
@@ -60,7 +96,6 @@ export function ShelfGrid({
   const draggingProduct = draggingProductId
     ? productMap.get(draggingProductId) ?? null
     : null;
-  const placementProduct = draggingProduct ?? activeProduct;
 
   const wallPlacements = useMemo(
     () => placements.filter((p) => p.wall === wall),
@@ -79,64 +114,22 @@ export function ShelfGrid({
     [wallPlacements],
   );
 
-  function handleDragOver(
-    e: React.DragEvent,
-    row: number,
-    col: number,
-  ) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-
-    if (!draggingProduct) return;
-
-    const colSpan = getProductColSpan(draggingProduct, pallet, wall);
-    const clampedCol = Math.min(col, columns - colSpan);
-
-    const conflict = detectPlacementConflict(placements, {
-      wall,
-      shelfRow: row,
-      gridCol: clampedCol,
-      colSpan,
-    });
-
-    setHoverCell({
-      row,
-      col: clampedCol,
-      valid: !conflict,
-      colSpan,
-    });
-  }
-
-  function handleDrop(
-    e: React.DragEvent,
-    row: number,
-    col: number,
-  ) {
-    e.preventDefault();
-
-    if (!draggingProduct) return;
-
-    const colSpan = getProductColSpan(draggingProduct, pallet, wall);
-    const clampedCol = Math.min(col, columns - colSpan);
-
-    const conflict = detectPlacementConflict(placements, {
-      wall,
-      shelfRow: row,
-      gridCol: clampedCol,
-      colSpan,
-    });
-
-    if (!conflict) {
-      onPlace({
+  /** Check if a drop at (row, col) would be valid for the current dragging product */
+  const isCellValid = useCallback(
+    (row: number, col: number) => {
+      if (!draggingProduct) return true;
+      const colSpan = getProductColSpan(draggingProduct, pallet, wall);
+      const clampedCol = Math.min(col, columns - colSpan);
+      const conflict = detectPlacementConflict(placements, {
         wall,
         shelfRow: row,
         gridCol: clampedCol,
-        product: draggingProduct,
+        colSpan,
       });
-    }
-
-    setHoverCell(null);
-  }
+      return !conflict;
+    },
+    [draggingProduct, pallet, wall, columns, placements],
+  );
 
   /* ─── Non-shelf wall state ─── */
   if (wallConfig.wallType !== "shelves") {
@@ -198,164 +191,194 @@ export function ShelfGrid({
 
               {/* Cells */}
               <div className="flex flex-1 gap-1">
-                {Array.from({ length: columns }).map((_, col) => {
-                  const existingPlacement = getPlacementAt(shelfRow, col);
-                  const existingProduct = existingPlacement
-                    ? productMap.get(existingPlacement.productId)
-                    : null;
+                <AnimatePresence mode="popLayout">
+                  {Array.from({ length: columns }).map((_, col) => {
+                    const existingPlacement = getPlacementAt(shelfRow, col);
+                    const existingProduct = existingPlacement
+                      ? productMap.get(existingPlacement.productId)
+                      : null;
 
-                  const isPlacementStart =
-                    existingPlacement && existingPlacement.gridCol === col;
-                  const isSpannedCell =
-                    existingPlacement && existingPlacement.gridCol !== col;
+                    const isPlacementStart =
+                      existingPlacement && existingPlacement.gridCol === col;
+                    const isSpannedCell =
+                      existingPlacement && existingPlacement.gridCol !== col;
 
-                  const isHovered =
-                    hoverCell &&
-                    hoverCell.row === shelfRow &&
-                    col >= hoverCell.col &&
-                    col < hoverCell.col + hoverCell.colSpan;
+                    const isSelected =
+                      existingPlacement?.id === selectedPlacementId;
 
-                  const isSelected =
-                    existingPlacement?.id === selectedPlacementId;
+                    if (isSpannedCell) return null;
 
-                  if (isSpannedCell) return null;
-
-                  /* ─── Placed product cell ─── */
-                  if (isPlacementStart && existingProduct) {
-                    return (
-                      <div
-                        key={col}
-                        role="gridcell"
-                        aria-label={`${existingProduct.name}, row ${shelfRow + 1}, column ${col + 1}`}
-                        className={cn(
-                          "relative flex min-h-[76px] cursor-pointer items-center gap-3 rounded-lg border-2 p-3 transition-all duration-150",
-                          isSelected
-                            ? "border-[var(--primary)] bg-[var(--primary-soft)] shadow-sm"
-                            : "border-transparent hover:border-[var(--line-strong)] hover:shadow-sm",
-                        )}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSelectPlacement(existingPlacement.id);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
+                    /* ─── Placed product cell ─── */
+                    if (isPlacementStart && existingProduct) {
+                      return (
+                        <motion.div
+                          key={existingPlacement.id}
+                          variants={placedItemVariants}
+                          initial="initial"
+                          animate="animate"
+                          exit="exit"
+                          layout
+                          layoutId={existingPlacement.id}
+                          role="gridcell"
+                          aria-label={`${existingProduct.name}, row ${shelfRow + 1}, column ${col + 1}`}
+                          className={cn(
+                            "relative flex min-h-[76px] cursor-pointer items-center gap-3 rounded-lg border-2 p-3 transition-colors duration-150",
+                            isSelected
+                              ? "border-[var(--primary)] bg-[var(--primary-soft)] shadow-sm"
+                              : "border-transparent hover:border-[var(--line-strong)] hover:shadow-sm",
+                          )}
+                          onClick={(e) => {
                             e.stopPropagation();
                             onSelectPlacement(existingPlacement.id);
-                          }
-                          if (e.key === "Delete" || e.key === "Backspace") {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            onDeletePlacement(existingPlacement.id);
-                          }
-                        }}
-                        tabIndex={0}
-                        style={{
-                          flex: existingPlacement.colSpan,
-                          backgroundColor: isSelected
-                            ? undefined
-                            : existingProduct.color + "12",
-                        }}
-                      >
-                        <div
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg shadow-sm"
-                          style={{ backgroundColor: existingProduct.color }}
-                        >
-                          <Package2 className="h-4 w-4 text-white" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-semibold text-[var(--foreground)] leading-tight">
-                            {existingProduct.name}
-                          </p>
-                          <p className="mt-0.5 truncate text-[11px] font-medium text-[var(--muted)]">
-                            {existingProduct.sku} &middot; x
-                            {existingPlacement.quantity}
-                          </p>
-                        </div>
-                        {isSelected && (
-                          <button
-                            aria-label={`Remove ${existingProduct.name}`}
-                            className="btn btn-danger btn-icon btn-sm shrink-0"
-                            onClick={(e) => {
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              onSelectPlacement(existingPlacement.id);
+                            }
+                            if (e.key === "Delete" || e.key === "Backspace") {
+                              e.preventDefault();
                               e.stopPropagation();
                               onDeletePlacement(existingPlacement.id);
-                            }}
-                            type="button"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  }
-
-                  /* ─── Empty cell — drop target ─── */
-                  return (
-                    <div
-                      key={col}
-                      role="gridcell"
-                      aria-label={`Empty cell, row ${shelfRow + 1}, column ${col + 1}${activeProduct ? `, click to place ${activeProduct.name}` : ""}`}
-                      className={cn(
-                        "flex min-h-[76px] flex-1 items-center justify-center rounded-lg border-2 border-dashed transition-all duration-150",
-                        isHovered && hoverCell?.valid
-                          ? "border-[var(--success)] bg-[var(--success-soft)]"
-                          : isHovered && !hoverCell?.valid
-                            ? "border-[var(--danger)] bg-[var(--danger-soft)]"
-                            : "border-[var(--line)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)] hover:border-[var(--line-strong)]",
-                        activeProduct && "cursor-copy",
-                      )}
-                      tabIndex={activeProduct ? 0 : -1}
-                      onClick={(event) => {
-                        event.stopPropagation();
-
-                        if (!activeProduct) {
-                          return;
-                        }
-
-                        onPlace({
-                          wall,
-                          shelfRow,
-                          gridCol: col,
-                          product: activeProduct,
-                        });
-                      }}
-                      onKeyDown={(e) => {
-                        if (!activeProduct) return;
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onPlace({
-                            wall,
-                            shelfRow,
-                            gridCol: col,
-                            product: activeProduct,
-                          });
-                        }
-                      }}
-                      onDragLeave={() => setHoverCell(null)}
-                      onDragOver={(e) => handleDragOver(e, shelfRow, col)}
-                      onDrop={(e) => handleDrop(e, shelfRow, col)}
-                    >
-                      {isHovered && placementProduct && (
-                        <span
-                          className={cn(
-                            "text-[11px] font-semibold",
-                            hoverCell?.valid
-                              ? "text-[var(--success-fg)]"
-                              : "text-[var(--danger)]",
-                          )}
+                            }
+                          }}
+                          tabIndex={0}
+                          style={{
+                            flex: existingPlacement.colSpan,
+                            backgroundColor: isSelected
+                              ? undefined
+                              : existingProduct.color + "12",
+                          }}
                         >
-                          {hoverCell?.valid ? "Drop here" : "Occupied"}
-                        </span>
-                      )}
-                      {!isHovered && activeProduct && !draggingProduct && (
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]/40">
-                          Place
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
+                          <div
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg shadow-sm"
+                            style={{ backgroundColor: existingProduct.color }}
+                          >
+                            <Package2 className="h-4 w-4 text-white" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[13px] font-semibold text-[var(--foreground)] leading-tight">
+                              {existingProduct.name}
+                            </p>
+                            <p className="mt-0.5 truncate text-[11px] font-medium text-[var(--muted)]">
+                              {existingProduct.sku} &middot; x
+                              {existingPlacement.quantity}
+                            </p>
+                          </div>
+                          <AnimatePresence>
+                            {isSelected && (
+                              <motion.button
+                                initial={{ scale: 0.5, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.5, opacity: 0 }}
+                                transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                                aria-label={`Remove ${existingProduct.name}`}
+                                className="btn btn-danger btn-icon btn-sm shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDeletePlacement(existingPlacement.id);
+                                }}
+                                type="button"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </motion.button>
+                            )}
+                          </AnimatePresence>
+                        </motion.div>
+                      );
+                    }
+
+                    /* ─── Empty cell — droppable target ─── */
+                    const cellId = `cell-${wall}-${shelfRow}-${col}`;
+                    const valid = isCellValid(shelfRow, col);
+
+                    return (
+                      <DroppableCell key={col} id={cellId} valid={valid}>
+                        {(isOver) => (
+                          <div
+                            role="gridcell"
+                            aria-label={`Empty cell, row ${shelfRow + 1}, column ${col + 1}${activeProduct ? `, click to place ${activeProduct.name}` : ""}`}
+                            className={cn(
+                              "flex min-h-[76px] flex-1 items-center justify-center rounded-lg border-2 border-dashed transition-all duration-200",
+                              isOver && valid
+                                ? "border-[var(--success)] bg-[var(--success-soft)] scale-[1.02] shadow-md"
+                                : isOver && !valid
+                                  ? "border-[var(--danger)] bg-[var(--danger-soft)] scale-[0.98]"
+                                  : draggingProduct
+                                    ? "border-[var(--line-strong)] bg-[var(--surface-1)]/80 border-solid"
+                                    : "border-[var(--line)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)] hover:border-[var(--line-strong)]",
+                              activeProduct && !draggingProduct && "cursor-copy",
+                            )}
+                            tabIndex={activeProduct ? 0 : -1}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (!activeProduct) return;
+                              onPlace({
+                                wall,
+                                shelfRow,
+                                gridCol: col,
+                                product: activeProduct,
+                              });
+                            }}
+                            onKeyDown={(e) => {
+                              if (!activeProduct) return;
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onPlace({
+                                  wall,
+                                  shelfRow,
+                                  gridCol: col,
+                                  product: activeProduct,
+                                });
+                              }
+                            }}
+                          >
+                            <AnimatePresence mode="wait">
+                              {isOver && draggingProduct && (
+                                <motion.span
+                                  key="hover-label"
+                                  initial={{ opacity: 0, y: 4 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -4 }}
+                                  transition={{ duration: 0.15 }}
+                                  className={cn(
+                                    "text-[11px] font-semibold",
+                                    valid
+                                      ? "text-[var(--success-fg)]"
+                                      : "text-[var(--danger)]",
+                                  )}
+                                >
+                                  {valid ? "Drop here" : "Occupied"}
+                                </motion.span>
+                              )}
+                              {!isOver && activeProduct && !draggingProduct && (
+                                <motion.span
+                                  key="place-label"
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 0.4 }}
+                                  className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted-foreground)]"
+                                >
+                                  Place
+                                </motion.span>
+                              )}
+                              {!isOver && draggingProduct && (
+                                <motion.div
+                                  key="drop-indicator"
+                                  initial={{ opacity: 0, scale: 0.5 }}
+                                  animate={{ opacity: 0.3, scale: 1 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="h-2.5 w-2.5 rounded-full bg-[var(--muted-foreground)]"
+                                />
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        )}
+                      </DroppableCell>
+                    );
+                  })}
+                </AnimatePresence>
               </div>
             </div>
           );

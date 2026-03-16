@@ -17,6 +17,8 @@ interface ProductStore {
   importProducts: (products: Product[]) => void;
   replaceProducts: (products: Product[]) => void;
   removeProduct: (id: string) => void;
+  updateProduct: (id: string, updates: Partial<Product>) => void;
+  upsertProduct: (product: Product) => void;
 }
 
 export const useProductStore = create<ProductStore>()(
@@ -60,6 +62,22 @@ export const useProductStore = create<ProductStore>()(
 
         if (state.activeProductId === id) {
           state.activeProductId = null;
+        }
+      }),
+    updateProduct: (id, updates) =>
+      set((state) => {
+        const idx = state.products.findIndex((p) => p.id === id);
+        if (idx !== -1) {
+          Object.assign(state.products[idx], updates);
+        }
+      }),
+    upsertProduct: (product: Product) =>
+      set((state) => {
+        const idx = state.products.findIndex((p) => p.id === product.id);
+        if (idx === -1) {
+          state.products.push(product);
+        } else {
+          Object.assign(state.products[idx], product);
         }
       }),
   })),

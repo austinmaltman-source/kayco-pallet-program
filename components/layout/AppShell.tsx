@@ -17,7 +17,6 @@ import {
   Package,
   PanelLeftClose,
   PanelLeftOpen,
-  PanelRight,
   Plus,
   Redo2,
   Save,
@@ -33,6 +32,7 @@ import * as Tooltip from "@radix-ui/react-tooltip";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ProductCatalog } from "@/components/catalog/ProductCatalog";
 import { ShelfGrid } from "@/components/editor/ShelfGrid";
+import { DndProvider, parseCellId } from "@/components/editor/DndProvider";
 import { CUSTOMERS, getCustomerById } from "@/lib/customers";
 import { WALL_FACES, WALL_LABELS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -320,85 +320,43 @@ function ExportDropdown({
   );
 }
 
-/* ─── Product drawer ─── */
-function ProductDrawer({
-  open,
+/* ─── Product panel ─── */
+function ProductPanel({
   onClose,
   productCount,
 }: {
-  open: boolean;
   onClose: () => void;
   productCount: number;
 }) {
-  const drawerRef = useRef<HTMLDivElement>(null);
-
-  // Close on Escape
-  useEffect(() => {
-    if (!open) return;
-
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    }
-
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [open, onClose]);
-
   return (
-    <>
-      {/* Scrim */}
-      <div
-        className={cn(
-          "absolute inset-0 z-30 bg-black/20 transition-opacity duration-200",
-          open
-            ? "pointer-events-auto opacity-100"
-            : "pointer-events-none opacity-0",
-        )}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-
-      {/* Drawer panel */}
-      <div
-        ref={drawerRef}
-        role="dialog"
-        aria-label="Product catalog"
-        aria-modal={open}
-        className={cn(
-          "absolute left-0 top-0 bottom-0 z-40 flex w-[320px] flex-col bg-[var(--surface-0)] shadow-xl border-r border-[var(--line)] transition-transform duration-250 ease-[cubic-bezier(0.16,1,0.3,1)]",
-          open ? "translate-x-0" : "-translate-x-full",
-        )}
-      >
-        {/* Drawer header */}
-        <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-[var(--line)] px-5">
-          <div className="flex items-center gap-2.5">
-            <Package className="h-4 w-4 text-[var(--muted)]" />
-            <h2 className="text-[13px] font-semibold text-[var(--foreground)]">
-              Products
-            </h2>
-            <span className="badge badge-muted text-[10px]">
-              {productCount}
-            </span>
-          </div>
-          <button
-            type="button"
-            className="btn btn-ghost btn-icon btn-sm"
-            onClick={onClose}
-            aria-label="Close product drawer"
-          >
-            <X className="h-4 w-4" />
-          </button>
+    <aside
+      aria-label="Product catalog"
+      className="flex min-h-[320px] w-full shrink-0 flex-col overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface-0)] shadow-sm lg:min-h-0 lg:w-[380px] lg:min-w-[380px] xl:w-[440px] xl:min-w-[440px]"
+    >
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--line)] px-5">
+        <div className="flex items-center gap-2.5">
+          <Package className="h-4 w-4 text-[var(--muted)]" />
+          <h2 className="text-[13px] font-semibold text-[var(--foreground)]">
+            Products
+          </h2>
+          <span className="badge badge-muted text-[10px]">
+            {productCount}
+          </span>
         </div>
-
-        {/* Drawer body */}
-        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-          <ProductCatalog />
-        </div>
+        <button
+          type="button"
+          className="btn btn-ghost btn-icon btn-sm"
+          onClick={onClose}
+          aria-label="Hide products panel"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
-    </>
+
+      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+        <ProductCatalog />
+      </div>
+    </aside>
   );
 }
 
@@ -455,7 +413,7 @@ export function AppShell() {
     "editor",
   );
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(true);
 
   // Escape exits fullscreen
   useEffect(() => {
@@ -542,6 +500,34 @@ export function AppShell() {
     },
   });
 
+  /* ─── dnd-kit drop handler ─── */
+  const handleDndDrop = useCallback(
+    (productId: string, droppableId: string) => {
+      const cell = parseCellId(droppableId);
+      if (!cell) return;
+      const product = products.find((p) => p.id === productId);
+      if (!product) return;
+
+      const result = placeProduct({
+        pallet,
+        product,
+        wall: cell.wall as import("@/types/pallet").WallFace,
+        shelfRow: cell.row,
+        gridCol: cell.col,
+      });
+
+      if (!result.ok) {
+        status.show(result.reason ?? "Unable to place product there.");
+        return;
+      }
+
+      status.show(
+        `Placed ${product.name} on ${WALL_LABELS[cell.wall as keyof typeof WALL_LABELS]} wall.`,
+      );
+    },
+    [pallet, placeProduct, products, status],
+  );
+
   const totalPlacements = placements.length;
 
   // Compute weight and stack height for the status bar
@@ -571,29 +557,25 @@ export function AppShell() {
   function renderEditor() {
     return (
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* Product drawer (slides from left inside the editor area) */}
-        <ProductDrawer
-          open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          productCount={products.length}
-        />
-
         {/* Editor toolbar */}
         <div className="relative z-20 flex min-w-0 items-center justify-between border-b border-[var(--line)] bg-[var(--surface-0)] px-5 py-2">
           <div className="flex items-center gap-2">
-            {/* Product drawer toggle */}
-            <Tip label="Products panel">
+            <Tip label={drawerOpen ? "Hide products panel" : "Show products panel"}>
               <button
                 type="button"
-                aria-label="Toggle product drawer"
-                aria-expanded={drawerOpen}
+                aria-label={drawerOpen ? "Hide products panel" : "Show products panel"}
+                aria-pressed={drawerOpen}
                 className={cn(
                   "btn btn-icon btn-sm",
                   drawerOpen ? "btn-primary" : "btn-ghost",
                 )}
                 onClick={() => setDrawerOpen(!drawerOpen)}
               >
-                <PanelRight className="h-4 w-4" />
+                {drawerOpen ? (
+                  <PanelLeftClose className="h-4 w-4" />
+                ) : (
+                  <PanelLeftOpen className="h-4 w-4" />
+                )}
               </button>
             </Tip>
 
@@ -721,51 +703,64 @@ export function AppShell() {
         </div>
 
         {/* Canvas area */}
-        <div className="min-w-0 flex-1 overflow-auto bg-[var(--surface-1)] p-4">
-          {viewMode === "2d" ? (
-            <div className="h-full border border-[var(--line)] bg-[var(--surface-0)] p-5 shadow-sm">
-              <ShelfGrid
-                activeProduct={activeProduct}
-                draggingProductId={draggingProductId}
-                onDeletePlacement={(id) => {
-                  removePlacement(id);
-                  selectPlacement(null);
-                  status.show("Removed placement.");
-                }}
-                onPlace={({ wall, shelfRow, gridCol, product }) => {
-                  const result = placeProduct({
-                    pallet,
-                    product,
-                    wall,
-                    shelfRow,
-                    gridCol,
-                  });
+        <DndProvider products={products} onDrop={handleDndDrop}>
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden bg-[var(--surface-1)] p-4">
+            <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 lg:flex-row">
+              {drawerOpen && (
+                <ProductPanel
+                  onClose={() => setDrawerOpen(false)}
+                  productCount={products.length}
+                />
+              )}
 
-                  if (!result.ok) {
-                    status.show(
-                      result.reason ?? "Unable to place product there.",
-                    );
-                    return;
-                  }
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                {viewMode === "2d" ? (
+                  <div className="h-full min-h-[400px] min-w-0 rounded-xl border border-[var(--line)] bg-[var(--surface-0)] p-5 shadow-sm">
+                    <ShelfGrid
+                      activeProduct={activeProduct}
+                      draggingProductId={draggingProductId}
+                      onDeletePlacement={(id) => {
+                        removePlacement(id);
+                        selectPlacement(null);
+                        status.show("Removed placement.");
+                      }}
+                      onPlace={({ wall, shelfRow, gridCol, product }) => {
+                        const result = placeProduct({
+                          pallet,
+                          product,
+                          wall,
+                          shelfRow,
+                          gridCol,
+                        });
 
-                  status.show(
-                    `Placed ${product.name} on ${WALL_LABELS[wall]} wall.`,
-                  );
-                }}
-                onSelectPlacement={selectPlacement}
-                pallet={pallet}
-                placements={placements}
-                products={products}
-                selectedPlacementId={selectedPlacementId}
-                wall={selectedWall}
-              />
+                        if (!result.ok) {
+                          status.show(
+                            result.reason ?? "Unable to place product there.",
+                          );
+                          return;
+                        }
+
+                        status.show(
+                          `Placed ${product.name} on ${WALL_LABELS[wall]} wall.`,
+                        );
+                      }}
+                      onSelectPlacement={selectPlacement}
+                      pallet={pallet}
+                      placements={placements}
+                      products={products}
+                      selectedPlacementId={selectedPlacementId}
+                      wall={selectedWall}
+                    />
+                  </div>
+                ) : (
+                  <div className="h-full min-h-[400px] min-w-0 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface-0)] shadow-sm">
+                    <Scene3DView />
+                  </div>
+                )}
+              </div>
             </div>
-          ) : (
-            <div className="h-full min-h-[400px] min-w-0 overflow-hidden border border-[var(--line)] bg-[var(--surface-0)] shadow-sm">
-              <Scene3DView />
-            </div>
-          )}
-        </div>
+          </div>
+        </DndProvider>
 
         {/* Bottom Status Bar */}
         <div className="h-16 flex items-center justify-between px-8 bg-[var(--surface-0)] border-t border-[var(--line)] z-10 shrink-0">

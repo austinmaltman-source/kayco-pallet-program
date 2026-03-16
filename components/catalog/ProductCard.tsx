@@ -1,9 +1,11 @@
 "use client";
 
-import { useRef } from "react";
-import { GripVertical, Package2 } from "lucide-react";
+import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { ProductMockup } from "@/components/ui/ProductMockup";
 import { useUIStore } from "@/stores/useUIStore";
 import type { Product } from "@/types/product";
 
@@ -16,35 +18,40 @@ export function ProductCard({
   product: Product;
   onSelect: () => void;
 }) {
-  const setDraggingProductId = useUIStore(
-    (state) => state.setDraggingProductId,
-  );
-  const isDragging = useRef(false);
+  const draggingProductId = useUIStore((s) => s.draggingProductId);
+  const isDragging = draggingProductId === product.id;
+
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform } =
+    useDraggable({
+      id: `product-${product.id}`,
+      data: { productId: product.id },
+    });
+
+  const style = transform
+    ? {
+        transform: CSS.Translate.toString(transform),
+      }
+    : undefined;
 
   return (
     <div
+      ref={setNodeRef}
+      style={style}
       className={cn(
         "group relative rounded-xl border transition-all duration-200",
-        active
-          ? "border-[var(--primary)] bg-[var(--primary-soft)] shadow-sm ring-1 ring-[var(--primary)]/15"
-          : "border-[var(--line)] bg-[var(--surface-0)] hover:border-[var(--line-strong)] hover:shadow-sm",
+        isDragging
+          ? "border-[var(--primary)]/40 bg-[var(--primary-soft)]/50 opacity-50 scale-[0.97] shadow-none"
+          : active
+            ? "border-[var(--primary)] bg-[var(--primary-soft)] shadow-sm ring-1 ring-[var(--primary)]/15"
+            : "border-[var(--line)] bg-[var(--surface-0)] hover:border-[var(--line-strong)] hover:shadow-sm",
       )}
     >
-      {/* Drag handle — separate from click area */}
+      {/* Drag handle — activator */}
       <div
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
         className="absolute left-0 top-0 bottom-0 flex w-7 cursor-grab items-center justify-center rounded-l-xl opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
-        draggable
-        onDragStart={(event) => {
-          isDragging.current = true;
-          event.dataTransfer.setData("text/plain", product.id);
-          event.dataTransfer.effectAllowed = "copy";
-          setDraggingProductId(product.id);
-          onSelect();
-        }}
-        onDragEnd={() => {
-          isDragging.current = false;
-          setDraggingProductId(null);
-        }}
         aria-hidden="true"
       >
         <GripVertical className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
@@ -59,11 +66,14 @@ export function ProductCard({
         onClick={onSelect}
       >
         <div className="flex items-center gap-3">
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg shadow-sm transition-transform duration-200 group-hover:scale-[1.03]"
-            style={{ backgroundColor: product.color }}
-          >
-            <Package2 className="h-[18px] w-[18px] text-white" />
+          <div className="shrink-0 transition-transform duration-200 group-hover:scale-[1.03]">
+            <ProductMockup
+              shape={product.packaging}
+              color={product.color}
+              artworkUrl={product.artworkUrl}
+              name={product.name}
+              size="sm"
+            />
           </div>
 
           <div className="min-w-0 flex-1">

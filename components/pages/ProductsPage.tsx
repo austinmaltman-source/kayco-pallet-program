@@ -1,28 +1,40 @@
 "use client";
 
-import { useMemo } from "react";
-import { ChevronRight, Package, Plus, Search } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ChevronRight, Package, Plus, Search, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { ProductMockup } from "@/components/ui/ProductMockup";
 import { useProductStore } from "@/stores/useProductStore";
 import { useUIStore } from "@/stores/useUIStore";
 import { CUSTOMERS, getCustomerById } from "@/lib/customers";
-import { cn } from "@/lib/utils";
-import type { Product } from "@/types/product";
+import type { Product, HolidayType, PackagingShape } from "@/types/product";
+
+const HOLIDAYS: HolidayType[] = [
+  "christmas",
+  "hanukkah",
+  "passover",
+  "rosh-hashanah",
+  "everyday",
+];
 
 export function ProductsPage() {
+  const router = useRouter();
   const products = useProductStore((s) => s.products);
   const search = useProductStore((s) => s.search);
   const category = useProductStore((s) => s.category);
   const setSearch = useProductStore((s) => s.setSearch);
   const setCategory = useProductStore((s) => s.setCategory);
   const replaceProducts = useProductStore((s) => s.replaceProducts);
+  const addProduct = useProductStore((s) => s.addProduct);
 
   const selectedCustomerId = useUIStore((s) => s.selectedCustomerId);
   const setSelectedCustomerId = useUIStore((s) => s.setSelectedCustomerId);
 
   const activeCustomer = getCustomerById(selectedCustomerId);
 
-  // Load customer products if store is empty
+  const [showAddModal, setShowAddModal] = useState(false);
+
   useMemo(() => {
     if (products.length === 0 && activeCustomer) {
       replaceProducts(activeCustomer.products);
@@ -68,7 +80,6 @@ export function ProductsPage() {
           {/* Filters row */}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
-              {/* Customer selector */}
               <select
                 className="px-4 py-1.5 border border-[var(--line-strong)] bg-surface-0 text-sm font-medium cursor-pointer rounded-lg"
                 value={selectedCustomerId ?? ""}
@@ -81,7 +92,6 @@ export function ProductsPage() {
                 ))}
               </select>
 
-              {/* Category filter */}
               <select
                 className="px-4 py-1.5 border border-[var(--line-strong)] bg-surface-0 text-sm font-medium cursor-pointer rounded-lg"
                 value={category}
@@ -94,7 +104,6 @@ export function ProductsPage() {
                 ))}
               </select>
 
-              {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted pointer-events-none" />
                 <input
@@ -110,14 +119,58 @@ export function ProductsPage() {
                 Showing {filtered.length} of {products.length} products
               </span>
             </div>
+
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-5 py-1.5 bg-primary text-white font-bold text-sm uppercase hover:bg-primary-hover cursor-pointer rounded-xl flex items-center gap-1.5"
+            >
+              <Plus className="size-4" /> Add Product
+            </button>
           </div>
         </div>
 
-        {/* Product Grid */}
+        {/* Product Grid — compact cards, more columns */}
         {filtered.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
             {filtered.map((product) => (
-              <ProductGridCard key={product.id} product={product} />
+              <div
+                key={product.id}
+                onClick={() => router.push(`/products/${product.id}`)}
+                className="bg-surface-0 border border-[var(--line-strong)] group hover:border-primary transition-colors cursor-pointer rounded-xl overflow-hidden"
+              >
+                {/* Compact color bar */}
+                <div className="h-24 flex items-center justify-center relative bg-surface-1">
+                  <ProductMockup
+                    shape={product.packaging}
+                    color={product.color}
+                    artworkUrl={product.artworkUrl}
+                    name={product.name}
+                    size="sm"
+                  />
+                  <span className="absolute top-1.5 right-1.5 text-[9px] font-bold uppercase px-1.5 py-0.5 bg-primary text-white rounded">
+                    {product.category}
+                  </span>
+                </div>
+
+                <div className="p-3">
+                  <h3 className="font-bold text-sm leading-tight mb-0.5 truncate">
+                    {product.name}
+                  </h3>
+                  <p className="text-muted text-[10px] font-mono mb-2">
+                    {product.sku}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    {product.unitPrice != null && (
+                      <span className="text-sm font-bold text-primary">
+                        ${product.unitPrice.toFixed(2)}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-muted uppercase font-bold">
+                      {product.holiday.replace("-", " ")}
+                    </span>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         ) : (
@@ -134,83 +187,251 @@ export function ProductsPage() {
           </div>
         )}
       </div>
+
+      {/* Add Product Modal */}
+      {showAddModal && (
+        <AddProductModal
+          onClose={() => setShowAddModal(false)}
+          onAdd={(product) => {
+            addProduct(product);
+            setShowAddModal(false);
+          }}
+        />
+      )}
     </DashboardLayout>
   );
 }
 
-function ProductGridCard({ product }: { product: Product }) {
-  const dim = product.dimensions;
+function AddProductModal({
+  onClose,
+  onAdd,
+}: {
+  onClose: () => void;
+  onAdd: (product: Product) => void;
+}) {
+  const [name, setName] = useState("");
+  const [sku, setSku] = useState("");
+  const [cat, setCat] = useState("Candy");
+  const [holiday, setHoliday] = useState<HolidayType>("everyday");
+  const [packaging, setPackaging] = useState<PackagingShape>("box");
+  const [width, setWidth] = useState("6");
+  const [height, setHeight] = useState("8");
+  const [depth, setDepth] = useState("4");
+  const [color, setColor] = useState("#ec5b13");
+  const [unitPrice, setUnitPrice] = useState("");
+  const [unitsPerCase, setUnitsPerCase] = useState("");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !sku.trim()) return;
+
+    const product: Product = {
+      id: `custom-${Date.now()}`,
+      sku: sku.trim(),
+      name: name.trim(),
+      category: cat,
+      holiday,
+      dimensions: {
+        width: Number(width) || 6,
+        height: Number(height) || 8,
+        depth: Number(depth) || 4,
+      },
+      color,
+      packaging,
+      ...(unitPrice ? { unitPrice: Number(unitPrice) } : {}),
+      ...(unitsPerCase ? { unitsPerCase: Number(unitsPerCase) } : {}),
+    };
+    onAdd(product);
+  }
 
   return (
-    <div className="bg-surface-0 border border-[var(--line-strong)] group hover:border-primary transition-colors cursor-pointer rounded-2xl overflow-hidden">
-      {/* Color swatch / image area */}
-      <div className="aspect-[4/3] overflow-hidden relative flex items-center justify-center"
-        style={{ backgroundColor: product.color + "18" }}
-      >
-        <div
-          className="size-16 flex items-center justify-center rounded-2xl"
-          style={{ backgroundColor: product.color }}
-        >
-          <Package className="size-7 text-white" />
+    <div
+      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-surface-0 border border-[var(--line-strong)] rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line-strong)]">
+          <h3 className="text-lg font-black uppercase tracking-tight">
+            Add Product
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-muted hover:text-foreground cursor-pointer"
+          >
+            <X className="size-5" />
+          </button>
         </div>
-        <div className="absolute top-2 left-2">
-          <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-surface-0 border border-[var(--line)] text-muted rounded-md">
-            {product.holiday}
-          </span>
-        </div>
-        <div className="absolute top-2 right-2">
-          <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-primary text-white rounded-md">
-            {product.category}
-          </span>
-        </div>
-      </div>
 
-      <div className="p-4">
-        <h3 className="font-bold text-base mb-1">{product.name}</h3>
-        <p className="text-muted text-xs mb-4">SKU: {product.sku}</p>
-
-        <div className="grid grid-cols-2 gap-y-3 gap-x-2 border-t border-[var(--line)] pt-4">
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase text-muted font-semibold">
-              Dimensions
-            </span>
-            <span className="text-sm font-medium">
-              {dim.width}" x {dim.height}" x {dim.depth}"
-            </span>
-          </div>
-          {product.unitPrice != null && (
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase text-muted font-semibold">
-                Unit Price
-              </span>
-              <span className="text-sm font-bold text-primary">
-                ${product.unitPrice.toFixed(2)}
-              </span>
-            </div>
-          )}
-          {product.unitsPerCase != null && (
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase text-muted font-semibold">
-                Units/Case
-              </span>
-              <span className="text-sm font-medium">
-                {product.unitsPerCase}
-              </span>
-            </div>
-          )}
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase text-muted font-semibold">
-              Color
-            </span>
-            <div className="flex items-center gap-2">
-              <div
-                className="size-4 border border-[var(--line)] rounded"
-                style={{ backgroundColor: product.color }}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Name + SKU */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+                Name *
+              </label>
+              <input
+                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
               />
-              <span className="text-sm font-medium">{product.color}</span>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+                SKU *
+              </label>
+              <input
+                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm font-mono rounded-lg"
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                required
+              />
             </div>
           </div>
-        </div>
+
+          {/* Category + Holiday */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+                Category
+              </label>
+              <input
+                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                value={cat}
+                onChange={(e) => setCat(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+                Holiday
+              </label>
+              <select
+                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm cursor-pointer rounded-lg"
+                value={holiday}
+                onChange={(e) => setHoliday(e.target.value as HolidayType)}
+              >
+                {HOLIDAYS.map((h) => (
+                  <option key={h} value={h}>
+                    {h.replace("-", " ")}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Packaging Shape */}
+          <div>
+            <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              Packaging Shape
+            </label>
+            <div className="flex gap-2">
+              {(["box", "bottle", "jar", "bag", "tin", "pouch"] as PackagingShape[]).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setPackaging(s)}
+                  className={`px-3 py-1.5 text-xs font-bold uppercase rounded-lg border cursor-pointer transition-colors ${
+                    packaging === s
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-[var(--line-strong)] hover:border-primary/50"
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Dimensions */}
+          <div>
+            <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              Dimensions (W x H x D inches)
+            </label>
+            <div className="grid grid-cols-3 gap-3">
+              <input
+                type="number"
+                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                placeholder="Width"
+                value={width}
+                onChange={(e) => setWidth(e.target.value)}
+              />
+              <input
+                type="number"
+                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                placeholder="Height"
+                value={height}
+                onChange={(e) => setHeight(e.target.value)}
+              />
+              <input
+                type="number"
+                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                placeholder="Depth"
+                value={depth}
+                onChange={(e) => setDepth(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Price + Units + Color */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+                Unit Price
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                placeholder="0.00"
+                value={unitPrice}
+                onChange={(e) => setUnitPrice(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+                Units/Case
+              </label>
+              <input
+                type="number"
+                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                placeholder="12"
+                value={unitsPerCase}
+                onChange={(e) => setUnitsPerCase(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+                Color
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  className="size-9 border border-[var(--line-strong)] rounded-lg cursor-pointer p-0.5"
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                />
+                <span className="text-xs font-mono text-muted">{color}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Submit */}
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2 border border-[var(--line-strong)] font-bold text-sm uppercase hover:bg-surface-1 cursor-pointer rounded-xl"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 bg-primary text-white font-bold text-sm uppercase hover:bg-primary-hover cursor-pointer rounded-xl"
+            >
+              Add Product
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

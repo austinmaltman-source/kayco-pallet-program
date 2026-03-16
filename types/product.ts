@@ -5,6 +5,8 @@ export type HolidayType =
   | "rosh-hashanah"
   | "everyday";
 
+export type PackagingShape = "box" | "bottle" | "jar" | "bag" | "tin" | "pouch";
+
 export interface Product {
   id: string;
   sku: string;
@@ -22,4 +24,6 @@ export interface Product {
   unitCost?: number;
   unitPrice?: number;
   unitsPerCase?: number;
+  packaging?: PackagingShape;
+  artworkUrl?: string;
 }
