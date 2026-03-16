@@ -25,7 +25,7 @@ export function ProductForm({
 
   return (
     <form
-      className="space-y-3 rounded-3xl border border-[var(--line)] bg-white/65 p-4"
+      className="space-y-3 rounded-xl border border-[var(--line-strong)] bg-[var(--surface-0)] p-4"
       onSubmit={(event) => {
         event.preventDefault();
 
@@ -58,7 +58,7 @@ export function ProductForm({
             SKU
           </span>
           <input
-            className="w-full rounded-2xl border border-[var(--line)] bg-white px-3 py-2.5 outline-none transition-colors focus:border-[var(--primary)]"
+            className="w-full rounded-xl border border-[var(--line-strong)] bg-[var(--surface-0)] px-3 py-2.5 outline-none transition-colors focus:border-[var(--primary)]"
             onChange={(event) => setDraft((current) => ({ ...current, sku: event.target.value }))}
             value={draft.sku}
           />
@@ -68,7 +68,7 @@ export function ProductForm({
             Category
           </span>
           <input
-            className="w-full rounded-2xl border border-[var(--line)] bg-white px-3 py-2.5 outline-none transition-colors focus:border-[var(--primary)]"
+            className="w-full rounded-xl border border-[var(--line-strong)] bg-[var(--surface-0)] px-3 py-2.5 outline-none transition-colors focus:border-[var(--primary)]"
             onChange={(event) =>
               setDraft((current) => ({ ...current, category: event.target.value }))
             }
@@ -82,7 +82,7 @@ export function ProductForm({
           Product name
         </span>
         <input
-          className="w-full rounded-2xl border border-[var(--line)] bg-white px-3 py-2.5 outline-none transition-colors focus:border-[var(--primary)]"
+          className="w-full rounded-xl border border-[var(--line-strong)] bg-[var(--surface-0)] px-3 py-2.5 outline-none transition-colors focus:border-[var(--primary)]"
           onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
           value={draft.name}
         />
@@ -95,7 +95,7 @@ export function ProductForm({
               {key}
             </span>
             <input
-              className="w-full rounded-2xl border border-[var(--line)] bg-white px-3 py-2.5 outline-none transition-colors focus:border-[var(--primary)]"
+              className="w-full rounded-xl border border-[var(--line-strong)] bg-[var(--surface-0)] px-3 py-2.5 outline-none transition-colors focus:border-[var(--primary)]"
               min={1}
               onChange={(event) =>
                 setDraft((current) => ({
@@ -114,7 +114,7 @@ export function ProductForm({
             Holiday
           </span>
           <select
-            className="w-full rounded-2xl border border-[var(--line)] bg-white px-3 py-2.5 outline-none transition-colors focus:border-[var(--primary)]"
+            className="w-full rounded-xl border border-[var(--line-strong)] bg-[var(--surface-0)] px-3 py-2.5 outline-none transition-colors focus:border-[var(--primary)]"
             onChange={(event) =>
               setDraft((current) => ({
                 ...current,
@@ -134,9 +134,9 @@ export function ProductForm({
 
       <div className="flex items-center justify-between gap-3">
         <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
-          <span>Chip</span>
+          <span>Color</span>
           <input
-            className="h-10 w-14 rounded-xl border border-[var(--line)] bg-transparent"
+            className="h-10 w-14 rounded-lg border border-[var(--line-strong)] bg-transparent"
             onChange={(event) =>
               setDraft((current) => ({ ...current, color: event.target.value }))
             }
@@ -146,7 +146,7 @@ export function ProductForm({
         </label>
 
         <button
-          className="min-h-[44px] rounded-full bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-strong)]"
+          className="min-h-[44px] rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-hover)]"
           type="submit"
         >
           Add product

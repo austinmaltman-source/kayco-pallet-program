@@ -7,9 +7,9 @@ import {
   Package,
   ShoppingCart,
   Users,
-  Settings,
   Grid3X3,
   Plus,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,17 +20,26 @@ const NAV_ITEMS = [
   { href: "/customers", label: "Customers", icon: Users },
 ];
 
-const BOTTOM_ITEMS = [
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+interface SidebarProps {
+  onClose?: () => void;
+  className?: string;
+}
 
-export function Sidebar() {
+export function Sidebar({ onClose, className }: SidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 h-screen flex flex-col bg-sidebar-bg text-white shrink-0 border-r border-sidebar-border relative z-20">
+    <aside className={cn("w-64 h-screen flex flex-col bg-sidebar-bg text-white shrink-0 border-r border-sidebar-border relative z-20", className)}>
       {/* Logo */}
       <div className="p-6 flex items-center gap-3">
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="p-1 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg cursor-pointer lg:hidden ml-auto absolute top-5 right-4"
+          >
+            <X className="size-5" />
+          </button>
+        )}
         <div className="size-10 bg-primary flex items-center justify-center rounded-xl">
           <Package className="size-5 text-white" />
         </div>
@@ -71,32 +80,6 @@ export function Sidebar() {
           );
         })}
 
-        <div className="mt-auto border-t border-white/10 pt-4 pb-4">
-          {BOTTOM_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl transition-colors",
-                  isActive
-                    ? "sidebar-active text-white"
-                    : "text-slate-400 hover:bg-white/5 hover:text-white"
-                )}
-              >
-                <Icon
-                  className={cn(
-                    "size-[22px]",
-                    !isActive && "text-primary/80"
-                  )}
-                />
-                <span className="text-sm font-medium">{item.label}</span>
-              </Link>
-            );
-          })}
-        </div>
       </nav>
 
       {/* New Build CTA */}

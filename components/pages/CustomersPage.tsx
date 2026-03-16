@@ -8,6 +8,7 @@ import {
   MoreVertical,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 
 const STATS = [
@@ -93,7 +94,7 @@ export function CustomersPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <button className="px-6 py-2 bg-surface-0 border border-[var(--line-strong)] font-bold text-sm uppercase flex items-center gap-2 hover:bg-surface-1 cursor-pointer rounded-xl">
+            <button aria-label="Filter customers" className="px-6 py-2 bg-surface-0 border border-[var(--line-strong)] font-bold text-sm uppercase flex items-center gap-2 hover:bg-surface-1 cursor-pointer rounded-xl">
               <Filter className="size-4" /> Filter
             </button>
             <button className="px-6 py-2 bg-primary text-white font-bold text-sm uppercase hover:bg-primary-hover cursor-pointer rounded-xl">
@@ -150,6 +151,11 @@ export function CustomersPage() {
                   key={c.id}
                   className="hover:bg-surface-1/50 transition-colors cursor-pointer"
                   onClick={() => router.push(`/customers/${c.slug}`)}
+                  tabIndex={0}
+                  role="link"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") router.push(`/customers/${c.slug}`);
+                  }}
                 >
                   <td className="px-6 py-5">
                     <div className="flex items-center gap-3">
@@ -157,7 +163,9 @@ export function CustomersPage() {
                         {c.initial}
                       </div>
                       <div>
-                        <p className="font-bold">{c.name}</p>
+                        <Link href={`/customers/${c.slug}`} className="font-bold hover:text-primary">
+                          {c.name}
+                        </Link>
                         <p className="text-xs text-muted">ID: {c.id}</p>
                       </div>
                     </div>
@@ -167,7 +175,7 @@ export function CustomersPage() {
                       <span className="text-sm font-bold">
                         {c.builds} Builds
                       </span>
-                      <div className="w-24 h-1.5 bg-surface-2 rounded-full">
+                      <div className="w-24 h-1.5 bg-surface-2 rounded-full" role="progressbar" aria-valuenow={c.buildPct} aria-valuemin={0} aria-valuemax={100} aria-label={`${c.builds} active builds`}>
                         <div
                           className="bg-primary h-full rounded-full"
                           style={{ width: `${c.buildPct}%` }}
@@ -185,13 +193,13 @@ export function CustomersPage() {
                   </td>
                   <td className="px-6 py-5">
                     <span
-                      className={`px-2 py-1 ${c.statusStyle} text-[10px] font-bold uppercase tracking-tighter rounded-md`}
+                      className={`px-2 py-1 ${c.statusStyle} text-[11px] font-bold uppercase tracking-tighter rounded-md`}
                     >
                       {c.status}
                     </span>
                   </td>
                   <td className="px-6 py-5 text-right">
-                    <button className="text-muted hover:text-primary cursor-pointer">
+                    <button aria-label="More actions" className="text-muted hover:text-primary cursor-pointer">
                       <MoreVertical className="size-5" />
                     </button>
                   </td>
@@ -201,22 +209,22 @@ export function CustomersPage() {
           </table>
           <div className="px-6 py-4 bg-surface-1 flex items-center justify-between border-t border-[var(--line-strong)]">
             <p className="text-xs text-muted font-medium">
-              Showing 1-4 of 128 customers
+              Showing 1-{CUSTOMERS.length} of {CUSTOMERS.length} customers
             </p>
             <div className="flex gap-2">
-              <button className="size-8 flex items-center justify-center border border-[var(--line-strong)] rounded-lg text-muted hover:text-primary cursor-pointer">
+              <button aria-label="Previous page" className="size-11 flex items-center justify-center border border-[var(--line-strong)] rounded-lg text-muted hover:text-primary cursor-pointer">
                 <ChevronLeft className="size-4" />
               </button>
-              <button className="size-8 flex items-center justify-center border border-primary bg-primary text-white cursor-pointer rounded-lg">
+              <button aria-label="Page 1" className="size-11 flex items-center justify-center border border-primary bg-primary text-white cursor-pointer rounded-lg">
                 1
               </button>
-              <button className="size-8 flex items-center justify-center border border-[var(--line-strong)] rounded-lg hover:text-primary cursor-pointer">
+              <button aria-label="Page 2" className="size-11 flex items-center justify-center border border-[var(--line-strong)] rounded-lg hover:text-primary cursor-pointer">
                 2
               </button>
-              <button className="size-8 flex items-center justify-center border border-[var(--line-strong)] rounded-lg hover:text-primary cursor-pointer">
+              <button aria-label="Page 3" className="size-11 flex items-center justify-center border border-[var(--line-strong)] rounded-lg hover:text-primary cursor-pointer">
                 3
               </button>
-              <button className="size-8 flex items-center justify-center border border-[var(--line-strong)] rounded-lg text-muted hover:text-primary cursor-pointer">
+              <button aria-label="Next page" className="size-11 flex items-center justify-center border border-[var(--line-strong)] rounded-lg text-muted hover:text-primary cursor-pointer">
                 <ChevronRight className="size-4" />
               </button>
             </div>

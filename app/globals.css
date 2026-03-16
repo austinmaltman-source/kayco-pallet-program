@@ -14,6 +14,7 @@
   --primary-hover: #d44f0e;
   --primary-soft: #fde8db;
   --primary-muted: #f4a57a;
+  --primary-text: #c2410c;
   --secondary: #f97316;
   --accent: #ec5b13;
   --accent-soft: #fed7aa;
@@ -24,7 +25,7 @@
 
   /* ─── Semantic ─── */
   --muted: #64748b;
-  --muted-foreground: #94a3b8;
+  --muted-foreground: #6b7280;
   --success: #10b981;
   --success-fg: #059669;
   --success-soft: #d1fae5;
@@ -84,6 +85,7 @@
   --color-surface-3: var(--surface-3);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-primary-text: var(--primary-text);
   --color-success: var(--success);
   --color-success-fg: var(--success-fg);
   --color-danger: var(--danger);
@@ -158,7 +160,7 @@ textarea {
 /* ─── Typography utilities ─── */
 .eyebrow {
   font-weight: 700;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
@@ -288,7 +290,7 @@ textarea {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.02em;

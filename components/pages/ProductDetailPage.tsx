@@ -161,7 +161,7 @@ export function ProductDetailPage({ productId }: { productId: string }) {
         <div className="flex items-center justify-between mb-8">
           <Link
             href="/products"
-            className="inline-flex items-center gap-1.5 text-sm font-bold text-muted hover:text-primary uppercase tracking-wide transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm font-bold text-muted hover:text-primary uppercase tracking-wide transition-colors min-h-[44px]"
           >
             <ArrowLeft className="size-4" /> All Products
           </Link>
@@ -228,7 +228,7 @@ export function ProductDetailPage({ productId }: { productId: string }) {
             {/* Quick-stats strip */}
             <div className="flex flex-wrap gap-4 mt-1">
               <div className="flex flex-col gap-0.5">
-                <span className="text-[10px] font-bold text-muted uppercase tracking-widest">
+                <span className="text-[11px] font-bold text-muted uppercase tracking-widest">
                   Dimensions
                 </span>
                 <span className="text-sm font-black">
@@ -237,17 +237,17 @@ export function ProductDetailPage({ productId }: { productId: string }) {
               </div>
               {product.unitPrice != null && (
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[10px] font-bold text-muted uppercase tracking-widest">
+                  <span className="text-[11px] font-bold text-muted uppercase tracking-widest">
                     Unit Price
                   </span>
-                  <span className="text-sm font-black text-primary">
+                  <span className="text-sm font-black text-primary-text">
                     ${product.unitPrice.toFixed(2)}
                   </span>
                 </div>
               )}
               {product.unitsPerCase != null && (
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[10px] font-bold text-muted uppercase tracking-widest">
+                  <span className="text-[11px] font-bold text-muted uppercase tracking-widest">
                     Units / Case
                   </span>
                   <span className="text-sm font-black">
@@ -256,7 +256,7 @@ export function ProductDetailPage({ productId }: { productId: string }) {
                 </div>
               )}
               <div className="flex flex-col gap-0.5">
-                <span className="text-[10px] font-bold text-muted uppercase tracking-widest">
+                <span className="text-[11px] font-bold text-muted uppercase tracking-widest">
                   Color
                 </span>
                 <div className="flex items-center gap-2">

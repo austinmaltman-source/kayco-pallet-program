@@ -36,7 +36,7 @@ export function DashboardPage() {
               className="bg-surface-0 border border-[var(--line-strong)] py-4 flex flex-col items-center gap-2 hover:border-primary transition-colors cursor-pointer rounded-xl"
             >
               <ShoppingCart className="size-5 text-primary" />
-              <span className="text-[10px] font-bold uppercase tracking-tighter">
+              <span className="text-[11px] font-bold uppercase tracking-tighter">
                 Products
               </span>
             </Link>
@@ -45,7 +45,7 @@ export function DashboardPage() {
               className="bg-surface-0 border border-[var(--line-strong)] py-4 flex flex-col items-center gap-2 hover:border-primary transition-colors cursor-pointer rounded-xl"
             >
               <Users className="size-5 text-primary" />
-              <span className="text-[10px] font-bold uppercase tracking-tighter">
+              <span className="text-[11px] font-bold uppercase tracking-tighter">
                 Customers
               </span>
             </Link>

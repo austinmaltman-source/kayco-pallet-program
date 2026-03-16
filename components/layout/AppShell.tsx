@@ -767,32 +767,29 @@ export function AppShell() {
           <div className="flex items-center gap-12">
             <div className="flex items-center gap-4">
               <div className="flex flex-col">
-                <span className="text-[10px] uppercase tracking-widest text-[var(--muted)] font-black">Weight Load</span>
+                <span className="text-[11px] uppercase tracking-widest text-[var(--muted)] font-black">Weight Load</span>
                 <span className="font-black text-sm uppercase">
                   {totalWeight} / 2500 <span className="text-[10px] text-[var(--muted-foreground)]">lbs</span>
                 </span>
               </div>
-              <div className="w-32 h-1.5 bg-[var(--surface-2)]">
+              <div className="w-32 h-1.5 bg-[var(--surface-2)]" role="progressbar" aria-valuenow={totalWeight} aria-valuemin={0} aria-valuemax={2500} aria-label="Weight load">
                 <div className="h-full bg-[var(--primary)]" style={{ width: `${Math.min(100, (totalWeight / 2500) * 100)}%` }} />
               </div>
             </div>
             <div className="flex items-center gap-4">
               <div className="flex flex-col">
-                <span className="text-[10px] uppercase tracking-widest text-[var(--muted)] font-black">Stack Height</span>
+                <span className="text-[11px] uppercase tracking-widest text-[var(--muted)] font-black">Stack Height</span>
                 <span className="font-black text-sm uppercase">
                   {stackHeight} / 72 <span className="text-[10px] text-[var(--muted-foreground)]">in</span>
                 </span>
               </div>
-              <div className="w-32 h-1.5 bg-[var(--surface-2)]">
+              <div className="w-32 h-1.5 bg-[var(--surface-2)]" role="progressbar" aria-valuenow={stackHeight} aria-valuemin={0} aria-valuemax={72} aria-label="Stack height">
                 <div className="h-full bg-[var(--primary)]" style={{ width: `${Math.min(100, (stackHeight / 72) * 100)}%` }} />
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-600">
-            <span className="relative flex h-3 w-3">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-              <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
-            </span>
+            <span className="inline-flex h-3 w-3 rounded-full bg-emerald-500" />
             Shipping Optimized
           </div>
         </div>
@@ -847,10 +844,7 @@ export function AppShell() {
                   role="status"
                   aria-live="polite"
                 >
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--success)] opacity-75" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
-                  </span>
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
                   <span className="max-w-40 truncate font-medium">
                     {status.message}
                   </span>
@@ -971,10 +965,7 @@ export function AppShell() {
                   role="status"
                   aria-live="polite"
                 >
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--success)] opacity-75" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
-                  </span>
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
                   <span className="max-w-40 truncate font-medium">
                     {status.message}
                   </span>

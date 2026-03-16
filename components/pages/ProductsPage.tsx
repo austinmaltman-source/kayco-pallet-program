@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Package, Plus, Search, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import * as Dialog from "@radix-ui/react-dialog";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ProductMockup } from "@/components/ui/ProductMockup";
 import { useProductStore } from "@/stores/useProductStore";
@@ -19,7 +20,6 @@ const HOLIDAYS: HolidayType[] = [
 ];
 
 export function ProductsPage() {
-  const router = useRouter();
   const products = useProductStore((s) => s.products);
   const search = useProductStore((s) => s.search);
   const category = useProductStore((s) => s.category);
@@ -35,7 +35,7 @@ export function ProductsPage() {
 
   const [showAddModal, setShowAddModal] = useState(false);
 
-  useMemo(() => {
+  useEffect(() => {
     if (products.length === 0 && activeCustomer) {
       replaceProducts(activeCustomer.products);
     }
@@ -68,78 +68,98 @@ export function ProductsPage() {
 
   return (
     <DashboardLayout searchPlaceholder="Search by SKU, name or category...">
-      <div className="flex-1 overflow-y-auto p-8">
-        {/* Breadcrumbs */}
-        <div className="flex flex-col gap-6 mb-8">
-          <div className="flex items-center gap-2 text-sm text-muted">
+      <div className="flex-1 overflow-y-auto p-6 lg:p-10">
+        {/* Page Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-2 text-xs text-muted mb-2">
             <span>Warehouse</span>
             <ChevronRight className="size-3" />
             <span className="text-foreground font-medium">Product Catalog</span>
           </div>
-
-          {/* Filters row */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <select
-                className="px-4 py-1.5 border border-[var(--line-strong)] bg-surface-0 text-sm font-medium cursor-pointer rounded-lg"
-                value={selectedCustomerId ?? ""}
-                onChange={(e) => handleCustomerChange(e.target.value)}
-              >
-                {CUSTOMERS.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                className="px-4 py-1.5 border border-[var(--line-strong)] bg-surface-0 text-sm font-medium cursor-pointer rounded-lg"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat === "all" ? "All Categories" : cat}
-                  </option>
-                ))}
-              </select>
-
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted pointer-events-none" />
-                <input
-                  className="pl-9 pr-4 py-1.5 border border-[var(--line-strong)] bg-surface-0 text-sm w-60 rounded-lg"
-                  placeholder="Search products..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-
-              <div className="h-6 w-px bg-surface-3 mx-2" />
-              <span className="text-sm text-muted">
-                Showing {filtered.length} of {products.length} products
-              </span>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-black tracking-tight">
+                Product Catalog
+              </h1>
+              <p className="text-sm text-muted mt-1">
+                {activeCustomer
+                  ? `Manage products for ${activeCustomer.name}`
+                  : "Select a customer to view products"}
+              </p>
             </div>
-
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="px-5 py-1.5 bg-primary text-white font-bold text-sm uppercase hover:bg-primary-hover cursor-pointer rounded-xl flex items-center gap-1.5"
-            >
-              <Plus className="size-4" /> Add Product
-            </button>
+            <Dialog.Root open={showAddModal} onOpenChange={setShowAddModal}>
+              <Dialog.Trigger asChild>
+                <button className="btn btn-primary shadow-[var(--shadow-primary)]">
+                  <Plus className="size-4" /> Add Product
+                </button>
+              </Dialog.Trigger>
+              <AddProductModal
+                onAdd={(product) => {
+                  addProduct(product);
+                  setShowAddModal(false);
+                }}
+              />
+            </Dialog.Root>
           </div>
         </div>
 
-        {/* Product Grid — compact cards, more columns */}
+        {/* Filters Bar */}
+        <div className="bg-surface-0 border border-[var(--line)] rounded-xl p-4 mb-8 shadow-[var(--shadow-xs)]">
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              aria-label="Select customer"
+              className="input !w-auto !min-w-[180px]"
+              value={selectedCustomerId ?? ""}
+              onChange={(e) => handleCustomerChange(e.target.value)}
+            >
+              {CUSTOMERS.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              aria-label="Filter by category"
+              className="input !w-auto !min-w-[160px]"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat === "all" ? "All Categories" : cat}
+                </option>
+              ))}
+            </select>
+
+            <div className="relative flex-1 min-w-[200px] max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted pointer-events-none" />
+              <input
+                className="input !pl-9"
+                placeholder="Search products..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            <div className="ml-auto text-sm text-muted tabular-nums">
+              <span className="font-semibold text-foreground">{filtered.length}</span>{" "}
+              of {products.length} products
+            </div>
+          </div>
+        </div>
+
+        {/* Product Grid */}
         {filtered.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
             {filtered.map((product) => (
-              <div
+              <Link
                 key={product.id}
-                onClick={() => router.push(`/products/${product.id}`)}
-                className="bg-surface-0 border border-[var(--line-strong)] group hover:border-primary transition-colors cursor-pointer rounded-xl overflow-hidden"
+                href={`/products/${product.id}`}
+                className="card-elevated group hover:border-primary/40 hover:shadow-[var(--shadow-md)] transition-all duration-200 overflow-hidden"
               >
-                {/* Compact color bar */}
-                <div className="h-24 flex items-center justify-center relative bg-surface-1">
+                {/* Product Preview */}
+                <div className="h-36 flex items-center justify-center relative scene-frame">
                   <ProductMockup
                     shape={product.packaging}
                     color={product.color}
@@ -147,39 +167,42 @@ export function ProductsPage() {
                     name={product.name}
                     size="sm"
                   />
-                  <span className="absolute top-1.5 right-1.5 text-[9px] font-bold uppercase px-1.5 py-0.5 bg-primary text-white rounded">
+                  <span className="badge badge-primary absolute top-3 right-3 text-[10px]">
                     {product.category}
                   </span>
                 </div>
 
-                <div className="p-3">
-                  <h3 className="font-bold text-sm leading-tight mb-0.5 truncate">
+                {/* Product Info */}
+                <div className="p-4">
+                  <h3 className="font-bold text-sm leading-snug mb-1 truncate group-hover:text-primary transition-colors">
                     {product.name}
                   </h3>
-                  <p className="text-muted text-[10px] font-mono mb-2">
+                  <p className="text-muted text-xs font-mono mb-3">
                     {product.sku}
                   </p>
-                  <div className="flex items-center justify-between">
-                    {product.unitPrice != null && (
-                      <span className="text-sm font-bold text-primary">
+                  <div className="flex items-center justify-between pt-3 border-t border-[var(--line)]">
+                    {product.unitPrice != null ? (
+                      <span className="text-base font-black text-primary">
                         ${product.unitPrice.toFixed(2)}
                       </span>
+                    ) : (
+                      <span className="text-xs text-muted">No price set</span>
                     )}
-                    <span className="text-[10px] text-muted uppercase font-bold">
+                    <span className="badge badge-muted text-[10px]">
                       {product.holiday.replace("-", " ")}
                     </span>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="size-14 flex items-center justify-center bg-surface-2 mb-4 rounded-2xl">
-              <Package className="size-6 text-muted" />
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="size-16 flex items-center justify-center bg-surface-2 mb-5 rounded-2xl">
+              <Package className="size-7 text-muted" />
             </div>
-            <p className="font-bold text-lg">No products found</p>
-            <p className="text-sm text-muted mt-1">
+            <p className="font-bold text-lg mb-1">No products found</p>
+            <p className="text-sm text-muted max-w-sm">
               {products.length === 0
                 ? "Select a customer to load their product catalog."
                 : "Try adjusting your search or category filter."}
@@ -187,26 +210,13 @@ export function ProductsPage() {
           </div>
         )}
       </div>
-
-      {/* Add Product Modal */}
-      {showAddModal && (
-        <AddProductModal
-          onClose={() => setShowAddModal(false)}
-          onAdd={(product) => {
-            addProduct(product);
-            setShowAddModal(false);
-          }}
-        />
-      )}
     </DashboardLayout>
   );
 }
 
 function AddProductModal({
-  onClose,
   onAdd,
 }: {
-  onClose: () => void;
   onAdd: (product: Product) => void;
 }) {
   const [name, setName] = useState("");
@@ -245,43 +255,45 @@ function AddProductModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="bg-surface-0 border border-[var(--line-strong)] rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <Dialog.Portal>
+      <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
+      <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-surface-0 border border-[var(--line-strong)] rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line-strong)]">
-          <h3 className="text-lg font-black uppercase tracking-tight">
+          <Dialog.Title className="text-lg font-black uppercase tracking-tight">
             Add Product
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-muted hover:text-foreground cursor-pointer"
-          >
-            <X className="size-5" />
-          </button>
+          </Dialog.Title>
+          <Dialog.Close asChild>
+            <button
+              aria-label="Close"
+              className="text-muted hover:text-foreground cursor-pointer"
+            >
+              <X className="size-5" />
+            </button>
+          </Dialog.Close>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Name + SKU */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              <label htmlFor="add-product-name" className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
                 Name *
               </label>
               <input
-                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                id="add-product-name"
+                className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              <label htmlFor="add-product-sku" className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
                 SKU *
               </label>
               <input
-                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm font-mono rounded-lg"
+                id="add-product-sku"
+                className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm font-mono rounded-lg"
                 value={sku}
                 onChange={(e) => setSku(e.target.value)}
                 required
@@ -292,21 +304,23 @@ function AddProductModal({
           {/* Category + Holiday */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              <label htmlFor="add-product-category" className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
                 Category
               </label>
               <input
-                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                id="add-product-category"
+                className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
                 value={cat}
                 onChange={(e) => setCat(e.target.value)}
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              <label htmlFor="add-product-holiday" className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
                 Holiday
               </label>
               <select
-                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm cursor-pointer rounded-lg"
+                id="add-product-holiday"
+                className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm cursor-pointer rounded-lg"
                 value={holiday}
                 onChange={(e) => setHoliday(e.target.value as HolidayType)}
               >
@@ -320,10 +334,10 @@ function AddProductModal({
           </div>
 
           {/* Packaging Shape */}
-          <div>
-            <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+          <fieldset>
+            <legend className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
               Packaging Shape
-            </label>
+            </legend>
             <div className="flex gap-2">
               {(["box", "bottle", "jar", "bag", "tin", "pouch"] as PackagingShape[]).map((s) => (
                 <button
@@ -340,71 +354,86 @@ function AddProductModal({
                 </button>
               ))}
             </div>
-          </div>
+          </fieldset>
 
           {/* Dimensions */}
-          <div>
-            <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+          <fieldset>
+            <legend className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
               Dimensions (W x H x D inches)
-            </label>
+            </legend>
             <div className="grid grid-cols-3 gap-3">
-              <input
-                type="number"
-                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
-                placeholder="Width"
-                value={width}
-                onChange={(e) => setWidth(e.target.value)}
-              />
-              <input
-                type="number"
-                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
-                placeholder="Height"
-                value={height}
-                onChange={(e) => setHeight(e.target.value)}
-              />
-              <input
-                type="number"
-                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
-                placeholder="Depth"
-                value={depth}
-                onChange={(e) => setDepth(e.target.value)}
-              />
+              <div>
+                <label htmlFor="add-product-width" className="sr-only">Width</label>
+                <input
+                  id="add-product-width"
+                  type="number"
+                  className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                  placeholder="Width"
+                  value={width}
+                  onChange={(e) => setWidth(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="add-product-height" className="sr-only">Height</label>
+                <input
+                  id="add-product-height"
+                  type="number"
+                  className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                  placeholder="Height"
+                  value={height}
+                  onChange={(e) => setHeight(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="add-product-depth" className="sr-only">Depth</label>
+                <input
+                  id="add-product-depth"
+                  type="number"
+                  className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                  placeholder="Depth"
+                  value={depth}
+                  onChange={(e) => setDepth(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
+          </fieldset>
 
           {/* Price + Units + Color */}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              <label htmlFor="add-product-price" className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
                 Unit Price
               </label>
               <input
+                id="add-product-price"
                 type="number"
                 step="0.01"
-                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
                 placeholder="0.00"
                 value={unitPrice}
                 onChange={(e) => setUnitPrice(e.target.value)}
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              <label htmlFor="add-product-units" className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
                 Units/Case
               </label>
               <input
+                id="add-product-units"
                 type="number"
-                className="w-full px-3 py-2 border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
                 placeholder="12"
                 value={unitsPerCase}
                 onChange={(e) => setUnitsPerCase(e.target.value)}
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              <label htmlFor="add-product-color" className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
                 Color
               </label>
               <div className="flex items-center gap-2">
                 <input
+                  id="add-product-color"
                   type="color"
                   className="size-9 border border-[var(--line-strong)] rounded-lg cursor-pointer p-0.5"
                   value={color}
@@ -417,22 +446,23 @@ function AddProductModal({
 
           {/* Submit */}
           <div className="flex justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2 border border-[var(--line-strong)] font-bold text-sm uppercase hover:bg-surface-1 cursor-pointer rounded-xl"
-            >
-              Cancel
-            </button>
+            <Dialog.Close asChild>
+              <button
+                type="button"
+                className="px-5 py-2.5 min-h-[44px] border border-[var(--line-strong)] font-bold text-sm uppercase hover:bg-surface-1 cursor-pointer rounded-xl"
+              >
+                Cancel
+              </button>
+            </Dialog.Close>
             <button
               type="submit"
-              className="px-5 py-2 bg-primary text-white font-bold text-sm uppercase hover:bg-primary-hover cursor-pointer rounded-xl"
+              className="px-5 py-2.5 min-h-[44px] bg-primary text-white font-bold text-sm uppercase hover:bg-primary-hover cursor-pointer rounded-xl"
             >
               Add Product
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </Dialog.Content>
+    </Dialog.Portal>
   );
 }

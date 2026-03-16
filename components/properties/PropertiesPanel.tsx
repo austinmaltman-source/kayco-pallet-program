@@ -25,7 +25,7 @@ export function PropertiesPanel({
   const selectedProduct = products.find((product) => product.id === selectedPlacement?.productId) ?? null;
 
   return (
-    <section className="panel-surface rounded-[32px] p-5">
+    <section className="panel-surface rounded-2xl p-5">
       <div className="flex items-center gap-3">
         <BoxSelect className="h-5 w-5 text-[var(--primary)]" />
         <h2 className="display-font text-lg font-semibold">Selection</h2>
@@ -33,7 +33,7 @@ export function PropertiesPanel({
 
       {selectedPlacement && selectedProduct ? (
         <div className="mt-5 space-y-4">
-          <div className="rounded-3xl border border-[var(--line)] bg-white/70 p-4">
+          <div className="rounded-xl border border-[var(--line-strong)] bg-[var(--surface-0)] p-4">
             <p className="text-sm font-semibold">{selectedProduct.name}</p>
             <p className="mt-1 text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
               {selectedProduct.sku}
@@ -47,7 +47,7 @@ export function PropertiesPanel({
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-[var(--muted)]">Quantity</span>
             <input
-              className="w-full rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 outline-none transition-colors focus:border-[var(--primary)]"
+              className="w-full rounded-xl border border-[var(--line-strong)] bg-[var(--surface-0)] px-4 py-3 outline-none transition-colors focus:border-[var(--primary)]"
               min={1}
               onChange={(event) =>
                 updatePlacement(selectedPlacement.id, {
@@ -62,7 +62,7 @@ export function PropertiesPanel({
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-[var(--muted)]">Facing mode</span>
             <select
-              className="w-full rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 outline-none transition-colors focus:border-[var(--primary)]"
+              className="w-full rounded-xl border border-[var(--line-strong)] bg-[var(--surface-0)] px-4 py-3 outline-none transition-colors focus:border-[var(--primary)]"
               onChange={(event) =>
                 updatePlacement(selectedPlacement.id, {
                   displayMode: event.target.value as typeof selectedPlacement.displayMode,
@@ -77,7 +77,7 @@ export function PropertiesPanel({
 
           <div className="flex gap-3">
             <button
-              className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-full border border-[var(--line)] bg-white/75 px-4 py-3 text-sm font-semibold transition-colors hover:bg-white"
+              className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--line-strong)] bg-[var(--surface-0)] px-4 py-3 text-sm font-semibold transition-colors hover:bg-[var(--surface-1)]"
               onClick={onRotateSelected}
               type="button"
             >
@@ -85,7 +85,7 @@ export function PropertiesPanel({
               Rotate
             </button>
             <button
-              className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-full bg-[var(--danger)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#853632]"
+              className="flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--danger)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#853632]"
               onClick={onDeleteSelected}
               type="button"
             >
@@ -95,12 +95,12 @@ export function PropertiesPanel({
           </div>
         </div>
       ) : (
-        <div className="mt-5 rounded-3xl border border-dashed border-[var(--line)] px-4 py-8 text-sm leading-6 text-[var(--muted)]">
+        <div className="mt-5 rounded-xl border border-dashed border-[var(--line-strong)] px-4 py-8 text-sm leading-6 text-[var(--muted)]">
           Select a placed item in the scene to edit quantity, facing mode, or rotation.
         </div>
       )}
 
-      <div className="mt-5 rounded-3xl border border-[var(--line)] bg-white/65 p-4 text-sm text-[var(--muted)]">
+      <div className="mt-5 rounded-xl border border-[var(--line-strong)] bg-[var(--surface-0)] p-4 text-sm text-[var(--muted)]">
         <p className="font-semibold text-[var(--foreground)]">Placement notes</p>
         <p className="mt-2 leading-6">
           Drag a catalog item into the viewport. Drop zones map to the currently selected wall grid, with

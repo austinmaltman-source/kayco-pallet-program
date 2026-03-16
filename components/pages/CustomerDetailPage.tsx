@@ -90,14 +90,14 @@ export function CustomerDetailPage({ slug }: { slug: string }) {
                 {customer.name}
               </h2>
               <span
-                className={`inline-block mt-1 px-2 py-0.5 ${STATUS_STYLES[customer.status] || "bg-surface-2 text-muted"} text-[10px] font-bold uppercase tracking-tighter rounded-md`}
+                className={`inline-block mt-1 px-2 py-0.5 ${STATUS_STYLES[customer.status] || "bg-surface-2 text-muted"} text-[11px] font-bold uppercase tracking-tighter rounded-md`}
               >
                 {customer.status}
               </span>
             </div>
           </div>
           <Link
-            href="/editor"
+            href={`/editor?customer=${slug}`}
             className="px-6 py-2 bg-primary text-white font-bold text-sm uppercase hover:bg-primary-hover rounded-xl"
           >
             New Build
