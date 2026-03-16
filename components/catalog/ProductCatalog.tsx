@@ -38,7 +38,7 @@ export function ProductCatalog() {
     <div className="flex flex-col gap-3">
       <input
         aria-label="Search products"
-        className="w-full rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 text-sm outline-none transition-colors focus:border-[var(--primary)]"
+        className="w-full rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm font-medium outline-none transition-all placeholder:text-slate-400 focus:border-[var(--primary)] focus:bg-white focus:shadow-md focus:shadow-[var(--primary)]/10"
         onChange={(event) => setSearch(event.target.value)}
         placeholder="Search SKU, name, or category"
         value={search}
@@ -46,7 +46,7 @@ export function ProductCatalog() {
       {categories.length > 2 && (
         <select
           aria-label="Filter by category"
-          className="w-full rounded-2xl border border-[var(--line)] bg-white/80 px-4 py-3 text-sm outline-none transition-colors focus:border-[var(--primary)]"
+          className="w-full rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm font-medium outline-none transition-all focus:border-[var(--primary)] focus:bg-white focus:shadow-md focus:shadow-[var(--primary)]/10"
           onChange={(event) => setCategory(event.target.value)}
           value={category}
         >

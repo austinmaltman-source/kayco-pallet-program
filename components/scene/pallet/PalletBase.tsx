@@ -5,7 +5,8 @@ import { useMemo } from "react";
 import type { PalletConfig } from "@/types/pallet";
 
 export function PalletBase({ pallet }: { pallet: PalletConfig }) {
-  const { width, depth, height } = pallet.base;
+  const { width, height } = pallet.base;
+  const depth = pallet.type === "half" ? pallet.base.depth / 2 : pallet.base.depth;
 
   const topSlats = useMemo(
     () =>
@@ -44,8 +45,11 @@ export function PalletBase({ pallet }: { pallet: PalletConfig }) {
     [depth, height, width],
   );
 
+  // For half pallet, shift base backward so display sits at front edge
+  const zOffset = pallet.type === "half" ? -(pallet.base.depth / 2 - depth) / 2 : 0;
+
   return (
-    <group position={[0, 0, 0]}>
+    <group position={[0, 0, zOffset]}>
       <group>
         {topSlats.map((z) => (
           <mesh castShadow key={`top-${z}`} position={[0, height - 0.55, z]} receiveShadow>

@@ -22,10 +22,10 @@ export function ProductCard({
       aria-label={`${product.name} — ${product.sku}`}
       aria-pressed={active}
       className={cn(
-        "cursor-grab rounded-3xl border p-4 transition-colors active:cursor-grabbing",
+        "group cursor-grab rounded-[20px] border p-4 transition-all duration-300 active:cursor-grabbing hover:shadow-md hover:-translate-y-0.5",
         active
-          ? "border-[var(--primary)] bg-[rgba(20,78,131,0.08)]"
-          : "border-[var(--line)] bg-white/75 hover:border-[var(--line-strong)] hover:bg-white",
+          ? "border-[var(--primary)] bg-cyan-50/50 shadow-sm ring-1 ring-[var(--primary)]/20"
+          : "border-slate-200 bg-white hover:border-[var(--primary)]/30",
       )}
       draggable
       onClick={onSelect}
@@ -45,25 +45,22 @@ export function ProductCard({
       role="button"
       tabIndex={0}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-4">
         <div
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-sm transition-transform duration-300 group-hover:scale-105"
           style={{ backgroundColor: product.color }}
         >
-          <Package2 className="h-5 w-5 text-white" />
+          <Package2 className="h-6 w-6 text-white" />
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold">{product.name}</p>
-              <p className="mt-1 text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
+              <p className="text-[15px] font-bold text-slate-800 leading-tight">{product.name}</p>
+              <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.1em] text-slate-500">
                 {product.sku}
               </p>
             </div>
-            <span className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-              {product.category}
-            </span>
           </div>
 
           {product.description ? (

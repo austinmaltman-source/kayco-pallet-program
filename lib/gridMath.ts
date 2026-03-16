@@ -80,7 +80,7 @@ export function getPlacementTransform(
   const rowCenter =
     towerCenterY -
     displayHeight / 2 +
-    4 +
+    2 +
     pallet.display.rowHeight / 2 +
     placement.shelfRow * rowStride;
   const colCenter =
@@ -88,7 +88,8 @@ export function getPlacementTransform(
   const itemWidth = Math.min(metrics.cellWidth * placement.colSpan - 0.8, product.dimensions.width);
   const itemHeight = Math.min(pallet.display.rowHeight - 1.2, product.dimensions.height);
   const itemDepth = Math.max(2.4, Math.min(12, product.dimensions.depth));
-  const forwardOffset = wallThickness / 2 + itemDepth / 2 + 0.6;
+  // Products sit inside the recessed shelf (negative = inward from wall face)
+  const forwardOffset = -(itemDepth / 2 + 0.6);
 
   switch (placement.wall) {
     case "front":

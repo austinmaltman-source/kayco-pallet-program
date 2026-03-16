@@ -21,7 +21,7 @@ interface PalletStore {
   toggleHeader: () => void;
 }
 
-const defaultPallet = createPalletConfig("full");
+const defaultPallet = createPalletConfig("half");
 
 export const usePalletStore = create<PalletStore>()(
   persist(
@@ -29,7 +29,7 @@ export const usePalletStore = create<PalletStore>()(
       pallet: defaultPallet,
       reset: () =>
         set((state) => {
-          state.pallet = createPalletConfig("full");
+          state.pallet = createPalletConfig("half");
         }),
       replacePallet: (pallet) =>
         set((state) => {
@@ -83,8 +83,10 @@ export const usePalletStore = create<PalletStore>()(
     })),
     {
       name: "kayco-pallet-store",
+      version: 5,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ pallet: state.pallet }),
+      migrate: () => ({ pallet: createPalletConfig("half") }),
     },
   ),
 );

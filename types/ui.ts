@@ -12,6 +12,7 @@ export interface DropPreview {
 export interface UIState {
   selectedWall: WallFace;
   selectedCustomerId: string;
+  viewMode: "2d" | "3d";
   draggingProductId: string | null;
   dropPreview: DropPreview | null;
 }

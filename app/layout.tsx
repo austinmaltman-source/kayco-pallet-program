@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { Public_Sans, Space_Grotesk } from "next/font/google";
+import { Inter, Outfit } from "next/font/google";
 import "./globals.css";
 
-const publicSans = Public_Sans({
-  variable: "--font-public-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
+const outfit = Outfit({
+  variable: "--font-outfit",
   subsets: ["latin"],
 });
 
@@ -26,7 +26,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${publicSans.variable} ${spaceGrotesk.variable} antialiased`}
+        className={`${inter.variable} ${outfit.variable} antialiased`}
+        suppressHydrationWarning
       >
         {children}
       </body>

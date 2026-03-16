@@ -5,6 +5,9 @@ import type {
   WallConfig,
 } from "@/types/pallet";
 
+/** Gentle slope drop from front to back on side panel top edges (inches) */
+export const SLOPE_DROP = 3;
+
 const BASE_PRESETS: Record<
   Exclude<PalletPreset, "custom">,
   { width: number; depth: number; height: number }
@@ -15,14 +18,14 @@ const BASE_PRESETS: Record<
   "48x42": { width: 48, depth: 42, height: 6 },
 };
 
-function createShelfWall(): WallConfig {
+function createShelfWall(columns: number = 6): WallConfig {
   return {
     enabled: true,
     wallType: "shelves",
-    gridColumns: 4,
-    backgroundColor: "#efe1cd",
+    gridColumns: columns,
+    backgroundColor: "#c8b898",
     stripText: "All your holiday needs",
-    stripColor: "#0f4d82",
+    stripColor: "#00a3c7",
   };
 }
 
@@ -31,9 +34,9 @@ function createBrandedWall(): WallConfig {
     enabled: true,
     wallType: "branded-panel",
     gridColumns: 1,
-    backgroundColor: "#154d7e",
-    stripText: "Kayco holiday program",
-    stripColor: "#d8b36d",
+    backgroundColor: "#00a3c7",
+    stripText: "All your holiday needs",
+    stripColor: "#ffffff",
   };
 }
 
@@ -72,24 +75,24 @@ export function createPalletConfig(
     },
     display: {
       shelfRows: 4,
-      rowHeight: 12,
+      rowHeight: 9,
       wallThickness: 1.2,
       stripHeight: 2,
       header: {
         enabled: true,
-        height: 10,
-        label: type === "full" ? "Holiday Program" : "Half Pallet",
+        height: 6,
+        label: "Happy Passover",
       },
       walls:
         type === "full"
           ? {
-              front: createShelfWall(),
-              back: createShelfWall(),
-              left: createShelfWall(),
-              right: createShelfWall(),
+              front: createShelfWall(6),
+              back: createShelfWall(6),
+              left: createShelfWall(5),
+              right: createShelfWall(5),
             }
           : {
-              front: createShelfWall(),
+              front: createShelfWall(5),
               back: createOpenWall(),
               left: createBrandedWall(),
               right: createBrandedWall(),
@@ -99,15 +102,15 @@ export function createPalletConfig(
 }
 
 export function getDisplayHeight(config: PalletConfig["display"]) {
-  return config.shelfRows * config.rowHeight + (config.shelfRows - 1) * config.stripHeight + 4;
+  return config.shelfRows * config.rowHeight + (config.shelfRows - 1) * config.stripHeight + 2;
 }
 
 export function getTowerFootprint(pallet: PalletConfig) {
   const widthInset = pallet.type === "full" ? 8 : 10;
-  const depthInset = pallet.type === "full" ? 8 : 10;
+  const depthInset = pallet.type === "full" ? 8 : 24;
 
   return {
     width: Math.max(20, pallet.base.width - widthInset),
-    depth: Math.max(18, pallet.base.depth - depthInset),
+    depth: Math.max(10, pallet.base.depth - depthInset),
   };
 }
