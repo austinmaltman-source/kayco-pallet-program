@@ -6,6 +6,7 @@ import {
   Box,
   ChevronDown,
   Download,
+  Edit3,
   FileJson,
   FileText,
   Grid3X3,
@@ -21,6 +22,7 @@ import {
   Redo2,
   Save,
   Settings,
+  Share,
   Undo2,
   Users,
   X,
@@ -28,6 +30,7 @@ import {
 } from "lucide-react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ProductCatalog } from "@/components/catalog/ProductCatalog";
 import { ShelfGrid } from "@/components/editor/ShelfGrid";
 import { CUSTOMERS, getCustomerById } from "@/lib/customers";
@@ -143,21 +146,21 @@ function NavItem({
       disabled={disabled}
       aria-disabled={disabled}
       className={cn(
-        "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-150",
+        "group flex w-full items-center gap-3 px-4 py-2.5 text-[13px] font-medium transition-all duration-150",
         active
-          ? "bg-[var(--primary)] text-white shadow-sm shadow-blue-600/20"
+          ? "sidebar-active text-white"
           : disabled
-            ? "text-[var(--muted-foreground)] cursor-default opacity-60"
-            : "text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)] cursor-pointer",
+            ? "text-slate-600 cursor-default opacity-60"
+            : "text-slate-400 hover:bg-white/5 hover:text-white cursor-pointer",
         collapsed && "justify-center px-2",
       )}
     >
       <Icon
         className={cn(
-          "h-[18px] w-[18px] shrink-0 transition-colors",
+          "h-[22px] w-[22px] shrink-0 transition-colors",
           active
             ? "text-white"
-            : "text-[var(--muted-foreground)] group-hover:text-[var(--foreground)]",
+            : "text-[var(--primary)]/80 group-hover:text-white",
         )}
       />
       {!collapsed && (
@@ -167,7 +170,7 @@ function NavItem({
             <span
               className={cn(
                 "badge text-[10px]",
-                active ? "bg-white/20 text-white" : "badge-muted",
+                active ? "bg-white/20 text-white" : "bg-white/10 text-slate-400",
               )}
             >
               {badge}
@@ -540,6 +543,22 @@ export function AppShell() {
   });
 
   const totalPlacements = placements.length;
+
+  // Compute weight and stack height for the status bar
+  const totalWeight = placements.reduce((sum, p) => {
+    const prod = products.find((pr) => pr.id === p.productId);
+    if (!prod) return sum;
+    // Use product dimensions as a rough weight proxy (width * height * depth / 100)
+    const weight = (prod.dimensions.width * prod.dimensions.height * prod.dimensions.depth) / 100;
+    return sum + weight * p.quantity;
+  }, 0);
+  const stackHeight = placements.reduce((max, p) => {
+    const prod = products.find((pr) => pr.id === p.productId);
+    if (!prod) return max;
+    const h = (p.shelfRow + 1) * prod.dimensions.height;
+    return Math.max(max, h);
+  }, 0);
+
   const wallPlacementCounts = WALL_FACES.reduce(
     (acc, face) => {
       acc[face] = placements.filter((p) => p.wall === face).length;
@@ -704,7 +723,7 @@ export function AppShell() {
         {/* Canvas area */}
         <div className="min-w-0 flex-1 overflow-auto bg-[var(--surface-1)] p-4">
           {viewMode === "2d" ? (
-            <div className="h-full rounded-xl border border-[var(--line)] bg-[var(--surface-0)] p-5 shadow-sm">
+            <div className="h-full border border-[var(--line)] bg-[var(--surface-0)] p-5 shadow-sm">
               <ShelfGrid
                 activeProduct={activeProduct}
                 draggingProductId={draggingProductId}
@@ -742,10 +761,45 @@ export function AppShell() {
               />
             </div>
           ) : (
-            <div className="h-full min-h-[400px] min-w-0 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface-0)] shadow-sm">
+            <div className="h-full min-h-[400px] min-w-0 overflow-hidden border border-[var(--line)] bg-[var(--surface-0)] shadow-sm">
               <Scene3DView />
             </div>
           )}
+        </div>
+
+        {/* Bottom Status Bar */}
+        <div className="h-16 flex items-center justify-between px-8 bg-[var(--surface-0)] border-t border-[var(--line)] z-10 shrink-0">
+          <div className="flex items-center gap-12">
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-widest text-[var(--muted)] font-black">Weight Load</span>
+                <span className="font-black text-sm uppercase">
+                  {totalWeight} / 2500 <span className="text-[10px] text-[var(--muted-foreground)]">lbs</span>
+                </span>
+              </div>
+              <div className="w-32 h-1.5 bg-[var(--surface-2)]">
+                <div className="h-full bg-[var(--primary)]" style={{ width: `${Math.min(100, (totalWeight / 2500) * 100)}%` }} />
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-widest text-[var(--muted)] font-black">Stack Height</span>
+                <span className="font-black text-sm uppercase">
+                  {stackHeight} / 72 <span className="text-[10px] text-[var(--muted-foreground)]">in</span>
+                </span>
+              </div>
+              <div className="w-32 h-1.5 bg-[var(--surface-2)]">
+                <div className="h-full bg-[var(--primary)]" style={{ width: `${Math.min(100, (stackHeight / 72) * 100)}%` }} />
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-600">
+            <span className="relative flex h-3 w-3">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+            </span>
+            Shipping Optimized
+          </div>
         </div>
       </div>
     );
@@ -875,147 +929,15 @@ export function AppShell() {
 
   return (
     <Tooltip.Provider>
-      <div className="flex h-screen overflow-hidden bg-[var(--surface-1)]">
-        {/* ─── Sidebar ─── */}
-        <aside
-          className={cn(
-            "flex h-full shrink-0 flex-col border-r border-[var(--line)] bg-[var(--surface-0)] transition-[width] duration-200 ease-out",
-            sidebarCollapsed ? "w-[68px]" : "w-[260px]",
-          )}
-        >
-          {/* Logo */}
-          <div
-            className={cn(
-              "flex h-[60px] shrink-0 items-center border-b border-[var(--line)]",
-              sidebarCollapsed ? "justify-center px-2" : "gap-3 px-5",
-            )}
-          >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)] shadow-sm shadow-blue-600/20">
-              <Layers className="h-[18px] w-[18px] text-white" />
-            </div>
-            {!sidebarCollapsed && (
-              <div className="min-w-0">
-                <h1 className="text-[15px] font-extrabold text-[var(--foreground)] tracking-tight leading-none">
-                  Kayco
-                </h1>
-                <p className="text-[11px] font-medium text-[var(--muted-foreground)] mt-0.5">
-                  Pallet Builder
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Nav */}
-          <nav
-            aria-label="Main navigation"
-            className="flex-1 overflow-y-auto px-3 py-4 custom-scrollbar"
-          >
-            <div className="space-y-1">
-              <NavItem
-                icon={LayoutDashboard}
-                label="Dashboard"
-                collapsed={sidebarCollapsed}
-                active={activeView === "dashboard"}
-                onClick={() => setActiveView("dashboard")}
-              />
-              <NavItem
-                icon={Grid3X3}
-                label="Layout Editor"
-                collapsed={sidebarCollapsed}
-                active={activeView === "editor"}
-                badge={totalPlacements}
-                onClick={() => setActiveView("editor")}
-              />
-              <NavItem
-                icon={Package}
-                label="Products"
-                collapsed={sidebarCollapsed}
-                badge={products.length}
-                onClick={() => {
-                  setActiveView("editor");
-                  setDrawerOpen(true);
-                }}
-              />
-              <NavItem
-                icon={Users}
-                label="Customers"
-                collapsed={sidebarCollapsed}
-                badge={CUSTOMERS.length}
-                disabled
-              />
-            </div>
-
-            {/* Customer selector in sidebar */}
-            {!sidebarCollapsed && (
-              <div className="mt-8">
-                <p className="eyebrow mb-2.5 px-3">Customer</p>
-                <div className="space-y-0.5">
-                  {CUSTOMERS.map((customer) => (
-                    <button
-                      key={customer.id}
-                      type="button"
-                      aria-pressed={selectedCustomerId === customer.id}
-                      className={cn(
-                        "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150 cursor-pointer",
-                        selectedCustomerId === customer.id
-                          ? "bg-[var(--primary-soft)] text-[var(--primary)] font-semibold"
-                          : "text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]",
-                      )}
-                      onClick={() => handleCustomerChange(customer.id)}
-                    >
-                      <div
-                        className={cn(
-                          "h-2 w-2 rounded-full shrink-0 transition-colors",
-                          selectedCustomerId === customer.id
-                            ? "bg-[var(--primary)]"
-                            : "bg-[var(--surface-3)]",
-                        )}
-                      />
-                      <span className="flex-1 text-left">{customer.name}</span>
-                      <span className="text-[11px] text-[var(--muted-foreground)] tabular-nums">
-                        {customer.products.length}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </nav>
-
-          {/* Sidebar footer */}
-          <div className="shrink-0 border-t border-[var(--line)] p-3 space-y-0.5">
-            <NavItem
-              icon={Settings}
-              label="Settings"
-              collapsed={sidebarCollapsed}
-              disabled
-            />
-            <button
-              type="button"
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--foreground)] cursor-pointer"
-            >
-              {sidebarCollapsed ? (
-                <PanelLeftOpen className="h-[18px] w-[18px]" />
-              ) : (
-                <>
-                  <PanelLeftClose className="h-[18px] w-[18px]" />
-                  <span className="flex-1 text-left text-xs">Collapse</span>
-                </>
-              )}
-            </button>
-          </div>
-        </aside>
-
+      <DashboardLayout searchPlaceholder="Search products, placements...">
         {/* ─── Main area ─── */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          {/* Top bar */}
-          <header className="flex h-[60px] shrink-0 items-center justify-between gap-4 border-b border-[var(--line)] bg-[var(--surface-0)] px-6">
-            <div className="flex items-center gap-4 min-w-0">
+          {/* Editor toolbar */}
+          <div className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-[var(--line)] bg-[var(--surface-0)] px-4 rounded-b-none">
+            <div className="flex items-center gap-3 min-w-0">
               <input
                 aria-label="Project name"
-                className="w-60 bg-transparent text-[15px] font-semibold text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)] border-b border-transparent hover:border-[var(--line-strong)] focus:border-[var(--primary)] transition-colors py-1"
+                className="w-52 bg-transparent text-sm font-semibold text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)] border-b border-transparent hover:border-[var(--line-strong)] focus:border-[var(--primary)] transition-colors py-1"
                 onChange={(e) => setProjectName(e.target.value)}
                 value={projectName}
               />
@@ -1044,11 +966,11 @@ export function AppShell() {
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {/* Status message with auto-clear */}
+              {/* Status message */}
               {status.message && (
                 <div
                   className={cn(
-                    "mr-2 flex items-center gap-2 text-[13px] text-[var(--muted)]",
+                    "mr-2 flex items-center gap-2 text-[12px] text-[var(--muted)]",
                     status.exiting ? "toast-exit" : "toast-enter",
                   )}
                   role="status"
@@ -1058,14 +980,14 @@ export function AppShell() {
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--success)] opacity-75" />
                     <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
                   </span>
-                  <span className="max-w-52 truncate font-medium">
+                  <span className="max-w-40 truncate font-medium">
                     {status.message}
                   </span>
                 </div>
               )}
 
               {/* Undo/Redo */}
-              <div className="flex items-center rounded-lg border border-[var(--line)] p-0.5">
+              <div className="flex items-center border border-[var(--line)] p-0.5 rounded-lg">
                 <Tip label="Undo (Ctrl+Z)">
                   <button
                     type="button"
@@ -1127,7 +1049,7 @@ export function AppShell() {
                 }}
               />
             </div>
-          </header>
+          </div>
 
           {/* ─── Content area ─── */}
           {activeView === "dashboard" ? (
@@ -1142,7 +1064,7 @@ export function AppShell() {
             renderEditor()
           )}
         </div>
-      </div>
+      </DashboardLayout>
     </Tooltip.Provider>
   );
 }

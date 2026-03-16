@@ -7,8 +7,8 @@
 ---
 
 **Project:** Kayco Pallet Program
-**Generated:** 2026-03-16 12:53:47
-**Category:** SaaS (General)
+**Generated:** 2026-03-16 15:06:13
+**Category:** Logistics/Delivery
 
 ---
 
@@ -24,19 +24,13 @@
 | Background | `#F8FAFC` | `--color-background` |
 | Text | `#1E293B` | `--color-text` |
 
-**Color Notes:** Professional navy + blue CTA
+**Color Notes:** Brand blue + creator purple
 
 ### Typography
 
-- **Heading Font:** Plus Jakarta Sans
-- **Body Font:** Plus Jakarta Sans
-- **Mood:** enterprise, saas, b2b, professional, indigo, modern, approachable, legible, ios dynamic type, android scaling
-- **Google Fonts:** [Plus Jakarta Sans + Plus Jakarta Sans](https://fonts.google.com/share?selection.family=Plus+Jakarta+Sans:ital,wght@0,400;0,600;0,700;0,800;1,400)
-
-**CSS Import:**
-```css
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap');
-```
+- **Heading Font:** Inter
+- **Body Font:** Inter
+- **Mood:** Clear + Functional typography
 
 ### Spacing Variables
 
@@ -153,28 +147,28 @@
 
 ## Style Guidelines
 
-**Style:** SaaS Mobile (High-Tech Boutique)
+**Style:** Exaggerated Minimalism
 
-**Keywords:** saas, electric blue, gradient, fintech, spring animation, dual font, glassmorphism, boutique, premium, calistoga, inter, mono, tactile, haptic, bento
+**Keywords:** Bold minimalism, oversized typography, high contrast, negative space, loud minimal, statement design
 
-**Best For:** B2B SaaS mobile dashboards, fintech apps, developer tool mobile companions, marketing analytics apps, HR/operations apps, modern business productivity
+**Best For:** Fashion, architecture, portfolios, agency landing pages, luxury brands, editorial
 
-**Key Effects:** Spring animations (mass:1 damping:15 stiffness:120); gradient buttons (0052FF→4D7CFF); scale press 0.96→1.0 with haptics; floating FAB with gentle bobbing (Reanimated); glassmorphism BlurView navigation bars; staggered fade-in entrance (Y:20→0 + opacity:0→1); pulsing status dot on section badges; layout transitions (LayoutAnimation or Reanimated entering)
+**Key Effects:** font-size: clamp(3rem 10vw 12rem), font-weight: 900, letter-spacing: -0.05em, massive whitespace
 
 ### Page Pattern
 
-**Pattern Name:** Enterprise Gateway
+**Pattern Name:** Feature-Rich Showcase + Real-Time
 
-- **Conversion Strategy:** Path selection (I am a...). Mega menu navigation. Trust signals prominent.
-- **CTA Placement:** Contact Sales (Primary) + Login (Secondary)
-- **Section Order:** 1. Hero (Video/Mission), 2. Solutions by Industry, 3. Solutions by Role, 4. Client Logos, 5. Contact Sales
+- **CTA Placement:** Above fold
+- **Section Order:** Hero > Features > CTA
 
 ---
 
 ## Anti-Patterns (Do NOT Use)
 
-- ❌ Excessive animation
-- ❌ Dark mode by default
+- ❌ Static tracking
+- ❌ No map integration
+- ❌ AI purple/pink gradients
 
 ### Additional Forbidden Patterns
 

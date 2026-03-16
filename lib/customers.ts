@@ -1,15 +1,34 @@
 import type { Product } from "@/types/product";
 
+export interface PalletHistory {
+  id: string;
+  name: string;
+  date: string;
+  skuCount: number;
+  status: "delivered" | "in-transit" | "pending" | "completed";
+}
+
 export interface Customer {
   id: string;
   name: string;
+  contact: string;
+  email: string;
+  phone: string;
+  address: string;
+  status: "Priority" | "Standard" | "Urgent" | "Inactive";
   products: Product[];
+  palletHistory: PalletHistory[];
 }
 
 export const CUSTOMERS: Customer[] = [
   {
     id: "kroger",
     name: "Kroger",
+    contact: "Sarah Jenkins",
+    email: "s.jenkins@kroger.com",
+    phone: "(513) 762-4000",
+    address: "1014 Vine St, Cincinnati, OH 45202",
+    status: "Priority",
     products: [
       {
         id: "kr-001",
@@ -122,10 +141,21 @@ export const CUSTOMERS: Customer[] = [
         unitsPerCase: 8,
       },
     ],
+    palletHistory: [
+      { id: "p-kr-1", name: "Mixed Produce #482", date: "2026-03-16", skuCount: 8, status: "delivered" },
+      { id: "p-kr-2", name: "Holiday Candy #310", date: "2026-03-12", skuCount: 6, status: "delivered" },
+      { id: "p-kr-3", name: "Passover Bundle #88", date: "2026-03-08", skuCount: 4, status: "completed" },
+      { id: "p-kr-4", name: "Everyday Snacks #201", date: "2026-02-28", skuCount: 10, status: "completed" },
+    ],
   },
   {
     id: "meijer",
     name: "Meijer",
+    contact: "David Vane",
+    email: "d.vane@meijer.com",
+    phone: "(616) 453-6711",
+    address: "2929 Walker Ave NW, Grand Rapids, MI 49544",
+    status: "Standard",
     products: [
       {
         id: "mj-001",
@@ -227,10 +257,19 @@ export const CUSTOMERS: Customer[] = [
         unitsPerCase: 24,
       },
     ],
+    palletHistory: [
+      { id: "p-mj-1", name: "Dry Goods #991", date: "2026-03-14", skuCount: 5, status: "in-transit" },
+      { id: "p-mj-2", name: "Hanukkah Specials #44", date: "2026-03-01", skuCount: 3, status: "completed" },
+    ],
   },
   {
     id: "harris-teeter",
     name: "Harris Teeter",
+    contact: "Michael Ross",
+    email: "mross@ht.com",
+    phone: "(704) 844-3100",
+    address: "701 Crestdale Rd, Matthews, NC 28105",
+    status: "Urgent",
     products: [
       {
         id: "ht-001",
@@ -342,6 +381,58 @@ export const CUSTOMERS: Customer[] = [
         unitPrice: 4.49,
         unitsPerCase: 16,
       },
+    ],
+    palletHistory: [
+      { id: "p-ht-1", name: "Frozen Tier #112", date: "2026-03-15", skuCount: 7, status: "pending" },
+      { id: "p-ht-2", name: "Gift Tower Display #55", date: "2026-03-10", skuCount: 4, status: "delivered" },
+      { id: "p-ht-3", name: "Christmas Bakery #78", date: "2026-02-20", skuCount: 6, status: "completed" },
+    ],
+  },
+  {
+    id: "publix",
+    name: "Publix Markets",
+    contact: "Linda Chao",
+    email: "lchao@publix.com",
+    phone: "(863) 688-1188",
+    address: "3300 Publix Corporate Pkwy, Lakeland, FL 33811",
+    status: "Inactive",
+    products: [
+      {
+        id: "pb-001",
+        sku: "PB-CHR-101",
+        name: "Holiday Fudge Box",
+        category: "Candy",
+        holiday: "christmas" as const,
+        dimensions: { width: 8, height: 6, depth: 5 },
+        color: "#7c3a2d",
+        unitPrice: 9.99,
+        unitsPerCase: 10,
+      },
+      {
+        id: "pb-002",
+        sku: "PB-EVE-201",
+        name: "Mixed Nut Tin",
+        category: "Snacks",
+        holiday: "everyday" as const,
+        dimensions: { width: 7, height: 8, depth: 7 },
+        color: "#a68b5b",
+        unitPrice: 11.99,
+        unitsPerCase: 8,
+      },
+      {
+        id: "pb-003",
+        sku: "PB-PAS-301",
+        name: "Charoset Jar",
+        category: "Pantry",
+        holiday: "passover" as const,
+        dimensions: { width: 5, height: 7, depth: 5 },
+        color: "#8b5e3c",
+        unitPrice: 6.49,
+        unitsPerCase: 14,
+      },
+    ],
+    palletHistory: [
+      { id: "p-pb-1", name: "Bakery Mix #301", date: "2026-03-12", skuCount: 3, status: "completed" },
     ],
   },
 ];
