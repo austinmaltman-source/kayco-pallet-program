@@ -13,6 +13,8 @@ import {
   X,
   Save,
   Check,
+  Box,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -68,8 +70,11 @@ export function ProductDetailPage({ productId }: { productId: string }) {
   const product: Product | null = storeProduct ?? baseResult?.product ?? null;
 
   const [isDragging, setIsDragging] = useState(false);
+  const [isDraggingModel, setIsDraggingModel] = useState(false);
+  const [modelUploading, setModelUploading] = useState(false);
   const [saved, setSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const modelInputRef = useRef<HTMLInputElement>(null);
 
   // Track if anything changed from base
   const hasChanges = product && baseResult
@@ -120,6 +125,57 @@ export function ProductDetailPage({ productId }: { productId: string }) {
   function handleRemoveArtwork() {
     updateProduct(productId, { artworkUrl: undefined });
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function uploadModelFile(file: File) {
+    const validExts = [".glb", ".gltf", ".obj", ".fbx", ".usdz"];
+    const ext = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+    if (!validExts.includes(ext)) return;
+
+    setModelUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      if (!res.ok) throw new Error("Upload failed");
+      const { url } = await res.json();
+      updateProduct(productId, { modelUrl: url });
+    } catch {
+      // Could add toast error here
+    } finally {
+      setModelUploading(false);
+    }
+  }
+
+  const handleModelDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDraggingModel(false);
+      const file = e.dataTransfer.files[0];
+      if (file) uploadModelFile(file);
+    },
+    [productId] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  const handleModelFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) uploadModelFile(file);
+    },
+    [productId] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  function handleRemoveModel() {
+    // Optionally delete from blob storage
+    if (product?.modelUrl) {
+      fetch("/api/upload", {
+        method: "DELETE",
+        body: JSON.stringify({ url: product.modelUrl }),
+        headers: { "Content-Type": "application/json" },
+      }).catch(() => {});
+    }
+    updateProduct(productId, { modelUrl: undefined });
+    if (modelInputRef.current) modelInputRef.current.value = "";
   }
 
   function handleShapeSelect(shape: PackagingShape) {
@@ -366,6 +422,91 @@ export function ProductDetailPage({ productId }: { productId: string }) {
             accept="image/*"
             className="hidden"
             onChange={handleFileChange}
+          />
+        </div>
+
+        {/* 4b. 3D Model Drop Zone */}
+        <div className="bg-surface-0 border border-[var(--line-strong)] rounded-2xl p-6 mb-8">
+          <p className="text-xs font-black text-muted uppercase tracking-widest mb-4">
+            3D Model
+          </p>
+
+          {product.modelUrl ? (
+            /* Model uploaded preview */
+            <div className="flex items-center gap-5">
+              <div className="size-24 flex items-center justify-center rounded-xl border border-[var(--line-strong)] bg-surface-1">
+                <Box className="size-10 text-primary" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-bold">3D model uploaded</p>
+                <p className="text-xs text-muted max-w-xs">
+                  This model will be used when placing the product on pallets.
+                </p>
+                <div className="flex items-center gap-3 mt-1">
+                  <a
+                    href={product.modelUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-bold uppercase text-primary hover:text-primary-hover transition-colors"
+                  >
+                    View File
+                  </a>
+                  <button
+                    onClick={handleRemoveModel}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold uppercase text-red-500 hover:text-red-400 transition-colors"
+                  >
+                    <X className="size-3.5" /> Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Drop zone */
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsDraggingModel(true); }}
+              onDragLeave={() => setIsDraggingModel(false)}
+              onDrop={handleModelDrop}
+              onClick={() => !modelUploading && modelInputRef.current?.click()}
+              className={[
+                "flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed transition-all py-12 px-6",
+                modelUploading
+                  ? "border-primary/40 bg-primary/5 cursor-wait"
+                  : isDraggingModel
+                    ? "border-primary bg-primary/5 cursor-pointer"
+                    : "border-[var(--line-strong)] hover:border-primary/60 hover:bg-surface-1 cursor-pointer",
+              ].join(" ")}
+            >
+              {modelUploading ? (
+                <Loader2 className="size-8 text-primary animate-spin" />
+              ) : (
+                <Box
+                  className={[
+                    "size-8 transition-colors",
+                    isDraggingModel ? "text-primary" : "text-muted",
+                  ].join(" ")}
+                />
+              )}
+              <div className="text-center">
+                <p className="text-sm font-bold">
+                  {modelUploading ? "Uploading model..." : "Drop 3D model here"}
+                </p>
+                {!modelUploading && (
+                  <p className="text-xs text-muted mt-1">
+                    or{" "}
+                    <span className="text-primary font-bold">click to browse</span>
+                    {" "}&mdash; GLB, GLTF, OBJ, FBX, USDZ
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <input
+            ref={modelInputRef}
+            type="file"
+            accept=".glb,.gltf,.obj,.fbx,.usdz"
+            className="hidden"
+            onChange={handleModelFileChange}
           />
         </div>
 

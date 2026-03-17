@@ -26,4 +26,5 @@ export interface Product {
   unitsPerCase?: number;
   packaging?: PackagingShape;
   artworkUrl?: string;
+  modelUrl?: string; // URL to 3D model file (.glb)
 }

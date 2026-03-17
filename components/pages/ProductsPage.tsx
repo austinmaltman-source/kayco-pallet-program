@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Package, Plus, Search, X } from "lucide-react";
+import { useEffect, useMemo, useState, useRef } from "react";
+import { ChevronRight, Package, Plus, Search, X, Box, Loader2 } from "lucide-react";
 import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -234,6 +234,31 @@ function AddProductModal({
   const [color, setColor] = useState("#ec5b13");
   const [unitPrice, setUnitPrice] = useState("");
   const [unitsPerCase, setUnitsPerCase] = useState("");
+  const [modelUrl, setModelUrl] = useState("");
+  const [modelUploading, setModelUploading] = useState(false);
+  const [modelFileName, setModelFileName] = useState("");
+  const modelInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleModelUpload(file: File) {
+    const validExts = [".glb", ".gltf", ".obj", ".fbx", ".usdz"];
+    const ext = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+    if (!validExts.includes(ext)) return;
+
+    setModelUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      if (!res.ok) throw new Error("Upload failed");
+      const { url } = await res.json();
+      setModelUrl(url);
+      setModelFileName(file.name);
+    } catch {
+      // Could add error handling
+    } finally {
+      setModelUploading(false);
+    }
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -254,6 +279,7 @@ function AddProductModal({
       packaging,
       ...(unitPrice ? { unitPrice: Number(unitPrice) } : {}),
       ...(unitsPerCase ? { unitsPerCase: Number(unitsPerCase) } : {}),
+      ...(modelUrl ? { modelUrl } : {}),
     };
     onAdd(product);
   }
@@ -447,6 +473,57 @@ function AddProductModal({
               </div>
             </div>
           </div>
+
+          {/* 3D Model Upload */}
+          <fieldset>
+            <legend className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              3D Model (optional)
+            </legend>
+            {modelUrl ? (
+              <div className="flex items-center gap-3 px-3 py-2.5 border border-[var(--line-strong)] rounded-lg bg-surface-1">
+                <Box className="size-5 text-primary shrink-0" />
+                <span className="text-sm font-medium truncate flex-1">{modelFileName}</span>
+                <button
+                  type="button"
+                  onClick={() => { setModelUrl(""); setModelFileName(""); }}
+                  className="text-muted hover:text-red-500 transition-colors cursor-pointer"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={modelUploading}
+                onClick={() => modelInputRef.current?.click()}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 min-h-[44px] border-2 border-dashed border-[var(--line-strong)] hover:border-primary/60 bg-surface-0 text-sm rounded-lg cursor-pointer transition-colors"
+              >
+                {modelUploading ? (
+                  <>
+                    <Loader2 className="size-4 text-primary animate-spin" />
+                    <span className="text-muted">Uploading...</span>
+                  </>
+                ) : (
+                  <>
+                    <Box className="size-4 text-muted" />
+                    <span className="text-muted">
+                      Upload <span className="text-primary font-bold">GLB</span> from Tripo
+                    </span>
+                  </>
+                )}
+              </button>
+            )}
+            <input
+              ref={modelInputRef}
+              type="file"
+              accept=".glb,.gltf,.obj,.fbx,.usdz"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleModelUpload(file);
+              }}
+            />
+          </fieldset>
 
           {/* Submit */}
           <div className="flex justify-end gap-3 pt-2">
