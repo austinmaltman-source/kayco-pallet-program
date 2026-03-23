@@ -11,19 +11,19 @@ import {
   CheckCircle2,
   Clock,
   CircleDot,
-  ExternalLink,
   Calendar,
   Hash,
-  TrendingUp,
   BarChart3,
   Plus,
   Search,
   ArrowUpRight,
 } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { getCustomerById } from "@/lib/customers";
-import type { PalletHistory } from "@/lib/customers";
+import type { Customer, PalletHistory } from "@/types/customer";
+import type { Product } from "@/types/product";
 
 const STATUS_CONFIG: Record<
   string,
@@ -78,21 +78,87 @@ const PALLET_STATUS_CONFIG: Record<
 };
 
 export function CustomerDetailPage({ slug }: { slug: string }) {
-  const customer = getCustomerById(slug);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [history, setHistory] = useState<PalletHistory[]>([]);
+  const [search, setSearch] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCustomer() {
+      try {
+        const [customersResponse, productsResponse, historyResponse] = await Promise.all([
+          fetch("/api/customers"),
+          fetch(`/api/customers/${slug}/products`),
+          fetch(`/api/customers/${slug}/history`),
+        ]);
+
+        if (!customersResponse.ok || !productsResponse.ok || !historyResponse.ok) {
+          throw new Error("Failed to load customer detail");
+        }
+
+        const customers = (await customersResponse.json()) as Customer[];
+        const products = (await productsResponse.json()) as Product[];
+        const history = (await historyResponse.json()) as PalletHistory[];
+
+        if (!cancelled) {
+          setCustomer(customers.find((entry) => entry.id === slug) ?? null);
+          setProducts(products);
+          setHistory(history);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadCustomer();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  const filteredProducts = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) {
+      return products;
+    }
+
+    return products.filter((product) =>
+      [product.name, product.sku, product.category]
+        .some((value) => value.toLowerCase().includes(query)),
+    );
+  }, [products, search]);
+
+  const categories = useMemo(
+    () => [...new Set(products.map((product) => product.category))].sort(),
+    [products],
+  );
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-1 items-center justify-center text-sm text-muted">
+          Loading customer...
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (!customer) {
     return (
       <DashboardLayout>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center space-y-4">
-            <div className="size-16 bg-surface-2 rounded-full flex items-center justify-center mx-auto">
+        <div className="flex flex-1 items-center justify-center">
+          <div className="space-y-4 text-center">
+            <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-surface-2">
               <User className="size-8 text-muted" />
             </div>
             <p className="text-2xl font-black uppercase">Customer Not Found</p>
-            <Link
-              href="/customers"
-              className="btn btn-primary btn-sm inline-flex"
-            >
+            <Link href="/customers" className="btn btn-primary btn-sm inline-flex">
               <ArrowLeft className="size-4" /> Back to Customers
             </Link>
           </div>
@@ -101,129 +167,108 @@ export function CustomerDetailPage({ slug }: { slug: string }) {
     );
   }
 
-  const categories = [
-    ...new Set(customer.products.map((p) => p.category)),
-  ].sort();
-
   const statusInfo = STATUS_CONFIG[customer.status] || STATUS_CONFIG.Standard;
-
-  const totalValue = customer.products.reduce(
-    (sum, p) => sum + (p.unitPrice || 0) * (p.unitsPerCase || 0),
-    0
+  const totalValue = products.reduce(
+    (sum, product) => sum + (product.unitPrice || 0) * (product.unitsPerCase || 0),
+    0,
   );
-
-  const deliveredCount = customer.palletHistory.filter(
-    (p) => p.status === "delivered" || p.status === "completed"
+  const deliveredCount = history.filter(
+    (entry) => entry.status === "delivered" || entry.status === "completed",
   ).length;
 
   return (
     <DashboardLayout>
       <div className="flex-1 overflow-y-auto p-6 lg:p-10">
-        {/* Breadcrumb */}
         <Link
           href="/customers"
-          className="inline-flex items-center gap-1.5 text-sm font-bold text-muted hover:text-primary mb-8 uppercase tracking-wide transition-colors"
+          className="mb-8 inline-flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-muted transition-colors hover:text-primary"
         >
           <ArrowLeft className="size-4" /> All Customers
         </Link>
 
-        {/* Hero Header */}
-        <div className="card-elevated p-6 lg:p-8 mb-8">
+        <div className="card-elevated mb-8 p-6 lg:p-8">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div className="flex items-center gap-5">
-              <div className="size-16 bg-primary-soft flex items-center justify-center font-black text-2xl text-primary rounded-2xl shrink-0">
+              <div className="size-16 shrink-0 rounded-2xl bg-primary-soft text-2xl font-black text-primary flex items-center justify-center">
                 {customer.name[0]}
               </div>
               <div>
-                <div className="flex items-center gap-3 mb-1">
-                  <h2 className="text-2xl lg:text-3xl font-black tracking-tight uppercase">
+                <div className="mb-1 flex items-center gap-3">
+                  <h2 className="text-2xl font-black uppercase tracking-tight lg:text-3xl">
                     {customer.name}
                   </h2>
                   <span className={`badge ${statusInfo.badgeClass}`}>
                     <span
-                      className={`size-1.5 rounded-full ${statusInfo.dotColor} mr-1.5 inline-block`}
+                      className={`mr-1.5 inline-block size-1.5 rounded-full ${statusInfo.dotColor}`}
                     />
                     {statusInfo.label}
                   </span>
                 </div>
                 <p className="text-sm text-muted">
-                  Customer ID: <span className="font-mono font-bold">{customer.id.toUpperCase()}</span>
+                  Customer ID:{" "}
+                  <span className="font-mono font-bold">{customer.id.toUpperCase()}</span>
                 </p>
               </div>
             </div>
             <div className="flex gap-3">
-              <Link
-                href={`/editor?customer=${slug}`}
-                className="btn btn-primary btn-sm"
-              >
+              <Link href={`/editor?customer=${slug}`} className="btn btn-primary btn-sm">
                 <Plus className="size-4" /> New Build
               </Link>
             </div>
           </div>
 
-          {/* Quick stats row inside hero */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-[var(--line)]">
+          <div className="mt-6 grid grid-cols-2 gap-4 border-t border-[var(--line)] pt-6 sm:grid-cols-4">
             <div>
-              <p className="text-xs font-bold text-muted uppercase tracking-widest mb-1">
+              <p className="mb-1 text-xs font-bold uppercase tracking-widest text-muted">
                 Approved SKUs
               </p>
-              <p className="text-xl font-black tabular-nums">
-                {customer.products.length}
-              </p>
+              <p className="text-xl font-black tabular-nums">{products.length}</p>
             </div>
             <div>
-              <p className="text-xs font-bold text-muted uppercase tracking-widest mb-1">
+              <p className="mb-1 text-xs font-bold uppercase tracking-widest text-muted">
                 Categories
               </p>
-              <p className="text-xl font-black tabular-nums">
-                {categories.length}
-              </p>
+              <p className="text-xl font-black tabular-nums">{categories.length}</p>
             </div>
             <div>
-              <p className="text-xs font-bold text-muted uppercase tracking-widest mb-1">
+              <p className="mb-1 text-xs font-bold uppercase tracking-widest text-muted">
                 Pallets Fulfilled
               </p>
-              <p className="text-xl font-black tabular-nums">
-                {deliveredCount}
-              </p>
+              <p className="text-xl font-black tabular-nums">{deliveredCount}</p>
             </div>
             <div>
-              <p className="text-xs font-bold text-muted uppercase tracking-widest mb-1">
+              <p className="mb-1 text-xs font-bold uppercase tracking-widest text-muted">
                 Catalog Value
               </p>
               <p className="text-xl font-black tabular-nums">
-                ${totalValue.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                ${totalValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Info Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
-          {/* Contact */}
+        <div className="mb-10 grid grid-cols-1 gap-5 md:grid-cols-3">
           <div className="card-elevated p-6">
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="size-8 bg-primary-soft text-primary flex items-center justify-center rounded-lg">
+            <div className="mb-4 flex items-center gap-2.5">
+              <div className="size-8 rounded-lg bg-primary-soft text-primary flex items-center justify-center">
                 <User className="size-4" />
               </div>
-              <p className="text-xs font-bold text-muted uppercase tracking-widest">
+              <p className="text-xs font-bold uppercase tracking-widest text-muted">
                 Primary Contact
               </p>
             </div>
-            <p className="font-bold text-sm mb-3">{customer.contact}</p>
+            <p className="mb-3 text-sm font-bold">{customer.contact}</p>
             <div className="space-y-2">
               <a
                 href={`mailto:${customer.email}`}
-                className="flex items-center gap-2.5 text-sm text-muted hover:text-primary transition-colors"
-                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-2.5 text-sm text-muted transition-colors hover:text-primary"
               >
                 <Mail className="size-3.5 shrink-0" />
                 <span className="truncate">{customer.email}</span>
               </a>
               <a
                 href={`tel:${customer.phone}`}
-                className="flex items-center gap-2.5 text-sm text-muted hover:text-primary transition-colors"
-                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-2.5 text-sm text-muted transition-colors hover:text-primary"
               >
                 <Phone className="size-3.5 shrink-0" />
                 {customer.phone}
@@ -231,40 +276,33 @@ export function CustomerDetailPage({ slug }: { slug: string }) {
             </div>
           </div>
 
-          {/* Address */}
           <div className="card-elevated p-6">
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="size-8 bg-blue-50 text-[var(--info)] flex items-center justify-center rounded-lg">
+            <div className="mb-4 flex items-center gap-2.5">
+              <div className="size-8 rounded-lg bg-blue-50 text-[var(--info)] flex items-center justify-center">
                 <MapPin className="size-4" />
               </div>
-              <p className="text-xs font-bold text-muted uppercase tracking-widest">
+              <p className="text-xs font-bold uppercase tracking-widest text-muted">
                 Shipping Address
               </p>
             </div>
             <p className="text-sm leading-relaxed">{customer.address}</p>
           </div>
 
-          {/* Category Breakdown */}
           <div className="card-elevated p-6">
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="size-8 bg-[var(--purple-soft)] text-[var(--purple)] flex items-center justify-center rounded-lg">
+            <div className="mb-4 flex items-center gap-2.5">
+              <div className="size-8 rounded-lg bg-[var(--purple-soft)] text-[var(--purple)] flex items-center justify-center">
                 <BarChart3 className="size-4" />
               </div>
-              <p className="text-xs font-bold text-muted uppercase tracking-widest">
+              <p className="text-xs font-bold uppercase tracking-widest text-muted">
                 Categories
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {categories.map((cat) => {
-                const count = customer.products.filter(
-                  (p) => p.category === cat
-                ).length;
+              {categories.map((category) => {
+                const count = products.filter((product) => product.category === category).length;
                 return (
-                  <span
-                    key={cat}
-                    className="badge badge-muted"
-                  >
-                    {cat}
+                  <span key={category} className="badge badge-muted">
+                    {category}
                     <span className="ml-1 text-[10px] opacity-70">{count}</span>
                   </span>
                 );
@@ -273,88 +311,82 @@ export function CustomerDetailPage({ slug }: { slug: string }) {
           </div>
         </div>
 
-        {/* Approved SKUs Table */}
-        <div className="card-elevated overflow-hidden mb-10">
-          <div className="px-6 py-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)]">
+        <div className="card-elevated mb-10 overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-6 py-4">
             <div className="flex items-center gap-2.5">
               <Package className="size-4 text-primary" />
-              <h3 className="text-sm font-bold uppercase tracking-wider">
-                Approved SKUs
-              </h3>
-              <span className="badge badge-primary">
-                {customer.products.length}
-              </span>
+              <h3 className="text-sm font-bold uppercase tracking-wider">Approved SKUs</h3>
+              <span className="badge badge-primary">{products.length}</span>
             </div>
             <div className="relative">
-              <Search className="size-4 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
               <input
                 type="text"
                 placeholder="Search products..."
-                className="input pl-9 !min-h-[36px] !text-sm w-48"
+                className="input w-48 pl-9 !min-h-[36px] !text-sm"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
               />
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full border-collapse text-left">
               <thead>
                 <tr className="bg-surface-1">
-                  <th className="px-6 py-3.5 text-[11px] font-bold text-muted uppercase tracking-widest">
+                  <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-widest text-muted">
                     Product
                   </th>
-                  <th className="px-6 py-3.5 text-[11px] font-bold text-muted uppercase tracking-widest">
+                  <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-widest text-muted">
                     SKU
                   </th>
-                  <th className="px-6 py-3.5 text-[11px] font-bold text-muted uppercase tracking-widest">
+                  <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-widest text-muted">
                     Category
                   </th>
-                  <th className="px-6 py-3.5 text-[11px] font-bold text-muted uppercase tracking-widest">
+                  <th className="px-6 py-3.5 text-[11px] font-bold uppercase tracking-widest text-muted">
                     Holiday
                   </th>
-                  <th className="px-6 py-3.5 text-[11px] font-bold text-muted uppercase tracking-widest text-right">
+                  <th className="px-6 py-3.5 text-right text-[11px] font-bold uppercase tracking-widest text-muted">
                     Unit Price
                   </th>
-                  <th className="px-6 py-3.5 text-[11px] font-bold text-muted uppercase tracking-widest text-right">
+                  <th className="px-6 py-3.5 text-right text-[11px] font-bold uppercase tracking-widest text-muted">
                     Per Case
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]">
-                {customer.products.map((p) => (
-                  <tr
-                    key={p.id}
-                    className="hover:bg-surface-1/60 transition-colors group"
-                  >
+                {filteredProducts.map((product) => (
+                  <tr key={product.id} className="group transition-colors hover:bg-surface-1/60">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div
-                          className="size-9 rounded-lg shrink-0 shadow-sm"
-                          style={{ backgroundColor: p.color }}
+                          className="size-9 shrink-0 rounded-lg shadow-sm"
+                          style={{ backgroundColor: product.color }}
                         />
-                        <span className="font-bold text-sm">{p.name}</span>
+                        <span className="text-sm font-bold">{product.name}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <code className="text-xs font-mono bg-surface-1 px-2 py-1 rounded text-muted">
-                        {p.sku}
+                      <code className="rounded bg-surface-1 px-2 py-1 text-xs text-muted">
+                        {product.sku}
                       </code>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm">{p.category}</span>
+                      <span className="text-sm">{product.category}</span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="badge badge-muted">
-                        {p.holiday.replace("-", " ")}
+                        {product.holiday.replace("-", " ")}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className="text-sm font-bold tabular-nums">
-                        ${p.unitPrice?.toFixed(2)}
+                        ${product.unitPrice?.toFixed(2) ?? "0.00"}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className="text-sm text-muted tabular-nums">
-                        {p.unitsPerCase} units
+                        {product.unitsPerCase ?? 0} units
                       </span>
                     </td>
                   </tr>
@@ -363,12 +395,12 @@ export function CustomerDetailPage({ slug }: { slug: string }) {
             </table>
           </div>
 
-          <div className="px-6 py-3.5 bg-surface-1 border-t border-[var(--line)] flex items-center justify-between">
-            <p className="text-xs text-muted font-medium">
-              <span className="font-bold text-foreground">{customer.products.length}</span> products across{" "}
+          <div className="flex items-center justify-between border-t border-[var(--line)] bg-surface-1 px-6 py-3.5">
+            <p className="text-xs font-medium text-muted">
+              <span className="font-bold text-foreground">{products.length}</span> products across{" "}
               <span className="font-bold text-foreground">{categories.length}</span> categories
             </p>
-            <p className="text-xs text-muted font-medium">
+            <p className="text-xs font-medium text-muted">
               Total catalog value:{" "}
               <span className="font-bold text-foreground">
                 ${totalValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
@@ -377,46 +409,42 @@ export function CustomerDetailPage({ slug }: { slug: string }) {
           </div>
         </div>
 
-        {/* Previous Pallets */}
         <div>
-          <div className="flex items-center justify-between mb-5">
+          <div className="mb-5 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <Truck className="size-4 text-primary" />
-              <h3 className="text-sm font-bold uppercase tracking-wider">
-                Pallet History
-              </h3>
-              <span className="badge badge-primary">
-                {customer.palletHistory.length}
-              </span>
+              <h3 className="text-sm font-bold uppercase tracking-wider">Pallet History</h3>
+              <span className="badge badge-primary">{history.length}</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {customer.palletHistory.map((pallet) => {
-              const config = PALLET_STATUS_CONFIG[pallet.status];
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {history.map((entry) => {
+              const config = PALLET_STATUS_CONFIG[entry.status];
               const StatusIcon = config.icon;
+
               return (
                 <div
-                  key={pallet.id}
-                  className="card-elevated p-5 flex items-center justify-between group hover:border-primary/30 transition-colors cursor-pointer"
+                  key={entry.id}
+                  className="card-elevated group flex cursor-pointer items-center justify-between p-5 transition-colors hover:border-primary/30"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="size-10 bg-surface-1 flex items-center justify-center rounded-xl shrink-0">
+                    <div className="size-10 shrink-0 rounded-xl bg-surface-1 flex items-center justify-center">
                       <Package className="size-5 text-muted" />
                     </div>
                     <div>
-                      <p className="font-bold text-sm flex items-center gap-1.5">
-                        {pallet.name}
-                        <ArrowUpRight className="size-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
+                      <p className="flex items-center gap-1.5 text-sm font-bold">
+                        {entry.name}
+                        <ArrowUpRight className="size-3.5 text-primary opacity-0 transition-opacity group-hover:opacity-100" />
                       </p>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs text-muted flex items-center gap-1">
+                      <div className="mt-1 flex items-center gap-3">
+                        <span className="flex items-center gap-1 text-xs text-muted">
                           <Hash className="size-3" />
-                          {pallet.skuCount} SKUs
+                          {entry.skuCount} SKUs
                         </span>
-                        <span className="text-xs text-muted flex items-center gap-1">
+                        <span className="flex items-center gap-1 text-xs text-muted">
                           <Calendar className="size-3" />
-                          {new Date(pallet.date).toLocaleDateString("en-US", {
+                          {new Date(entry.date).toLocaleDateString("en-US", {
                             month: "short",
                             day: "numeric",
                             year: "numeric",

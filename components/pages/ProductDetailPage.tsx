@@ -19,7 +19,6 @@ import {
 import Link from "next/link";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { CUSTOMERS } from "@/lib/customers";
 import { useProductStore } from "@/stores/useProductStore";
 import { ProductMockup } from "@/components/ui/ProductMockup";
 import type { Product, PackagingShape } from "@/types/product";
@@ -35,39 +34,50 @@ const SHAPES: { value: PackagingShape; label: string }[] = [
   { value: "pouch", label: "Pouch" },
 ];
 
-// ─── findProduct ──────────────────────────────────────────────────────────────
-
-function findProduct(productId: string): {
-  product: Product;
-  customerName: string;
-} | null {
-  for (const c of CUSTOMERS) {
-    const product = c.products.find((p) => p.id === productId);
-    if (product) return { product, customerName: c.name };
-  }
-  return null;
-}
-
-// ─── Main component ───────────────────────────────────────────────────────────
-
 export function ProductDetailPage({ productId }: { productId: string }) {
   const upsertProduct = useProductStore((s) => s.upsertProduct);
   const updateProduct = useProductStore((s) => s.updateProduct);
   const storeProduct = useProductStore((s) =>
     s.products.find((p) => p.id === productId)
   );
+  const [isLoading, setIsLoading] = useState(!storeProduct);
 
-  const baseResult = findProduct(productId);
-
-  // Seed the product into the store on mount so updates have somewhere to go
   useEffect(() => {
-    if (baseResult && !storeProduct) {
-      upsertProduct({ ...baseResult.product });
+    if (storeProduct) {
+      setIsLoading(false);
+      return;
     }
-  }, [baseResult, storeProduct, upsertProduct]);
 
-  // Read live values from the store (falls back to base data before store is seeded)
-  const product: Product | null = storeProduct ?? baseResult?.product ?? null;
+    let cancelled = false;
+
+    async function loadProduct() {
+      try {
+        const response = await fetch("/api/products");
+        if (!response.ok) {
+          throw new Error("Failed to load products");
+        }
+
+        const products = (await response.json()) as Product[];
+        const product = products.find((entry) => entry.id === productId);
+
+        if (!cancelled && product) {
+          upsertProduct(product);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadProduct();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [productId, storeProduct, upsertProduct]);
+
+  const product: Product | null = storeProduct ?? null;
 
   const [isDragging, setIsDragging] = useState(false);
   const [isDraggingModel, setIsDraggingModel] = useState(false);
@@ -76,17 +86,11 @@ export function ProductDetailPage({ productId }: { productId: string }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelInputRef = useRef<HTMLInputElement>(null);
 
-  // Track if anything changed from base
-  const hasChanges = product && baseResult
-    ? product.packaging !== baseResult.product.packaging ||
-      product.artworkUrl !== baseResult.product.artworkUrl
-    : false;
+  const hasChanges = Boolean(product);
 
-  function handleSave() {
+  async function handleSave() {
     if (!product) return;
-    // Persist to store (already there via updateProduct calls)
-    // In a real app this would POST to an API
-    upsertProduct({ ...product });
+    await updateProduct(productId, product);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -99,7 +103,7 @@ export function ProductDetailPage({ productId }: { productId: string }) {
     const reader = new FileReader();
     reader.onload = () => {
       const url = reader.result as string;
-      updateProduct(productId, { artworkUrl: url });
+      void updateProduct(productId, { artworkUrl: url });
     };
     reader.readAsDataURL(file);
   }
@@ -123,7 +127,7 @@ export function ProductDetailPage({ productId }: { productId: string }) {
   );
 
   function handleRemoveArtwork() {
-    updateProduct(productId, { artworkUrl: undefined });
+    void updateProduct(productId, { artworkUrl: undefined });
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -139,7 +143,7 @@ export function ProductDetailPage({ productId }: { productId: string }) {
       const res = await fetch("/api/upload", { method: "POST", body: form });
       if (!res.ok) throw new Error("Upload failed");
       const { url } = await res.json();
-      updateProduct(productId, { modelUrl: url });
+      await updateProduct(productId, { modelUrl: url });
     } catch {
       // Could add toast error here
     } finally {
@@ -168,23 +172,31 @@ export function ProductDetailPage({ productId }: { productId: string }) {
   function handleRemoveModel() {
     // Optionally delete from blob storage
     if (product?.modelUrl) {
-      fetch("/api/upload", {
+      void fetch("/api/upload", {
         method: "DELETE",
         body: JSON.stringify({ url: product.modelUrl }),
         headers: { "Content-Type": "application/json" },
       }).catch(() => {});
     }
-    updateProduct(productId, { modelUrl: undefined });
+    void updateProduct(productId, { modelUrl: undefined });
     if (modelInputRef.current) modelInputRef.current.value = "";
   }
 
   function handleShapeSelect(shape: PackagingShape) {
-    updateProduct(productId, { packaging: shape });
+    void updateProduct(productId, { packaging: shape });
   }
 
-  // ── Not found ────────────────────────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-1 items-center justify-center text-sm text-muted">
+          Loading product...
+        </div>
+      </DashboardLayout>
+    );
+  }
 
-  if (!baseResult || !product) {
+  if (!product) {
     return (
       <DashboardLayout>
         <div className="flex-1 flex items-center justify-center">
@@ -204,7 +216,7 @@ export function ProductDetailPage({ productId }: { productId: string }) {
     );
   }
 
-  const { customerName } = baseResult;
+  const customerName = "Shared Catalog";
   const dim = product.dimensions;
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -222,7 +234,9 @@ export function ProductDetailPage({ productId }: { productId: string }) {
             <ArrowLeft className="size-4" /> All Products
           </Link>
           <button
-            onClick={handleSave}
+            onClick={() => {
+              void handleSave();
+            }}
             disabled={saved}
             className={`inline-flex items-center gap-2 px-6 py-2 font-bold text-sm uppercase rounded-xl cursor-pointer transition-all ${
               saved
@@ -288,7 +302,7 @@ export function ProductDetailPage({ productId }: { productId: string }) {
                   Dimensions
                 </span>
                 <span className="text-sm font-black">
-                  {dim.width}" × {dim.height}" × {dim.depth}"
+                  {dim.width}in × {dim.height}in × {dim.depth}in
                 </span>
               </div>
               {product.unitPrice != null && (
@@ -520,7 +534,7 @@ export function ProductDetailPage({ productId }: { productId: string }) {
               </p>
             </div>
             <p className="text-xl font-black">
-              {dim.width}" × {dim.height}" × {dim.depth}"
+              {dim.width}in × {dim.height}in × {dim.depth}in
             </p>
           </div>
 

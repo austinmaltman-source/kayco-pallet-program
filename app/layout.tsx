@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Public_Sans } from "next/font/google";
+
+import { Providers } from "@/components/Providers";
+
 import "./globals.css";
 
 const publicSans = Public_Sans({
@@ -25,7 +28,7 @@ export default function RootLayout({
         className={`${publicSans.variable} antialiased`}
         suppressHydrationWarning
       >
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

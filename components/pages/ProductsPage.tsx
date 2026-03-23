@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
-import { ChevronRight, Package, Plus, Search, X, Box, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Package, Plus, Search, X, Box, Loader2 } from "lucide-react";
 import Link from "next/link";
 import * as Dialog from "@radix-ui/react-dialog";
+
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ProductMockup } from "@/components/ui/ProductMockup";
 import { useProductStore } from "@/stores/useProductStore";
 import { useUIStore } from "@/stores/useUIStore";
-import { CUSTOMERS, getCustomerById } from "@/lib/customers";
-import type { Product, HolidayType, PackagingShape } from "@/types/product";
+import type { CustomerSummary } from "@/types/customer";
+import type { HolidayType, PackagingShape, Product } from "@/types/product";
 
 const HOLIDAYS: HolidayType[] = [
   "christmas",
@@ -20,69 +21,87 @@ const HOLIDAYS: HolidayType[] = [
 ];
 
 export function ProductsPage() {
-  const products = useProductStore((s) => s.products);
-  const search = useProductStore((s) => s.search);
-  const category = useProductStore((s) => s.category);
-  const setSearch = useProductStore((s) => s.setSearch);
-  const setCategory = useProductStore((s) => s.setCategory);
-  const replaceProducts = useProductStore((s) => s.replaceProducts);
-  const addProduct = useProductStore((s) => s.addProduct);
+  const products = useProductStore((state) => state.products);
+  const isLoading = useProductStore((state) => state.isLoading);
+  const search = useProductStore((state) => state.search);
+  const category = useProductStore((state) => state.category);
+  const setSearch = useProductStore((state) => state.setSearch);
+  const setCategory = useProductStore((state) => state.setCategory);
+  const fetchProducts = useProductStore((state) => state.fetchProducts);
+  const addProduct = useProductStore((state) => state.addProduct);
 
-  const selectedCustomerId = useUIStore((s) => s.selectedCustomerId);
-  const setSelectedCustomerId = useUIStore((s) => s.setSelectedCustomerId);
+  const selectedCustomerId = useUIStore((state) => state.selectedCustomerId);
+  const setSelectedCustomerId = useUIStore((state) => state.setSelectedCustomerId);
 
-  const activeCustomer = getCustomerById(selectedCustomerId);
-
+  const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
-    if (products.length === 0 && activeCustomer) {
-      replaceProducts(activeCustomer.products);
+    let cancelled = false;
+
+    async function loadCustomers() {
+      const response = await fetch("/api/customers");
+      if (!response.ok) {
+        throw new Error("Failed to load customers");
+      }
+
+      const data = (await response.json()) as CustomerSummary[];
+      if (cancelled) {
+        return;
+      }
+
+      setCustomers(data);
+
+      const hasSelectedCustomer = data.some((customer) => customer.id === selectedCustomerId);
+      if (!hasSelectedCustomer && data[0]) {
+        setSelectedCustomerId(data[0].id);
+      }
     }
-  }, []);
+
+    void loadCustomers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCustomerId, setSelectedCustomerId]);
+
+  useEffect(() => {
+    void fetchProducts(selectedCustomerId || undefined);
+  }, [fetchProducts, selectedCustomerId]);
+
+  const activeCustomer =
+    customers.find((customer) => customer.id === selectedCustomerId) ?? null;
 
   const categories = useMemo(
-    () => ["all", ...new Set(products.map((p) => p.category))],
+    () => ["all", ...new Set(products.map((product) => product.category))],
     [products],
   );
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return products.filter((p) => {
+    const query = search.trim().toLowerCase();
+    return products.filter((product) => {
       const matchesSearch =
-        !q ||
-        p.name.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q);
-      const matchesCat = category === "all" || p.category === category;
-      return matchesSearch && matchesCat;
+        !query ||
+        product.name.toLowerCase().includes(query) ||
+        product.sku.toLowerCase().includes(query) ||
+        product.category.toLowerCase().includes(query);
+      const matchesCategory = category === "all" || product.category === category;
+      return matchesSearch && matchesCategory;
     });
-  }, [products, search, category]);
+  }, [category, products, search]);
 
   function handleCustomerChange(customerId: string) {
-    const customer = getCustomerById(customerId);
-    if (!customer) return;
     setSelectedCustomerId(customerId);
-    replaceProducts(customer.products);
   }
 
   return (
     <DashboardLayout searchPlaceholder="Search by SKU, name or category...">
       <div className="flex-1 overflow-y-auto">
-        {/* Page Header */}
-        <div className="px-6 lg:px-10 pt-8 pb-6 border-b border-[var(--line)] bg-surface-0">
-          <div className="flex items-center gap-2 text-xs text-muted mb-3">
-            <span>Warehouse</span>
-            <ChevronRight className="size-3" />
-            <span className="text-foreground font-medium">Product Catalog</span>
-          </div>
-
-          <div className="flex items-end justify-between gap-4 mb-6">
+        <div className="border-b border-[var(--line)] bg-surface-0 px-6 pb-6 pt-8 lg:px-10">
+          <div className="mb-6 flex items-end justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-black tracking-tight">
-                Product Catalog
-              </h1>
-              <p className="text-sm text-muted mt-1">
+              <h1 className="text-2xl font-black tracking-tight">Product Catalog</h1>
+              <p className="mt-1 text-sm text-muted">
                 {activeCustomer
                   ? `Showing products for ${activeCustomer.name}`
                   : "Select a customer to view products"}
@@ -95,73 +114,85 @@ export function ProductsPage() {
                 </button>
               </Dialog.Trigger>
               <AddProductModal
-                onAdd={(product) => {
-                  addProduct(product);
+                onAdd={async (product) => {
+                  await addProduct(product, selectedCustomerId || undefined);
                   setShowAddModal(false);
                 }}
               />
             </Dialog.Root>
           </div>
 
-          {/* Filters — inline in header */}
           <div className="flex flex-wrap items-center gap-3">
             <select
               aria-label="Select customer"
-              className="h-10 px-3 border border-[var(--line-strong)] bg-surface-1 text-sm font-medium cursor-pointer rounded-lg appearance-none pr-8"
-              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center" }}
-              value={selectedCustomerId ?? ""}
-              onChange={(e) => handleCustomerChange(e.target.value)}
+              className="h-10 cursor-pointer appearance-none rounded-lg border border-[var(--line-strong)] bg-surface-1 px-3 pr-8 text-sm font-medium"
+              style={{
+                backgroundImage:
+                  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 10px center",
+              }}
+              value={selectedCustomerId}
+              onChange={(event) => handleCustomerChange(event.target.value)}
             >
-              {CUSTOMERS.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.name}
                 </option>
               ))}
             </select>
 
             <select
               aria-label="Filter by category"
-              className="h-10 px-3 border border-[var(--line-strong)] bg-surface-1 text-sm font-medium cursor-pointer rounded-lg appearance-none pr-8"
-              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center" }}
+              className="h-10 cursor-pointer appearance-none rounded-lg border border-[var(--line-strong)] bg-surface-1 px-3 pr-8 text-sm font-medium"
+              style={{
+                backgroundImage:
+                  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 10px center",
+              }}
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              onChange={(event) => setCategory(event.target.value)}
             >
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat === "all" ? "All Categories" : cat}
+              {categories.map((entry) => (
+                <option key={entry} value={entry}>
+                  {entry === "all" ? "All Categories" : entry}
                 </option>
               ))}
             </select>
 
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted pointer-events-none" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
               <input
-                className="h-10 pl-9 pr-4 w-64 border border-[var(--line-strong)] bg-surface-1 text-sm rounded-lg outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+                className="h-10 w-64 rounded-lg border border-[var(--line-strong)] bg-surface-1 pl-9 pr-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
                 placeholder="Search products..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(event) => setSearch(event.target.value)}
               />
             </div>
 
-            <span className="ml-auto text-xs text-muted tabular-nums">
+            <span className="ml-auto text-xs tabular-nums text-muted">
               <span className="font-bold text-foreground">{filtered.length}</span> of{" "}
               {products.length} products
             </span>
           </div>
         </div>
 
-        {/* Product Grid */}
-        <div className="px-6 lg:px-10 py-8">
-          {filtered.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+        <div className="px-6 py-8 lg:px-10">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-32 text-center">
+              <Loader2 className="size-7 animate-spin text-primary" />
+              <p className="mt-4 text-sm text-muted">Loading products...</p>
+            </div>
+          ) : filtered.length > 0 ? (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {filtered.map((product) => (
                 <Link
                   key={product.id}
                   href={`/products/${product.id}`}
-                  className="bg-surface-0 border border-[var(--line)] rounded-2xl overflow-hidden group hover:shadow-[var(--shadow-lg)] hover:border-[var(--line-strong)] transition-all duration-200"
+                  className="group overflow-hidden rounded-2xl border border-[var(--line)] bg-surface-0 transition-all duration-200 hover:border-[var(--line-strong)] hover:shadow-[var(--shadow-lg)]"
                 >
-                  {/* Product Preview */}
-                  <div className="aspect-[4/3] flex items-center justify-center relative bg-gradient-to-b from-surface-1 to-surface-2">
+                  <div className="relative aspect-[4/3] bg-gradient-to-b from-surface-1 to-surface-2 flex items-center justify-center">
                     <ProductMockup
                       shape={product.packaging}
                       color={product.color}
@@ -169,29 +200,28 @@ export function ProductsPage() {
                       name={product.name}
                       size="sm"
                     />
-                    <span className="absolute top-3 left-3 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-surface-0/90 text-muted rounded-md backdrop-blur-sm">
+                    <span className="absolute left-3 top-3 rounded-md bg-surface-0/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted backdrop-blur-sm">
                       {product.category}
                     </span>
                   </div>
 
-                  {/* Product Info */}
-                  <div className="px-4 pt-4 pb-5">
-                    <p className="text-[11px] font-mono text-muted mb-1 tracking-wide">
+                  <div className="px-4 pb-5 pt-4">
+                    <p className="mb-1 text-[11px] font-mono tracking-wide text-muted">
                       {product.sku}
                     </p>
-                    <h3 className="font-bold text-[15px] leading-snug truncate group-hover:text-primary transition-colors">
+                    <h3 className="truncate text-[15px] font-bold leading-snug transition-colors group-hover:text-primary">
                       {product.name}
                     </h3>
 
-                    <div className="flex items-center justify-between mt-4">
+                    <div className="mt-4 flex items-center justify-between">
                       {product.unitPrice != null ? (
                         <span className="text-lg font-black text-foreground">
                           ${product.unitPrice.toFixed(2)}
                         </span>
                       ) : (
-                        <span className="text-xs text-muted italic">No price</span>
+                        <span className="text-xs italic text-muted">No price</span>
                       )}
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted bg-surface-2 px-2 py-1 rounded-md">
+                      <span className="rounded-md bg-surface-2 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted">
                         {product.holiday.replace("-", " ")}
                       </span>
                     </div>
@@ -201,13 +231,13 @@ export function ProductsPage() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-32 text-center">
-              <div className="size-16 flex items-center justify-center bg-surface-2 mb-5 rounded-2xl">
+              <div className="mb-5 flex size-16 items-center justify-center rounded-2xl bg-surface-2">
                 <Package className="size-7 text-muted" />
               </div>
-              <p className="font-bold text-lg mb-1">No products found</p>
-              <p className="text-sm text-muted max-w-xs">
+              <p className="mb-1 text-lg font-bold">No products found</p>
+              <p className="max-w-xs text-sm text-muted">
                 {products.length === 0
-                  ? "Select a customer to load their product catalog."
+                  ? "No products are linked to this customer yet."
                   : "Try adjusting your search or category filter."}
               </p>
             </div>
@@ -221,7 +251,7 @@ export function ProductsPage() {
 function AddProductModal({
   onAdd,
 }: {
-  onAdd: (product: Product) => void;
+  onAdd: (product: Product) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
@@ -236,6 +266,7 @@ function AddProductModal({
   const [unitsPerCase, setUnitsPerCase] = useState("");
   const [modelUrl, setModelUrl] = useState("");
   const [modelUploading, setModelUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [modelFileName, setModelFileName] = useState("");
   const modelInputRef = useRef<HTMLInputElement>(null);
 
@@ -248,300 +279,236 @@ function AddProductModal({
     try {
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: form });
-      if (!res.ok) throw new Error("Upload failed");
-      const { url } = await res.json();
+      const response = await fetch("/api/upload", { method: "POST", body: form });
+      if (!response.ok) throw new Error("Upload failed");
+      const { url } = (await response.json()) as { url: string };
       setModelUrl(url);
       setModelFileName(file.name);
-    } catch {
-      // Could add error handling
     } finally {
       setModelUploading(false);
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
     if (!name.trim() || !sku.trim()) return;
 
-    const product: Product = {
-      id: `custom-${Date.now()}`,
-      sku: sku.trim(),
-      name: name.trim(),
-      category: cat,
-      holiday,
-      dimensions: {
-        width: Number(width) || 6,
-        height: Number(height) || 8,
-        depth: Number(depth) || 4,
-      },
-      color,
-      packaging,
-      ...(unitPrice ? { unitPrice: Number(unitPrice) } : {}),
-      ...(unitsPerCase ? { unitsPerCase: Number(unitsPerCase) } : {}),
-      ...(modelUrl ? { modelUrl } : {}),
-    };
-    onAdd(product);
+    setIsSubmitting(true);
+
+    try {
+      const product: Product = {
+        id: `custom-${Date.now()}`,
+        sku: sku.trim(),
+        name: name.trim(),
+        category: cat,
+        holiday,
+        dimensions: {
+          width: Number(width) || 6,
+          height: Number(height) || 8,
+          depth: Number(depth) || 4,
+        },
+        color,
+        packaging,
+        ...(unitPrice ? { unitPrice: Number(unitPrice) } : {}),
+        ...(unitsPerCase ? { unitsPerCase: Number(unitsPerCase) } : {}),
+        ...(modelUrl ? { modelUrl } : {}),
+      };
+
+      await onAdd(product);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
     <Dialog.Portal>
-      <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-      <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-surface-0 border border-[var(--line-strong)] rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line-strong)]">
+      <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
+      <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-[var(--line-strong)] bg-surface-0">
+        <div className="flex items-center justify-between border-b border-[var(--line-strong)] px-6 py-4">
           <Dialog.Title className="text-lg font-black uppercase tracking-tight">
             Add Product
           </Dialog.Title>
           <Dialog.Close asChild>
-            <button
-              aria-label="Close"
-              className="text-muted hover:text-foreground cursor-pointer"
-            >
+            <button aria-label="Close" className="cursor-pointer text-muted hover:text-foreground">
               <X className="size-5" />
             </button>
           </Dialog.Close>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Name + SKU */}
+        <form onSubmit={handleSubmit} className="space-y-4 p-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="add-product-name" className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              <label htmlFor="add-product-name" className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
                 Name *
               </label>
               <input
                 id="add-product-name"
-                className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                className="w-full rounded-lg border border-[var(--line-strong)] bg-surface-0 px-3 py-2.5 text-sm"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(event) => setName(event.target.value)}
                 required
               />
             </div>
             <div>
-              <label htmlFor="add-product-sku" className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              <label htmlFor="add-product-sku" className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
                 SKU *
               </label>
               <input
                 id="add-product-sku"
-                className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm font-mono rounded-lg"
+                className="w-full rounded-lg border border-[var(--line-strong)] bg-surface-0 px-3 py-2.5 text-sm"
                 value={sku}
-                onChange={(e) => setSku(e.target.value)}
+                onChange={(event) => setSku(event.target.value)}
                 required
               />
             </div>
           </div>
 
-          {/* Category + Holiday */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="add-product-category" className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
                 Category
               </label>
               <input
-                id="add-product-category"
-                className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
+                className="w-full rounded-lg border border-[var(--line-strong)] bg-surface-0 px-3 py-2.5 text-sm"
                 value={cat}
-                onChange={(e) => setCat(e.target.value)}
+                onChange={(event) => setCat(event.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="add-product-holiday" className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
                 Holiday
               </label>
               <select
-                id="add-product-holiday"
-                className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm cursor-pointer rounded-lg"
+                className="w-full rounded-lg border border-[var(--line-strong)] bg-surface-0 px-3 py-2.5 text-sm"
                 value={holiday}
-                onChange={(e) => setHoliday(e.target.value as HolidayType)}
+                onChange={(event) => setHoliday(event.target.value as HolidayType)}
               >
-                {HOLIDAYS.map((h) => (
-                  <option key={h} value={h}>
-                    {h.replace("-", " ")}
+                {HOLIDAYS.map((entry) => (
+                  <option key={entry} value={entry}>
+                    {entry}
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* Packaging Shape */}
-          <fieldset>
-            <legend className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
-              Packaging Shape
-            </legend>
-            <div className="flex gap-2">
-              {(["box", "bottle", "jar", "bag", "tin", "pouch"] as PackagingShape[]).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setPackaging(s)}
-                  className={`px-3 py-1.5 text-xs font-bold uppercase rounded-lg border cursor-pointer transition-colors ${
-                    packaging === s
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-[var(--line-strong)] hover:border-primary/50"
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          {/* Dimensions */}
-          <fieldset>
-            <legend className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
-              Dimensions (W x H x D inches)
-            </legend>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label htmlFor="add-product-width" className="sr-only">Width</label>
-                <input
-                  id="add-product-width"
-                  type="number"
-                  className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
-                  placeholder="Width"
-                  value={width}
-                  onChange={(e) => setWidth(e.target.value)}
-                />
-              </div>
-              <div>
-                <label htmlFor="add-product-height" className="sr-only">Height</label>
-                <input
-                  id="add-product-height"
-                  type="number"
-                  className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
-                  placeholder="Height"
-                  value={height}
-                  onChange={(e) => setHeight(e.target.value)}
-                />
-              </div>
-              <div>
-                <label htmlFor="add-product-depth" className="sr-only">Depth</label>
-                <input
-                  id="add-product-depth"
-                  type="number"
-                  className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
-                  placeholder="Depth"
-                  value={depth}
-                  onChange={(e) => setDepth(e.target.value)}
-                />
-              </div>
-            </div>
-          </fieldset>
-
-          {/* Price + Units + Color */}
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label htmlFor="add-product-price" className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
+                Width
+              </label>
+              <input
+                className="w-full rounded-lg border border-[var(--line-strong)] bg-surface-0 px-3 py-2.5 text-sm"
+                value={width}
+                onChange={(event) => setWidth(event.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
+                Height
+              </label>
+              <input
+                className="w-full rounded-lg border border-[var(--line-strong)] bg-surface-0 px-3 py-2.5 text-sm"
+                value={height}
+                onChange={(event) => setHeight(event.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
+                Depth
+              </label>
+              <input
+                className="w-full rounded-lg border border-[var(--line-strong)] bg-surface-0 px-3 py-2.5 text-sm"
+                value={depth}
+                onChange={(event) => setDepth(event.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
+                Packaging
+              </label>
+              <select
+                className="w-full rounded-lg border border-[var(--line-strong)] bg-surface-0 px-3 py-2.5 text-sm"
+                value={packaging}
+                onChange={(event) => setPackaging(event.target.value as PackagingShape)}
+              >
+                <option value="box">Box</option>
+                <option value="bottle">Bottle</option>
+                <option value="jar">Jar</option>
+                <option value="bag">Bag</option>
+                <option value="tin">Tin</option>
+                <option value="pouch">Pouch</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
+                Color
+              </label>
+              <input
+                className="h-[44px] w-full rounded-lg border border-[var(--line-strong)] bg-surface-0 px-2"
+                type="color"
+                value={color}
+                onChange={(event) => setColor(event.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
                 Unit Price
               </label>
               <input
-                id="add-product-price"
-                type="number"
-                step="0.01"
-                className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
-                placeholder="0.00"
+                className="w-full rounded-lg border border-[var(--line-strong)] bg-surface-0 px-3 py-2.5 text-sm"
                 value={unitPrice}
-                onChange={(e) => setUnitPrice(e.target.value)}
+                onChange={(event) => setUnitPrice(event.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="add-product-units" className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
-                Units/Case
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
+                Units / Case
               </label>
               <input
-                id="add-product-units"
-                type="number"
-                className="w-full px-3 py-2.5 min-h-[44px] border border-[var(--line-strong)] bg-surface-0 text-sm rounded-lg"
-                placeholder="12"
+                className="w-full rounded-lg border border-[var(--line-strong)] bg-surface-0 px-3 py-2.5 text-sm"
                 value={unitsPerCase}
-                onChange={(e) => setUnitsPerCase(e.target.value)}
+                onChange={(event) => setUnitsPerCase(event.target.value)}
               />
-            </div>
-            <div>
-              <label htmlFor="add-product-color" className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
-                Color
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  id="add-product-color"
-                  type="color"
-                  className="size-9 border border-[var(--line-strong)] rounded-lg cursor-pointer p-0.5"
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                />
-                <span className="text-xs font-mono text-muted">{color}</span>
-              </div>
             </div>
           </div>
 
-          {/* 3D Model Upload */}
-          <fieldset>
-            <legend className="text-[10px] font-bold text-muted uppercase tracking-widest block mb-1">
-              3D Model (optional)
-            </legend>
-            {modelUrl ? (
-              <div className="flex items-center gap-3 px-3 py-2.5 border border-[var(--line-strong)] rounded-lg bg-surface-1">
-                <Box className="size-5 text-primary shrink-0" />
-                <span className="text-sm font-medium truncate flex-1">{modelFileName}</span>
-                <button
-                  type="button"
-                  onClick={() => { setModelUrl(""); setModelFileName(""); }}
-                  className="text-muted hover:text-red-500 transition-colors cursor-pointer"
-                >
-                  <X className="size-4" />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                disabled={modelUploading}
-                onClick={() => modelInputRef.current?.click()}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 min-h-[44px] border-2 border-dashed border-[var(--line-strong)] hover:border-primary/60 bg-surface-0 text-sm rounded-lg cursor-pointer transition-colors"
-              >
-                {modelUploading ? (
-                  <>
-                    <Loader2 className="size-4 text-primary animate-spin" />
-                    <span className="text-muted">Uploading...</span>
-                  </>
-                ) : (
-                  <>
-                    <Box className="size-4 text-muted" />
-                    <span className="text-muted">
-                      Upload <span className="text-primary font-bold">GLB</span> from Tripo
-                    </span>
-                  </>
-                )}
-              </button>
-            )}
+          <div>
+            <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted">
+              3D Model
+            </label>
+            <button
+              type="button"
+              className="btn btn-secondary w-full"
+              onClick={() => modelInputRef.current?.click()}
+              disabled={modelUploading}
+            >
+              {modelUploading ? <Loader2 className="size-4 animate-spin" /> : <Box className="size-4" />}
+              {modelFileName || "Upload model"}
+            </button>
             <input
               ref={modelInputRef}
               type="file"
-              accept=".glb,.gltf,.obj,.fbx,.usdz"
               className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleModelUpload(file);
+              accept=".glb,.gltf,.obj,.fbx,.usdz"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) {
+                  void handleModelUpload(file);
+                }
               }}
             />
-          </fieldset>
-
-          {/* Submit */}
-          <div className="flex justify-end gap-3 pt-2">
-            <Dialog.Close asChild>
-              <button
-                type="button"
-                className="px-5 py-2.5 min-h-[44px] border border-[var(--line-strong)] font-bold text-sm uppercase hover:bg-surface-1 cursor-pointer rounded-xl"
-              >
-                Cancel
-              </button>
-            </Dialog.Close>
-            <button
-              type="submit"
-              className="px-5 py-2.5 min-h-[44px] bg-primary text-white font-bold text-sm uppercase hover:bg-primary-hover cursor-pointer rounded-xl"
-            >
-              Add Product
-            </button>
           </div>
+
+          <button className="btn btn-primary w-full" disabled={isSubmitting} type="submit">
+            {isSubmitting ? "Saving..." : "Create Product"}
+          </button>
         </form>
       </Dialog.Content>
     </Dialog.Portal>

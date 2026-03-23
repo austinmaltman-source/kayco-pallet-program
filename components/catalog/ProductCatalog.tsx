@@ -8,6 +8,7 @@ import { ProductCard } from "@/components/catalog/ProductCard";
 
 export function ProductCatalog() {
   const products = useProductStore((state) => state.products);
+  const isLoading = useProductStore((state) => state.isLoading);
   const search = useProductStore((state) => state.search);
   const category = useProductStore((state) => state.category);
   const activeProductId = useProductStore((state) => state.activeProductId);
@@ -79,7 +80,13 @@ export function ProductCatalog() {
           </div>
         ))}
 
-        {filteredProducts.length === 0 && (
+        {isLoading && (
+          <div className="rounded-xl border border-dashed border-[var(--line-strong)] px-4 py-8 text-center text-sm text-[var(--muted)]">
+            Loading products...
+          </div>
+        )}
+
+        {!isLoading && filteredProducts.length === 0 && (
           <div className="flex flex-col items-center rounded-xl border border-dashed border-[var(--line-strong)] px-4 py-8 text-center">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--surface-2)] mb-3">
               <Package className="h-5 w-5 text-[var(--muted)]" />

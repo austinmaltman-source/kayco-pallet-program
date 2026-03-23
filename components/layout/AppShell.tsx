@@ -6,12 +6,10 @@ import {
   Box,
   ChevronDown,
   Download,
-  Edit3,
   FileJson,
   FileText,
   Grid3X3,
   Layers,
-  LayoutDashboard,
   Maximize2,
   Minimize2,
   Package,
@@ -20,10 +18,7 @@ import {
   Plus,
   Redo2,
   Save,
-  Settings,
-  Share,
   Undo2,
-  Users,
   X,
   Sparkles,
 } from "lucide-react";
@@ -33,7 +28,6 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ProductCatalog } from "@/components/catalog/ProductCatalog";
 import { ShelfGrid } from "@/components/editor/ShelfGrid";
 import { DndProvider, parseCellId } from "@/components/editor/DndProvider";
-import { CUSTOMERS, getCustomerById } from "@/lib/customers";
 import { WALL_FACES, WALL_LABELS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { exportProjectJson, exportProjectPdf } from "@/services/exportService";
@@ -43,6 +37,7 @@ import { usePlacementStore } from "@/stores/usePlacementStore";
 import { useProductStore } from "@/stores/useProductStore";
 import { useProjectStore } from "@/stores/useProjectStore";
 import { useUIStore } from "@/stores/useUIStore";
+import type { Customer } from "@/types/customer";
 import type { PlacedItem } from "@/types/placement";
 import type { Product } from "@/types/product";
 
@@ -121,84 +116,13 @@ function Tip({
   );
 }
 
-/* ─── Sidebar nav item ─── */
-function NavItem({
-  icon: Icon,
-  label,
-  active,
-  collapsed,
-  badge,
-  disabled,
-  onClick,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  active?: boolean;
-  collapsed?: boolean;
-  badge?: number;
-  disabled?: boolean;
-  onClick?: () => void;
-}) {
-  const content = (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-disabled={disabled}
-      className={cn(
-        "group flex w-full items-center gap-3 px-4 py-2.5 text-[13px] font-medium transition-all duration-150",
-        active
-          ? "sidebar-active text-white"
-          : disabled
-            ? "text-slate-600 cursor-default opacity-60"
-            : "text-slate-400 hover:bg-white/5 hover:text-white cursor-pointer",
-        collapsed && "justify-center px-2",
-      )}
-    >
-      <Icon
-        className={cn(
-          "h-[22px] w-[22px] shrink-0 transition-colors",
-          active
-            ? "text-white"
-            : "text-[var(--primary)]/80 group-hover:text-white",
-        )}
-      />
-      {!collapsed && (
-        <>
-          <span className="flex-1 text-left truncate">{label}</span>
-          {badge != null && badge > 0 && (
-            <span
-              className={cn(
-                "badge text-[10px]",
-                active ? "bg-white/20 text-white" : "bg-white/10 text-slate-400",
-              )}
-            >
-              {badge}
-            </span>
-          )}
-        </>
-      )}
-    </button>
-  );
-
-  if (collapsed) {
-    return (
-      <Tip label={label} side="right">
-        {content}
-      </Tip>
-    );
-  }
-
-  return content;
-}
-
 /* ─── Export dropdown with keyboard support ─── */
 function ExportDropdown({
   onExportJson,
   onExportPdf,
 }: {
-  onExportJson: () => void;
-  onExportPdf: () => void;
+  onExportJson: () => void | Promise<void>;
+  onExportPdf: () => void | Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -364,13 +288,12 @@ function ProductPanel({
    Main App Shell
    ═══════════════════════════════════════════════════════════ */
 export function AppShell() {
-  const fallbackCustomer =
-    getCustomerById("kroger") ?? CUSTOMERS[0] ?? null;
   const pallet = usePalletStore((state) => state.pallet);
+  const setPalletType = usePalletStore((state) => state.setType);
   const products = useProductStore((state) => state.products);
   const activeProductId = useProductStore((state) => state.activeProductId);
   const setActiveProduct = useProductStore((state) => state.setActiveProduct);
-  const replaceProducts = useProductStore((state) => state.replaceProducts);
+  const fetchProducts = useProductStore((state) => state.fetchProducts);
 
   const placements = usePlacementStore((state) => state.placements);
   const placeProduct = usePlacementStore((state) => state.placeProduct);
@@ -384,10 +307,6 @@ export function AppShell() {
   const removePlacement = usePlacementStore((state) => state.removePlacement);
   const undo = usePlacementStore((state) => state.undo);
   const redo = usePlacementStore((state) => state.redo);
-  const replacePlacements = usePlacementStore(
-    (state) => state.replacePlacements,
-  );
-
   const selectedCustomerId = useUIStore((state) => state.selectedCustomerId);
   const setSelectedCustomerId = useUIStore(
     (state) => state.setSelectedCustomerId,
@@ -399,8 +318,11 @@ export function AppShell() {
   const draggingProductId = useUIStore((state) => state.draggingProductId);
 
   const saveProject = useProjectStore((state) => state.saveProject);
+  const [customersList, setCustomersList] = useState<Customer[]>([]);
   const activeCustomer =
-    getCustomerById(selectedCustomerId) ?? fallbackCustomer;
+    customersList.find((customer) => customer.id === selectedCustomerId) ??
+    customersList[0] ??
+    null;
 
   const activeProduct = activeProductId
     ? products.find((product) => product.id === activeProductId) ?? null
@@ -408,12 +330,33 @@ export function AppShell() {
 
   const [projectName, setProjectName] = useState("Holiday Program Layout");
   const status = useStatusMessage();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState<"editor" | "dashboard">(
     "editor",
   );
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCustomers() {
+      const response = await fetch("/api/customers");
+      if (!response.ok) {
+        throw new Error("Failed to load customers");
+      }
+
+      const customers = (await response.json()) as Customer[];
+      if (!cancelled) {
+        setCustomersList(customers);
+      }
+    }
+
+    void loadCustomers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Escape exits fullscreen
   useEffect(() => {
@@ -430,42 +373,40 @@ export function AppShell() {
     return () => document.removeEventListener("keydown", handleKey);
   }, [isFullscreen]);
 
-  // Load products when customer changes
   useEffect(() => {
-    const customer = getCustomerById(selectedCustomerId);
-
-    if (!customer) {
-      if (fallbackCustomer && selectedCustomerId !== fallbackCustomer.id) {
-        setSelectedCustomerId(fallbackCustomer.id);
-        return;
-      }
-      replaceProducts([]);
+    if (customersList.length === 0) {
       return;
     }
 
-    replaceProducts(customer.products);
+    const customer =
+      customersList.find((entry) => entry.id === selectedCustomerId) ??
+      customersList[0] ??
+      null;
+
+    if (!customer) {
+      return;
+    }
+
+    if (customer.id !== selectedCustomerId) {
+      setSelectedCustomerId(customer.id);
+      return;
+    }
+
+    void fetchProducts(customer.id);
   }, [
-    fallbackCustomer,
-    replaceProducts,
+    customersList,
+    fetchProducts,
     selectedCustomerId,
     setSelectedCustomerId,
   ]);
 
-  function snapshotProject(nameOverride?: string) {
+  async function snapshotProject(nameOverride?: string) {
     return saveProject({
       name: nameOverride ?? projectName,
       pallet,
       products,
       placements,
     });
-  }
-
-  function handleCustomerChange(customerId: string) {
-    const customer = getCustomerById(customerId);
-    if (!customer || customerId === selectedCustomerId) return;
-    setSelectedCustomerId(customerId);
-    replacePlacements([]);
-    status.clear();
   }
 
   useKeyboardShortcuts({
@@ -494,8 +435,8 @@ export function AppShell() {
       redo();
       status.show("Redid last change.");
     },
-    onSave: () => {
-      const project = snapshotProject();
+    onSave: async () => {
+      const project = await snapshotProject();
       status.show(`Saved "${project.name}".`);
     },
   });
@@ -527,23 +468,6 @@ export function AppShell() {
     },
     [pallet, placeProduct, products, status],
   );
-
-  const totalPlacements = placements.length;
-
-  // Compute weight and stack height for the status bar
-  const totalWeight = placements.reduce((sum, p) => {
-    const prod = products.find((pr) => pr.id === p.productId);
-    if (!prod) return sum;
-    // Use product dimensions as a rough weight proxy (width * height * depth / 100)
-    const weight = (prod.dimensions.width * prod.dimensions.height * prod.dimensions.depth) / 100;
-    return sum + weight * p.quantity;
-  }, 0);
-  const stackHeight = placements.reduce((max, p) => {
-    const prod = products.find((pr) => pr.id === p.productId);
-    if (!prod) return max;
-    const h = (p.shelfRow + 1) * prod.dimensions.height;
-    return Math.max(max, h);
-  }, 0);
 
   const wallPlacementCounts = WALL_FACES.reduce(
     (acc, face) => {
@@ -582,48 +506,54 @@ export function AppShell() {
             <div className="mx-1.5 h-5 w-px bg-[var(--line)]" />
 
             {viewMode === "2d" ? (
-              <div
-                className="flex items-center rounded-lg bg-[var(--surface-2)] p-0.5"
-                role="tablist"
-                aria-label="Wall selector"
-              >
-                {WALL_FACES.map((face) => {
-                  const wallConfig = pallet.display.walls[face];
-                  const isActive = selectedWall === face;
-                  const count = wallPlacementCounts[face] ?? 0;
+              pallet.type === "full" ? (
+                <div
+                  className="flex items-center rounded-lg bg-[var(--surface-2)] p-0.5"
+                  role="tablist"
+                  aria-label="Wall selector"
+                >
+                  {WALL_FACES.map((face) => {
+                    const wallConfig = pallet.display.walls[face];
+                    const isActive = selectedWall === face;
+                    const count = wallPlacementCounts[face] ?? 0;
 
-                  return (
-                    <button
-                      key={face}
-                      type="button"
-                      role="tab"
-                      aria-selected={isActive}
-                      className={cn(
-                        "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold transition-all duration-150 cursor-pointer",
-                        isActive
-                          ? "bg-[var(--surface-0)] text-[var(--foreground)] shadow-sm"
-                          : "text-[var(--muted)] hover:text-[var(--foreground)]",
-                      )}
-                      onClick={() => setSelectedWall(face)}
-                    >
-                      {WALL_LABELS[face]}
-                      {wallConfig.wallType === "shelves" &&
-                        count > 0 && (
-                          <span
-                            className={cn(
-                              "flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums",
-                              isActive
-                                ? "bg-[var(--primary)] text-white"
-                                : "bg-[var(--surface-3)] text-[var(--muted)]",
-                            )}
-                          >
-                            {count}
-                          </span>
+                    return (
+                      <button
+                        key={face}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        className={cn(
+                          "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-semibold transition-all duration-150 cursor-pointer",
+                          isActive
+                            ? "bg-[var(--surface-0)] text-[var(--foreground)] shadow-sm"
+                            : "text-[var(--muted)] hover:text-[var(--foreground)]",
                         )}
-                    </button>
-                  );
-                })}
-              </div>
+                        onClick={() => setSelectedWall(face)}
+                      >
+                        {WALL_LABELS[face]}
+                        {wallConfig.wallType === "shelves" &&
+                          count > 0 && (
+                            <span
+                              className={cn(
+                                "flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums",
+                                isActive
+                                  ? "bg-[var(--primary)] text-white"
+                                  : "bg-[var(--surface-3)] text-[var(--muted)]",
+                              )}
+                            >
+                              {count}
+                            </span>
+                          )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[13px] font-semibold text-[var(--foreground)]">
+                  Front Face
+                </p>
+              )
             ) : (
               <div className="flex items-center gap-2">
                 <Box className="h-4 w-4 text-[var(--muted)]" />
@@ -762,37 +692,6 @@ export function AppShell() {
           </div>
         </DndProvider>
 
-        {/* Bottom Status Bar */}
-        <div className="h-16 flex items-center justify-between px-8 bg-[var(--surface-0)] border-t border-[var(--line)] z-10 shrink-0">
-          <div className="flex items-center gap-12">
-            <div className="flex items-center gap-4">
-              <div className="flex flex-col">
-                <span className="text-[11px] uppercase tracking-widest text-[var(--muted)] font-black">Weight Load</span>
-                <span className="font-black text-sm uppercase">
-                  {totalWeight} / 2500 <span className="text-[10px] text-[var(--muted-foreground)]">lbs</span>
-                </span>
-              </div>
-              <div className="w-32 h-1.5 bg-[var(--surface-2)]" role="progressbar" aria-valuenow={totalWeight} aria-valuemin={0} aria-valuemax={2500} aria-label="Weight load">
-                <div className="h-full bg-[var(--primary)]" style={{ width: `${Math.min(100, (totalWeight / 2500) * 100)}%` }} />
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex flex-col">
-                <span className="text-[11px] uppercase tracking-widest text-[var(--muted)] font-black">Stack Height</span>
-                <span className="font-black text-sm uppercase">
-                  {stackHeight} / 72 <span className="text-[10px] text-[var(--muted-foreground)]">in</span>
-                </span>
-              </div>
-              <div className="w-32 h-1.5 bg-[var(--surface-2)]" role="progressbar" aria-valuenow={stackHeight} aria-valuemin={0} aria-valuemax={72} aria-label="Stack height">
-                <div className="h-full bg-[var(--primary)]" style={{ width: `${Math.min(100, (stackHeight / 72) * 100)}%` }} />
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-600">
-            <span className="inline-flex h-3 w-3 rounded-full bg-emerald-500" />
-            Shipping Optimized
-          </div>
-        </div>
       </div>
     );
   }
@@ -889,8 +788,10 @@ export function AppShell() {
                   aria-label="Save project"
                   className="btn btn-primary btn-sm"
                   onClick={() => {
-                    const project = snapshotProject();
-                    status.show(`Saved "${project.name}".`);
+                    void (async () => {
+                      const project = await snapshotProject();
+                      status.show(`Saved "${project.name}".`);
+                    })();
                   }}
                 >
                   <Save className="h-4 w-4" />
@@ -936,6 +837,34 @@ export function AppShell() {
                   {activeCustomer.name}
                 </span>
               )}
+
+              {/* Half / Full pallet toggle */}
+              <div
+                className="flex items-center rounded-lg border border-[var(--line)] p-0.5 shrink-0"
+                role="tablist"
+                aria-label="Pallet type"
+              >
+                {(["half", "full"] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    role="tab"
+                    aria-selected={pallet.type === type}
+                    className={cn(
+                      "rounded-md px-3 py-1 text-[13px] font-semibold transition-all duration-150 cursor-pointer capitalize",
+                      pallet.type === type
+                        ? "bg-[var(--primary)] text-white shadow-sm"
+                        : "text-[var(--muted)] hover:text-[var(--foreground)]",
+                    )}
+                    onClick={() => {
+                      setPalletType(type);
+                      if (type === "half") setSelectedWall("front");
+                    }}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
 
               {activeProduct && (
                 <div className="flex items-center gap-2 shrink-0">
@@ -1011,8 +940,10 @@ export function AppShell() {
                   aria-label="Save project"
                   className="btn btn-primary btn-sm"
                   onClick={() => {
-                    const project = snapshotProject();
-                    status.show(`Saved "${project.name}".`);
+                    void (async () => {
+                      const project = await snapshotProject();
+                      status.show(`Saved "${project.name}".`);
+                    })();
                   }}
                 >
                   <Save className="h-4 w-4" />
@@ -1022,14 +953,14 @@ export function AppShell() {
 
               {/* Export dropdown */}
               <ExportDropdown
-                onExportJson={() => {
-                  const project = snapshotProject();
+                onExportJson={async () => {
+                  const project = await snapshotProject();
                   exportProjectJson(project, `${project.name}.pallet.json`);
                   status.show("Exported JSON.");
                 }}
                 onExportPdf={async () => {
                   status.show("Generating PDF...");
-                  const project = snapshotProject();
+                  const project = await snapshotProject();
                   await exportProjectPdf(project, `${project.name}.pdf`);
                   status.show("Exported planogram PDF.");
                 }}
@@ -1067,7 +998,7 @@ function DashboardView({
 }: {
   placements: PlacedItem[];
   products: Product[];
-  activeCustomer: ReturnType<typeof getCustomerById>;
+  activeCustomer: Customer | null;
   pallet: ReturnType<typeof usePalletStore.getState>["pallet"];
   onOpenEditor: () => void;
 }) {

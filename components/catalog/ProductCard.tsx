@@ -2,7 +2,6 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { ProductMockup } from "@/components/ui/ProductMockup";
@@ -21,7 +20,7 @@ export function ProductCard({
   const draggingProductId = useUIStore((s) => s.draggingProductId);
   const isDragging = draggingProductId === product.id;
 
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform } =
+  const { attributes, listeners, setNodeRef, transform } =
     useDraggable({
       id: `product-${product.id}`,
       data: { productId: product.id },
@@ -37,8 +36,10 @@ export function ProductCard({
     <div
       ref={setNodeRef}
       style={style}
+      {...attributes}
+      {...listeners}
       className={cn(
-        "group relative rounded-xl border transition-all duration-200",
+        "group relative rounded-xl border transition-all duration-200 cursor-grab active:cursor-grabbing",
         isDragging
           ? "border-[var(--primary)]/40 bg-[var(--primary-soft)]/50 opacity-50 scale-[0.97] shadow-none"
           : active
@@ -46,17 +47,6 @@ export function ProductCard({
             : "border-[var(--line)] bg-[var(--surface-0)] hover:border-[var(--line-strong)] hover:shadow-sm",
       )}
     >
-      {/* Drag handle — activator */}
-      <div
-        ref={setActivatorNodeRef}
-        {...attributes}
-        {...listeners}
-        className="absolute left-0 top-0 bottom-0 flex w-7 cursor-grab items-center justify-center rounded-l-xl opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
-        aria-hidden="true"
-      >
-        <GripVertical className="h-3.5 w-3.5 text-[var(--muted-foreground)]" />
-      </div>
-
       {/* Click area */}
       <button
         type="button"

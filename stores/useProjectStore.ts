@@ -4,7 +4,6 @@ import { nanoid } from "nanoid";
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 
-import { storageService } from "@/services/storageService";
 import type { PalletConfig } from "@/types/pallet";
 import type { PlacedItem } from "@/types/placement";
 import type { Product } from "@/types/product";
@@ -13,14 +12,14 @@ import type { BuilderProject } from "@/types/project";
 interface ProjectStore {
   projects: BuilderProject[];
   activeProjectId: string | null;
-  loadFromStorage: () => void;
+  loadFromStorage: () => Promise<void>;
   saveProject: (params: {
     name?: string;
     pallet: PalletConfig;
     products: Product[];
     placements: PlacedItem[];
-  }) => BuilderProject;
-  deleteProject: (id: string) => void;
+  }) => Promise<BuilderProject>;
+  deleteProject: (id: string) => Promise<void>;
   setProjects: (projects: BuilderProject[]) => void;
   setActiveProjectId: (id: string | null) => void;
 }
@@ -29,14 +28,18 @@ export const useProjectStore = create<ProjectStore>()(
   immer((set, get) => ({
     projects: [],
     activeProjectId: null,
-    loadFromStorage: () => {
-      storageService.listProjects().then((projects) => {
-        set((state) => {
-          state.projects = projects;
-        });
+    loadFromStorage: async () => {
+      const response = await fetch("/api/projects");
+      if (!response.ok) {
+        throw new Error("Failed to load projects");
+      }
+
+      const projects = (await response.json()) as BuilderProject[];
+      set((state) => {
+        state.projects = projects;
       });
     },
-    saveProject: ({ name, pallet, products, placements }) => {
+    saveProject: async ({ name, pallet, products, placements }) => {
       const now = new Date().toISOString();
       const projectName = name?.trim() || `Pallet Project ${new Date().toLocaleDateString()}`;
       const existingId = get().activeProjectId;
@@ -56,16 +59,32 @@ export const useProjectStore = create<ProjectStore>()(
         version: 1,
       };
 
+      const response = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(project),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save project");
+      }
+
       set((state) => {
-        const nextProjects = [project, ...state.projects.filter((item) => item.id !== project.id)];
-        state.projects = nextProjects;
+        state.projects = [project, ...state.projects.filter((item) => item.id !== project.id)];
         state.activeProjectId = project.id;
-        storageService.saveProjects(nextProjects);
       });
 
       return project;
     },
-    deleteProject: (id) =>
+    deleteProject: async (id) => {
+      const response = await fetch(`/api/projects?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete project");
+      }
+
       set((state) => {
         const nextProjects = state.projects.filter((project) => project.id !== id);
         state.projects = nextProjects;
@@ -73,13 +92,11 @@ export const useProjectStore = create<ProjectStore>()(
         if (state.activeProjectId === id) {
           state.activeProjectId = null;
         }
-
-        storageService.saveProjects(nextProjects);
-      }),
+      });
+    },
     setProjects: (projects) =>
       set((state) => {
         state.projects = projects;
-        storageService.saveProjects(projects);
       }),
     setActiveProjectId: (id) =>
       set((state) => {

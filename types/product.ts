@@ -23,6 +23,8 @@ export interface Product {
   imageUrl?: string;
   unitCost?: number;
   unitPrice?: number;
+  customerUnitCost?: number;
+  customerUnitPrice?: number;
   unitsPerCase?: number;
   packaging?: PackagingShape;
   artworkUrl?: string;

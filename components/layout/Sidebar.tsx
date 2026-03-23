@@ -11,14 +11,9 @@ import {
   Plus,
   X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
-const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/editor", label: "Pallet Builder", icon: Grid3X3 },
-  { href: "/products", label: "Products", icon: ShoppingCart },
-  { href: "/customers", label: "Customers", icon: Users },
-];
+import { useUserRole } from "@/lib/use-role";
+import { cn } from "@/lib/utils";
 
 interface SidebarProps {
   onClose?: () => void;
@@ -27,6 +22,14 @@ interface SidebarProps {
 
 export function Sidebar({ onClose, className }: SidebarProps) {
   const pathname = usePathname();
+  const { isAdmin } = useUserRole();
+  const navItems = [
+    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/editor", label: "Pallet Builder", icon: Grid3X3 },
+    { href: "/products", label: "Products", icon: ShoppingCart },
+    { href: "/customers", label: "Customers", icon: Users },
+    ...(isAdmin ? [{ href: "/users", label: "Users", icon: Users }] : []),
+  ];
 
   return (
     <aside className={cn("w-64 h-screen flex flex-col bg-sidebar-bg text-white shrink-0 border-r border-sidebar-border relative z-20", className)}>
@@ -55,7 +58,7 @@ export function Sidebar({ onClose, className }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex-1 px-3 mt-4 flex flex-col gap-1">
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const isActive =
             item.href === "/"
               ? pathname === "/"
