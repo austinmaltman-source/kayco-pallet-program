@@ -1,20 +1,41 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Kayco Pallet Program (PalletForge)
 
-# Run and deploy your AI Studio app
+PalletForge is a single-tenant pallet program management app for **Kayco**. Salesmen, buyers, builders, and managers plan holiday pallet programs for retailers - picking items, setting confirm-by deadlines, queuing builds, and rolling up demand.
 
-This contains everything you need to run your app locally.
+Vite + React 19 + TypeScript, Tailwind v4, Zustand. No backend, no auth - state persists to `localStorage`, roles are switched via a picker. Deploys to Vercel.
 
-View your app in AI Studio: https://ai.studio/apps/0679ae13-bda3-4019-b55d-8182539cb6e4
+## Run locally
 
-## Run Locally
+Prereqs: Node 20+.
 
-**Prerequisites:**  Node.js
+```bash
+npm install
+cp .env.example .env.local   # if not already present
+# set GEMINI_API_KEY in .env.local for AI features
+npm run dev                  # http://localhost:3003
+```
 
+## Scripts
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+| Command | What it does |
+|---|---|
+| `npm run dev` | Vite dev server on port 3003 (`--host 0.0.0.0`) |
+| `npm run build` | Production build to `dist/` |
+| `npm run preview` | Serve the production build locally |
+| `npm run lint` | TypeScript type-check (`tsc --noEmit`) |
+| `npm test` | Vitest one-shot |
+| `npm run test:watch` | Vitest watch mode |
+
+## Deploy
+
+Vercel auto-deploys on push to `main` (config in [vercel.json](vercel.json)). Manual deploy: `vercel`.
+
+## Repository layout
+
+- `origin` -> `github.com/austinmaltman-source/kayco-pallet-program` - active, push here
+- `clondin` -> `github.com/Clondin/Pallet-Program-New-` - read-only backup of the original codebase, do not push
+
+## Docs
+
+- [PROJECT.md](PROJECT.md) - structure, tech stack, route table, conventions
+- [CLAUDE.md](CLAUDE.md) - agent working style + domain quick reference
