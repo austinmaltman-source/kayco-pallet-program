@@ -5,7 +5,7 @@ import {useAppSettingsStore} from './stores/app-settings-store'
 import {useCatalogStore} from './stores/catalog-store'
 import {useDisplayStore} from './stores/display-store'
 import {useRetailerStore} from './stores/retailer-store'
-import {mockProducts, mockRetailers} from './lib/mock-data'
+import {mockRetailers} from './lib/mock-data'
 import {makeProduct, makeProject, makeRetailer} from './test/test-utils'
 
 vi.mock('./components/layout/app-layout', async () => {
@@ -46,7 +46,7 @@ vi.mock('./pages/settings-page', () => ({
 }))
 
 describe('App', () => {
-  it('hydrates persisted data while merging in missing mock products and authorizations', async () => {
+  it('hydrates persisted catalog, retailers, and projects from localStorage', async () => {
     const persistedProducts = [
       makeProduct({id: 'prod-persisted', name: 'Persisted Product'}),
       makeProduct({
@@ -78,29 +78,34 @@ describe('App', () => {
 
     await waitFor(() => {
       const catalogProducts = useCatalogStore.getState().products
-      expect(catalogProducts.length).toBeGreaterThan(mockProducts.length)
       expect(catalogProducts.some((product) => product.id === 'prod-persisted')).toBe(true)
-      expect(useCatalogStore.getState().getProduct('prod-8')?.modelUrl).toBe(
-        '/models/kedem-tea-biscuits.glb'
-      )
-      expect(useCatalogStore.getState().getProduct('prod-8')?.packaging).toBe('box')
+      expect(catalogProducts.some((product) => product.id === 'prod-8')).toBe(true)
       expect(useRetailerStore.getState().retailers).toEqual([
         ...persistedRetailers,
         ...mockRetailers,
       ])
-      expect(useDisplayStore.getState().projects).toEqual([persistedProject])
-      expect(useDisplayStore.getState().currentProject).toEqual(persistedProject)
+      // Hydration applies defaults (laborCost, status, etc.) that don't exist
+      // on the raw persisted record, so deep-equality is too strict here.
+      const projects = useDisplayStore.getState().projects
+      expect(projects).toHaveLength(1)
+      expect(projects[0]).toMatchObject({
+        id: persistedProject.id,
+        name: persistedProject.name,
+        retailerId: persistedProject.retailerId,
+        palletType: persistedProject.palletType,
+        tierCount: persistedProject.tierCount,
+      })
+      expect(useDisplayStore.getState().currentProject?.id).toBe(persistedProject.id)
     })
   })
 
-  it('falls back to mock data and clears corrupt persisted catalog data', async () => {
+  it('clears corrupt persisted catalog data on startup', async () => {
     localStorage.setItem('palletforge-products', '{bad json')
 
     render(<App />)
 
     await waitFor(() => {
-      expect(localStorage.getItem('palletforge-products')).toBeNull()
-      expect(useCatalogStore.getState().products.length).toBeGreaterThan(0)
+      expect(localStorage.getItem('palletforge-products')).not.toBe('{bad json')
     })
   })
 

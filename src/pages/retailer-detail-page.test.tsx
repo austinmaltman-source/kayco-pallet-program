@@ -5,15 +5,21 @@ import { describe, expect, it, vi } from 'vitest'
 import { RetailerDetailPage } from './retailer-detail-page'
 import { useCatalogStore } from '../stores/catalog-store'
 import { useRetailerStore } from '../stores/retailer-store'
+import { useRoleStore } from '../stores/role-store'
 import { makeProduct, makeRetailer } from '../test/test-utils'
 
 vi.mock('../components/Wizard/PalletWizard', () => ({
   PalletWizard: () => null,
 }))
 
+vi.mock('../components/StartProgramWizard', () => ({
+  StartProgramWizard: () => null,
+}))
+
 describe('RetailerDetailPage', () => {
-  it('supports adding, updating, and removing retailer items', async () => {
+  it('supports adding, discontinuing, and removing retailer items', async () => {
     const user = userEvent.setup()
+    useRoleStore.getState().setRole('manager')
 
     useCatalogStore.getState().setProducts([
       makeProduct({
@@ -34,9 +40,9 @@ describe('RetailerDetailPage', () => {
     ])
 
     render(
-      <MemoryRouter initialEntries={['/retailers/ret-1']}>
+      <MemoryRouter initialEntries={['/manager/retailers/ret-1']}>
         <Routes>
-          <Route path="/retailers/:id" element={<RetailerDetailPage />} />
+          <Route path="/:role/retailers/:id" element={<RetailerDetailPage />} />
         </Routes>
       </MemoryRouter>,
     )
@@ -56,17 +62,25 @@ describe('RetailerDetailPage', () => {
       expect(screen.getByText('Add Me Product')).toBeInTheDocument()
     })
 
-    await user.selectOptions(
-      screen.getByLabelText('Status for Add Me Product'),
-      'pending',
-    )
-
+    // Items are added with status='authorized'. The status flow is now a
+    // "Discontinue" button instead of a per-item status <select>.
     expect(
       useRetailerStore
         .getState()
         .getRetailer('ret-1')
         ?.authorizedItems.find((item) => item.productId === 'prod-add')?.status,
-    ).toBe('pending')
+    ).toBe('authorized')
+
+    await user.click(screen.getByRole('button', { name: /Discontinue/i }))
+
+    await waitFor(() => {
+      expect(
+        useRetailerStore
+          .getState()
+          .getRetailer('ret-1')
+          ?.authorizedItems.find((item) => item.productId === 'prod-add')?.status,
+      ).toBe('discontinued')
+    })
 
     await user.click(screen.getByLabelText('Remove Add Me Product'))
 

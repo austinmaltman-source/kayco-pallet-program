@@ -1,8 +1,10 @@
 import {render, screen} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {describe, expect, it, vi} from 'vitest'
+import {MemoryRouter} from 'react-router-dom'
 import {ProductRow} from './product-row'
 import {useCatalogStore} from '../../stores/catalog-store'
+import {useRoleStore} from '../../stores/role-store'
 import {makeProduct} from '../../test/test-utils'
 
 const navigateMock = vi.fn()
@@ -18,19 +20,22 @@ vi.mock('react-router-dom', async () => {
 describe('ProductRow', () => {
   it('navigates on row click and deletes from the overflow menu without navigating', async () => {
     const user = userEvent.setup()
+    useRoleStore.getState().setRole('manager')
     const product = makeProduct({id: 'prod-row', name: 'Row Product'})
     useCatalogStore.getState().setProducts([product])
 
     render(
-      <table>
-        <tbody>
-          <ProductRow product={product} />
-        </tbody>
-      </table>
+      <MemoryRouter initialEntries={['/manager/catalog']}>
+        <table>
+          <tbody>
+            <ProductRow product={product} />
+          </tbody>
+        </table>
+      </MemoryRouter>
     )
 
     await user.click(screen.getByText('Row Product'))
-    expect(navigateMock).toHaveBeenCalledWith('/catalog/prod-row')
+    expect(navigateMock).toHaveBeenCalledWith('/manager/catalog/prod-row')
 
     navigateMock.mockClear()
     await user.click(screen.getByRole('button', {name: /More actions for Row Product/i}))

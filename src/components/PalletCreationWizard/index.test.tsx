@@ -5,6 +5,8 @@ import {describe, expect, it, vi} from 'vitest'
 import {PalletCreationWizard} from '.'
 import {useDisplayStore} from '../../stores/display-store'
 import {useRetailerStore} from '../../stores/retailer-store'
+import {useRoleStore} from '../../stores/role-store'
+import {useSeasonStore} from '../../stores/season-store'
 import {makeRetailer, renderWithRouter} from '../../test/test-utils'
 
 vi.mock('motion/react', () => ({
@@ -18,6 +20,12 @@ describe('PalletCreationWizard', () => {
   it('creates a project from the selected pallet, season, and retailer', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
+
+    useRoleStore.getState().setRole('manager')
+
+    useSeasonStore.getState().setSeasons([
+      {id: 'season-pesach', name: 'Pesach', archived: false, createdAt: 1000},
+    ])
 
     useRetailerStore.getState().setRetailers([
       makeRetailer({
@@ -41,7 +49,9 @@ describe('PalletCreationWizard', () => {
 
     renderWithRouter(<PalletCreationWizard open onClose={onClose} />)
 
-    await user.click(screen.getByRole('button', {name: /Half Pallet/i}))
+    // The 3D preview also exposes a "Switch to Half Pallet" arrow button —
+    // use an exact name match to pick only the pill selector.
+    await user.click(screen.getByRole('button', {name: 'Half Pallet'}))
     await user.click(screen.getByRole('button', {name: /Next/i}))
     await user.click(screen.getByRole('button', {name: /Pesach/i}))
     await user.click(screen.getByRole('button', {name: /Next/i}))
@@ -53,7 +63,7 @@ describe('PalletCreationWizard', () => {
     expect(useDisplayStore.getState().currentProject).toMatchObject({
       retailerId: 'ret-1',
       palletType: 'half',
-      season: 'pesach',
+      seasonId: 'season-pesach',
       tierCount: 5,
       name: 'Pesach - Retail Partner',
     })

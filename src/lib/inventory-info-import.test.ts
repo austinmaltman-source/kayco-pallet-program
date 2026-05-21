@@ -182,7 +182,10 @@ describe('mergeInventoryInfoRowsIntoProducts', () => {
     })
   })
 
-  it('replaces the catalog with active inventory products only', () => {
+  it('updates active inventory matches while preserving unmatched products', () => {
+    // Manual / hand-imported products that aren't in the inventory feed
+    // must survive the merge — otherwise their UPC/Kayco values flash on
+    // initial render and then vanish.
     const result = mergeInventoryInfoIntoProducts(
       [
         makeProduct({
@@ -210,14 +213,17 @@ describe('mergeInventoryInfoRowsIntoProducts', () => {
       ],
     )
 
-    expect(result.products).toHaveLength(1)
-    expect(result.products[0]).toMatchObject({
-      id: 'active-product',
+    expect(result.products).toHaveLength(3)
+    const matched = result.products.find((product) => product.id === 'active-product')
+    expect(matched).toMatchObject({
       name: 'ACTIVE ITEM',
       sku: '100104',
       kaycoItemNumber: '100104',
       weight: 4.67,
     })
+    expect(result.products.some((p) => p.id === 'inactive-product')).toBe(true)
+    expect(result.products.some((p) => p.id === 'manual-product')).toBe(true)
+    expect(result.updatedProducts).toBe(1)
     expect(result.skippedRows).toBe(2)
   })
 })
