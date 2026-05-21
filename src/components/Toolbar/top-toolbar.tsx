@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Undo2, Redo2, ChevronDown } from 'lucide-react'
+import { Undo2, Redo2, ChevronDown, Grid3X3, Move3D } from 'lucide-react'
 import { useDisplayStore } from '../../stores/display-store'
 import { TrayFace, PalletType } from '../../types'
 import { useTierConfig } from '../../hooks/useTierConfig'
@@ -16,6 +16,8 @@ const faceLabels: Record<TrayFace, string> = {
 export function TopToolbar() {
   const viewMode = useDisplayStore(s => s.viewMode)
   const setViewMode = useDisplayStore(s => s.setViewMode)
+  const placementMode = useDisplayStore(s => s.placementMode)
+  const setPlacementMode = useDisplayStore(s => s.setPlacementMode)
   const activeFace = useDisplayStore(s => s.activeFace)
   const setActiveFace = useDisplayStore(s => s.setActiveFace)
   const undo = useDisplayStore(s => s.undo)
@@ -93,6 +95,31 @@ export function TopToolbar() {
 
         {/* View Controls */}
         <div className="flex items-center gap-4 text-[#999]" style={{ boxShadow: '-1px 0 0 0 rgba(0,0,0,0.06)', paddingLeft: '1.5rem' }}>
+          {viewMode === '3d' && (
+            <div className="flex items-center shadow-ring rounded-md overflow-hidden" style={{ boxShadow: undefined }}>
+              <button
+                onClick={() => setPlacementMode('slot')}
+                aria-label="Slot placement"
+                title="Slot placement"
+                className={`h-7 w-8 inline-flex items-center justify-center transition-colors ${
+                  placementMode === 'slot' ? 'bg-[#171717] text-white' : 'bg-white text-[#666] hover:bg-[#fafafa]'
+                }`}
+              >
+                <Grid3X3 size={14} />
+              </button>
+              <button
+                onClick={() => setPlacementMode('freeform')}
+                aria-label="Precision placement"
+                title="Precision placement"
+                className={`h-7 w-8 inline-flex items-center justify-center transition-colors ${
+                  placementMode === 'freeform' ? 'bg-[#171717] text-white' : 'bg-white text-[#666] hover:bg-[#fafafa]'
+                }`}
+              >
+                <Move3D size={14} />
+              </button>
+            </div>
+          )}
+
           {/* Face Selector Dropdown — hidden for half pallets */}
           {isHalf ? (
             <span className="text-[12px] font-medium text-[#171717]">Front Face</span>

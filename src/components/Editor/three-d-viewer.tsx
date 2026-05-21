@@ -18,6 +18,7 @@ export function ThreeDViewer() {
   const currentProject = useDisplayStore(s => s.currentProject)
   const selectedProductId = useDisplayStore(s => s.selectedProductId)
   const ghostProduct = useDisplayStore(s => s.ghostProduct)
+  const placementMode = useDisplayStore(s => s.placementMode)
   const pickerSelectedProduct = useDisplayStore(s => s.pickerSelectedProduct)
   const cameraPreset = useDisplayStore(s => s.cameraPreset)
   const selectProduct = useDisplayStore(s => s.selectProduct)
@@ -25,6 +26,7 @@ export function ThreeDViewer() {
   const setGhostProduct = useDisplayStore(s => s.setGhostProduct)
   const setPickerProduct = useDisplayStore(s => s.setPickerProduct)
   const placeProduct = useDisplayStore(s => s.placeProduct)
+  const placeProductFreeform = useDisplayStore(s => s.placeProductFreeform)
   const rotateProduct = useDisplayStore(s => s.rotateProduct)
   const removeProduct = useDisplayStore(s => s.removeProduct)
   const show3DSlotGrid = useAppSettingsStore((s) => s.settings.show3DSlotGrid)
@@ -61,6 +63,66 @@ export function ThreeDViewer() {
         onSlotClick={(tierId, slotIndex) => {
           const slotId = `${tierId}-${slotIndex}`
           if (pickerSelectedProduct) {
+            if (placementMode === 'freeform' && retailer) {
+              const wallConfigs = createDefaultWallConfigs(
+                currentProject.palletType,
+                editorGridColumns,
+              )
+              const derivedPlacement = derivePlacementFromSlotId(
+                slotId,
+                tiers,
+                currentProject.palletType,
+              )
+              if (!derivedPlacement) return
+
+              const dimensions = resolveProductDimensions(
+                pickerSelectedProduct,
+                allProducts,
+              )
+              const shelfPosition = getShelfPosition(
+                {
+                  wall: derivedPlacement.wall,
+                  tier: derivedPlacement.tier,
+                  gridCol: derivedPlacement.gridCol,
+                  colSpan: 1,
+                  displayMode: 'face-out',
+                },
+                dimensions,
+                {
+                  base: currentProject.palletSpec
+                    ? {
+                        width: currentProject.palletSpec.widthIn,
+                        depth: currentProject.palletSpec.depthIn,
+                        height: currentProject.palletSpec.baseHeightIn,
+                      }
+                    : retailer.palletDimensions,
+                  maxWeight: currentProject.palletSpec?.maxLoadLb ?? 2500,
+                },
+                tiers,
+                wallConfigs[derivedPlacement.wall],
+              )
+              const specWidth =
+                currentProject.palletSpec?.widthIn ?? retailer.palletDimensions.width
+              const specDepth =
+                currentProject.palletSpec?.depthIn ?? retailer.palletDimensions.depth
+              const result = placeProductFreeform(
+                pickerSelectedProduct,
+                {
+                  x: shelfPosition.position[0] + specWidth / 2 - dimensions.width / 2,
+                  y: shelfPosition.position[1],
+                  z: specDepth / 2 - shelfPosition.position[2] - dimensions.depth / 2,
+                },
+                0,
+                'upright',
+              )
+              if (result?.valid) {
+                setPickerProduct(null)
+                setGhostProduct(null)
+                selectSlot(null)
+              }
+              return
+            }
+
             const result = placeProduct(pickerSelectedProduct, slotId)
             if (result?.valid) {
               setPickerProduct(null)

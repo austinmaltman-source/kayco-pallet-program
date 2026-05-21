@@ -24,6 +24,7 @@ export function resetAllStores() {
     selectedProductId: null,
     ghostProduct: null,
     viewMode: DEFAULT_SETTINGS.defaultViewMode,
+    placementMode: 'slot',
     activeFace: DEFAULT_SETTINGS.defaultFace,
     cameraPreset: DEFAULT_SETTINGS.defaultCameraPreset,
     isPickerOpen: false,

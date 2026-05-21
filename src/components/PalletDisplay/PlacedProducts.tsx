@@ -9,6 +9,7 @@ import {
   derivePlacementFromSlotId,
   getShelfPosition,
 } from '../../lib/shelfCoordinates'
+import { getEffectiveCaseDimensions } from '../../lib/geometry/orientation'
 
 interface PlacedProductsProps {
   products: PlacedProduct[]
@@ -71,6 +72,51 @@ export const PlacedProducts: React.FC<PlacedProductsProps> = ({
   return (
     <group>
       {products.map((product) => {
+        const catalogProduct = product.sourceProductId
+          ? catalogProducts.find((entry) => entry.id === product.sourceProductId)
+          : undefined
+
+        if (product.position) {
+          const dimensions = catalogProduct
+            ? getEffectiveCaseDimensions(
+                catalogProduct,
+                product.orientation3D ?? 'upright',
+                product.rotationDeg ?? 0,
+              )
+            : {
+                width: product.width,
+                depth: product.depth,
+                height: product.height,
+              }
+          const freeformPosition: [number, number, number] = [
+            product.position.x - palletDimensions.width / 2 + dimensions.width / 2,
+            product.position.y,
+            palletDimensions.depth / 2 - product.position.z - dimensions.depth / 2,
+          ]
+          const freeformProduct = {
+            ...product,
+            width: dimensions.width,
+            depth: dimensions.depth,
+            height: dimensions.height * (product.caseStackHeight ?? 1),
+            orientation: 0,
+          }
+
+          return (
+            <ProductRenderer
+              key={product.id}
+              product={freeformProduct}
+              products={catalogProducts}
+              position={freeformPosition}
+              rotation={[0, 0, 0]}
+              availableSpace={dimensions}
+              isSelected={product.id === selectedProductId}
+              onClick={() => onProductClick?.(product.id)}
+              onRotate={() => onRotateProduct?.(product.id)}
+              onDelete={() => onDeleteProduct?.(product.id)}
+            />
+          )
+        }
+
         const placement =
           product.wall && product.tier && product.gridCol !== undefined
             ? {

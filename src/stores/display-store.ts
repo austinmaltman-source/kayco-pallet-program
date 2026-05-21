@@ -6,6 +6,7 @@ import {
   GhostProduct,
   Product,
   FullValidationResult,
+  PalletKPIs,
   CameraPreset,
   ViewMode,
   DisplayBranding,
@@ -14,6 +15,7 @@ import {
   PalletWizardConfig,
   Retailer,
   Role,
+  Orientation3D,
 } from '../types'
 import { getAppSettingsSnapshot } from './app-settings-store'
 import { nextOrientation } from '../lib/orientation-presets'
@@ -28,6 +30,10 @@ import {
 } from '../lib/shelfCoordinates'
 import { validatePlacement } from '../lib/spatialValidator'
 import { getPalletSpecForRetailer } from '../lib/retailer-specs'
+import { computeKPIs } from '../lib/kpis'
+import { validateFreeformPlacement } from '../lib/geometry/freeform-validator'
+
+type PlacementMode = 'slot' | 'freeform'
 
 interface DisplayState {
   projects: DisplayProject[]
@@ -36,6 +42,7 @@ interface DisplayState {
   selectedProductId: string | null
   ghostProduct: GhostProduct | null
   viewMode: ViewMode
+  placementMode: PlacementMode
   activeFace: TrayFace
   cameraPreset: CameraPreset
   isPickerOpen: boolean
@@ -53,9 +60,22 @@ interface DisplayState {
   selectProject: (id: string) => void
   setCurrentProject: (project: DisplayProject) => void
   placeProduct: (product: Product, slotId: string) => FullValidationResult | undefined
+  placeProductFreeform: (
+    product: Product,
+    position: { x: number; y: number; z: number },
+    rotationDeg?: 0 | 90 | 180 | 270,
+    orientation3D?: Orientation3D,
+  ) => FullValidationResult | undefined
   rotateProduct: (placementId: string) => void
   removeProduct: (placementId: string) => void
   moveProduct: (placementId: string, newSlotId: string) => void
+  movePlacement: (
+    placementId: string,
+    position: { x: number; y: number; z: number },
+    rotationDeg?: 0 | 90 | 180 | 270,
+  ) => FullValidationResult | undefined
+  setPlacementMode: (mode: PlacementMode) => void
+  validateAllPlacements: () => PalletKPIs
   selectSlot: (slotId: string | null) => void
   selectProduct: (productId: string | null) => void
   setGhostProduct: (ghost: GhostProduct | null) => void
@@ -188,6 +208,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   selectedProductId: null,
   ghostProduct: null,
   ...hydrateSelectionState(),
+  placementMode: 'slot',
   isPickerOpen: false,
   pickerSelectedProduct: null,
   history: [],
@@ -414,6 +435,62 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     return validation
   },
 
+  placeProductFreeform: (
+    product,
+    position,
+    rotationDeg = 0,
+    orientation3D = 'upright',
+  ) => {
+    const state = get()
+    if (!state.currentProject?.palletSpec) return
+
+    const placement: PlacedProduct = {
+      id: crypto.randomUUID(),
+      sourceProductId: product.id,
+      slotId: `freeform-${crypto.randomUUID()}`,
+      width: product.caseWidth ?? product.width,
+      height: product.caseHeight ?? product.height,
+      depth: product.caseDepth ?? product.depth,
+      color: product.brandColor,
+      label: product.name,
+      sku: product.sku,
+      category: product.category,
+      imageUrl: product.imageUrl,
+      modelUrl: product.modelUrl,
+      packaging: product.packaging,
+      caseConfig: product.caseConfig,
+      position,
+      rotationDeg,
+      orientation3D,
+      caseStackHeight: 1,
+      quantity: 1,
+      displayMode: 'face-out',
+    }
+
+    const validation = validateFreeformPlacement(
+      placement,
+      state.currentProject.placements,
+      useCatalogStore.getState().products,
+      state.currentProject.palletSpec,
+    )
+
+    if (!validation.valid) return validation
+
+    const nextProject = {
+      ...state.currentProject,
+      placements: [...state.currentProject.placements, placement],
+      updatedAt: Date.now(),
+    }
+
+    set({
+      ...commitProjectUpdate(state, nextProject),
+      isPickerOpen: false,
+      pickerSelectedProduct: null,
+    })
+
+    return validation
+  },
+
   rotateProduct: (placementId) => {
     const state = get()
     if (!state.currentProject) return
@@ -465,6 +542,63 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     }
 
     set(commitProjectUpdate(state, nextProject))
+  },
+
+  movePlacement: (placementId, position, rotationDeg) => {
+    const state = get()
+    if (!state.currentProject?.palletSpec) return
+
+    const existing = state.currentProject.placements.find(
+      (placement) => placement.id === placementId,
+    )
+    if (!existing) return
+
+    const movedPlacement = {
+      ...existing,
+      position,
+      rotationDeg: rotationDeg ?? existing.rotationDeg ?? 0,
+    }
+    const validation = validateFreeformPlacement(
+      movedPlacement,
+      state.currentProject.placements,
+      useCatalogStore.getState().products,
+      state.currentProject.palletSpec,
+    )
+
+    if (!validation.valid) return validation
+
+    const nextProject = {
+      ...state.currentProject,
+      placements: state.currentProject.placements.map((placement) =>
+        placement.id === placementId ? movedPlacement : placement,
+      ),
+      updatedAt: Date.now(),
+    }
+
+    set(commitProjectUpdate(state, nextProject))
+    return validation
+  },
+
+  setPlacementMode: (mode) =>
+    set({
+      placementMode: mode,
+      selectedSlotId: null,
+      selectedProductId: null,
+      ghostProduct: null,
+      pickerSelectedProduct: null,
+    }),
+
+  validateAllPlacements: () => {
+    const state = get()
+    const spec =
+      state.currentProject?.palletSpec ??
+      getPalletSpecForRetailer(state.getActiveRetailer(), state.currentProject?.palletType ?? 'full')
+
+    return computeKPIs(
+      state.currentProject?.placements ?? [],
+      spec,
+      useCatalogStore.getState().products,
+    )
   },
 
   selectSlot: (slotId) =>
