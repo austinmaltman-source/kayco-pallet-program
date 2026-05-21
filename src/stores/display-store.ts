@@ -27,6 +27,7 @@ import {
   derivePlacementFromSlotId,
 } from '../lib/shelfCoordinates'
 import { validatePlacement } from '../lib/spatialValidator'
+import { getPalletSpecForRetailer } from '../lib/retailer-specs'
 
 interface DisplayState {
   projects: DisplayProject[]
@@ -111,6 +112,16 @@ function replaceProject(projects: DisplayProject[], nextProject: DisplayProject)
   )
 }
 
+function hydrateProjectSpec(project: DisplayProject): DisplayProject {
+  if (project.palletSpec) return project
+
+  const retailer = useRetailerStore.getState().getRetailer(project.retailerId)
+  return {
+    ...project,
+    palletSpec: getPalletSpecForRetailer(retailer, project.palletType),
+  }
+}
+
 function hydrateSelectionState() {
   const settings = getAppSettingsSnapshot()
   return {
@@ -139,8 +150,14 @@ function buildValidationContext(state: DisplayState) {
 
   return {
     palletConfig: {
-      base: retailer.palletDimensions,
-      maxWeight: 2500,
+      base: {
+        width: state.currentProject.palletSpec?.widthIn ?? retailer.palletDimensions.width,
+        depth: state.currentProject.palletSpec?.depthIn ?? retailer.palletDimensions.depth,
+        height:
+          state.currentProject.palletSpec?.baseHeightIn ??
+          retailer.palletDimensions.height,
+      },
+      maxWeight: state.currentProject.palletSpec?.maxLoadLb ?? 2500,
     },
     palletType: state.currentProject.palletType,
     tierConfigs,
@@ -178,9 +195,10 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   lastUsedConfig: JSON.parse(localStorage.getItem('lastUsedConfig') ?? 'null'),
 
   setProjects: (projects) => {
-    const currentProject = projects[0] ?? null
+    const hydratedProjects = projects.map(hydrateProjectSpec)
+    const currentProject = hydratedProjects[0] ?? null
     set({
-      projects,
+      projects: hydratedProjects,
       currentProject,
       history: currentProject ? [structuredClone(currentProject)] : [],
       historyIndex: currentProject ? 0 : -1,
@@ -190,6 +208,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
 
   createProject: (name, config, tierCount = 4) => {
     const settings = getAppSettingsSnapshot()
+    const retailer = useRetailerStore.getState().getRetailer(config.retailerId)
     const project: DisplayProject = {
       id: crypto.randomUUID(),
       name,
@@ -205,6 +224,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       status: 'draft',
       tierCount,
       palletType: config.palletType,
+      palletSpec: getPalletSpecForRetailer(retailer, config.palletType),
       lipColor: settings.defaultLipColor,
       branding: {
         lipText: config.season === 'none' ? '' : 'ALL YOUR HOLIDAY NEEDS',
@@ -280,10 +300,11 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   },
 
   setCurrentProject: (project) => {
+    const hydratedProject = hydrateProjectSpec(project)
     set({
-      currentProject: project,
-      projects: replaceProject(get().projects, project),
-      history: [structuredClone(project)],
+      currentProject: hydratedProject,
+      projects: replaceProject(get().projects, hydratedProject),
+      history: [structuredClone(hydratedProject)],
       historyIndex: 0,
       selectedSlotId: null,
       selectedProductId: null,
@@ -545,6 +566,10 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     const nextProject = {
       ...state.currentProject,
       palletType: type,
+      palletSpec: getPalletSpecForRetailer(
+        useRetailerStore.getState().getRetailer(state.currentProject.retailerId),
+        type,
+      ),
       placements,
       updatedAt: Date.now(),
     }
