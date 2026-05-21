@@ -7,6 +7,7 @@ import {
   Product,
   FullValidationResult,
   PalletKPIs,
+  PalletSpec,
   CameraPreset,
   ViewMode,
   DisplayBranding,
@@ -77,6 +78,7 @@ interface DisplayState {
     rotationDeg?: 0 | 90 | 180 | 270,
   ) => FullValidationResult | undefined
   setPlacementMode: (mode: PlacementMode) => void
+  updatePalletSpec: (spec: PalletSpec) => void
   validateAllPlacements: () => PalletKPIs
   runAutoPack: (options?: Partial<PackOptions>) => PackResult | undefined
   selectSlot: (slotId: string | null) => void
@@ -590,6 +592,19 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       ghostProduct: null,
       pickerSelectedProduct: null,
     }),
+
+  updatePalletSpec: (spec) => {
+    const state = get()
+    if (!state.currentProject) return
+
+    const nextProject = {
+      ...state.currentProject,
+      palletSpec: spec,
+      updatedAt: Date.now(),
+    }
+
+    set(commitProjectUpdate(state, nextProject))
+  },
 
   validateAllPlacements: () => {
     const state = get()
