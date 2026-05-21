@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Box, Briefcase, LayoutGrid, Plus, UserCircle2 } from 'lucide-react'
+import { Briefcase, ChevronDown, Plus, UserCircle2 } from 'lucide-react'
 import { useDisplayStore } from '../../stores/display-store'
 import { useRetailerStore } from '../../stores/retailer-store'
 import { useSeasonStore } from '../../stores/season-store'
@@ -40,6 +40,16 @@ export function SalesmanHome() {
   const [wizardPinnedRetailerId, setWizardPinnedRetailerId] = useState<
     string | null
   >(null)
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+
+  const toggleItems = (retailerId: string) => {
+    setExpandedItems((prev) => {
+      const next = new Set(prev)
+      if (next.has(retailerId)) next.delete(retailerId)
+      else next.add(retailerId)
+      return next
+    })
+  }
 
   const openWizard = (retailerId: string | null = null) => {
     setWizardPinnedRetailerId(retailerId)
@@ -246,16 +256,20 @@ export function SalesmanHome() {
         </div>
       ) : (
         <div className="space-y-8">
-          {retailerBuckets.map((bucket) => (
+          {retailerBuckets.map((bucket) => {
+            const retailer = retailerById.get(bucket.retailerId)
+            const authorizedItems = (retailer?.authorizedItems ?? []).filter(
+              (item) => item.status === 'authorized',
+            )
+            const itemsOpen = expandedItems.has(bucket.retailerId)
+
+            return (
             <section key={bucket.retailerId}>
               <div className="flex items-center justify-between gap-3 mb-3">
                 <div className="flex items-center gap-2 min-w-0">
-                  <Link
-                    to={`/salesman/retailers/${bucket.retailerId}`}
-                    className="text-[16px] font-semibold text-[#171717] hover:underline truncate"
-                  >
+                  <h3 className="text-[16px] font-semibold text-[#171717] truncate">
                     {bucket.retailerName}
-                  </Link>
+                  </h3>
                   {bucket.isInactive && (
                     <span className="text-[10px] uppercase tracking-wider text-[#999] px-1.5 py-0.5 rounded bg-[#f5f5f5]">
                       Inactive
@@ -266,13 +280,40 @@ export function SalesmanHome() {
                     {bucket.programs.length === 1 ? '' : 's'}
                   </span>
                 </div>
-                <Link
-                  to={`/salesman/retailers/${bucket.retailerId}`}
-                  className="text-[11px] text-[#0a72ef] hover:underline shrink-0"
-                >
-                  Open retailer →
-                </Link>
+                {authorizedItems.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => toggleItems(bucket.retailerId)}
+                    aria-expanded={itemsOpen}
+                    className="inline-flex items-center gap-1 text-[11px] text-[#0a72ef] hover:underline shrink-0"
+                  >
+                    {authorizedItems.length} item{authorizedItems.length === 1 ? '' : 's'}
+                    <ChevronDown
+                      className={`w-3 h-3 transition-transform ${
+                        itemsOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </button>
+                )}
               </div>
+
+              {itemsOpen && authorizedItems.length > 0 && (
+                <div className="mb-3 bg-white shadow-card rounded-xl p-4 max-h-72 overflow-y-auto">
+                  <ul className="space-y-1.5">
+                    {authorizedItems.map((item) => (
+                      <li
+                        key={item.productId}
+                        className="flex items-center justify-between gap-3 text-[12px]"
+                      >
+                        <span className="text-[#171717] truncate">{item.productName}</span>
+                        <span className="text-[10px] text-[#999] font-mono tabular-nums shrink-0">
+                          {item.sku}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {bucket.programs.length === 0 ? (
                 <div className="bg-white shadow-card rounded-xl p-8 text-center">
@@ -355,42 +396,14 @@ export function SalesmanHome() {
                             </div>
                           )}
                         </Link>
-
-                        <div className="mt-4 pt-3 border-t border-[#f0f0f0] grid gap-2">
-                          <p className="text-[10px] uppercase tracking-wider text-[#999]">
-                            Build in model
-                          </p>
-                          <div className="grid grid-cols-1 gap-2">
-                            {[half, full].filter((p): p is DisplayProject => Boolean(p)).map((pallet) => (
-                              <div key={pallet.id} className="flex items-center gap-2">
-                                <span className="w-9 shrink-0 text-[11px] font-medium text-[#666] capitalize">
-                                  {pallet.palletType}
-                                </span>
-                                <Link
-                                  to={`/salesman/retailers/${program.retailerId}/pallets/${pallet.id}/editor?view=2d`}
-                                  className="h-8 px-2.5 rounded-md bg-[#f5f5f5] text-[#333] text-[11px] font-medium inline-flex items-center gap-1.5 hover:bg-[#eee] transition-colors"
-                                >
-                                  <LayoutGrid className="w-3.5 h-3.5" />
-                                  2D plan
-                                </Link>
-                                <Link
-                                  to={`/salesman/retailers/${program.retailerId}/pallets/${pallet.id}/editor?view=3d`}
-                                  className="h-8 px-2.5 rounded-md bg-[#171717] text-white text-[11px] font-medium inline-flex items-center gap-1.5 hover:bg-[#333] transition-colors"
-                                >
-                                  <Box className="w-3.5 h-3.5" />
-                                  3D model
-                                </Link>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
                       </div>
                     )
                   })}
                 </div>
               )}
             </section>
-          ))}
+            )
+          })}
         </div>
       )}
 

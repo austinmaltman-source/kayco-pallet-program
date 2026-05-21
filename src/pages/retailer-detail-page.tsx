@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Boxes,
@@ -695,6 +695,11 @@ export function RetailerDetailPage() {
   const navigate = useNavigate()
   const roleHref = useRoleHref()
   const role = useRoleStore((state) => state.role)
+  // Salesman home merges retailers + programs + items into one screen, so
+  // there's no value in a separate retailer detail for that role.
+  if (role === 'salesman') {
+    return <Navigate to="/salesman" replace />
+  }
   const deleteRetailer = useRetailerStore((state) => state.deleteRetailer)
   const updateRetailer = useRetailerStore((state) => state.updateRetailer)
   const retailer = useRetailerStore((state) => state.getRetailer(id ?? ''))
