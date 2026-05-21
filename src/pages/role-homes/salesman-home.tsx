@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Briefcase, Plus, UserCircle2 } from 'lucide-react'
+import { ArrowRight, Box, Briefcase, LayoutGrid, Plus, UserCircle2 } from 'lucide-react'
 import { useDisplayStore } from '../../stores/display-store'
 import { useRetailerStore } from '../../stores/retailer-store'
 import { useSeasonStore } from '../../stores/season-store'
@@ -315,43 +315,76 @@ export function SalesmanHome() {
                       : null
                     const programLink = `/salesman/retailers/${program.retailerId}/program/${program.seasonId ?? program.pallets[0].season}`
                     return (
-                      <Link
+                      <div
                         key={program.key}
-                        to={programLink}
                         className="group bg-white shadow-card hover:shadow-elevated transition-all rounded-xl p-4"
                       >
-                        <div className="flex items-start justify-between gap-3 mb-2">
-                          <p className="text-[13px] font-semibold text-[#171717] truncate">
-                            {program.seasonName}
-                          </p>
-                          <StatusPill
-                            status={program.leadStatus}
-                            role="salesman"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px] text-[#888]">
-                          {half && (
-                            <span className="px-1.5 py-0.5 rounded bg-[#f5f5f5] font-medium">
-                              Half × {half.quantity ?? 1}
-                            </span>
-                          )}
-                          {full && (
-                            <span className="px-1.5 py-0.5 rounded bg-[#f5f5f5] font-medium">
-                              Full × {full.quantity ?? 1}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 mt-2 text-[11px] text-[#666] tabular-nums">
-                          <span>{skuIds.size} SKUs</span>
-                          <span>·</span>
-                          <span>{totalCases} cases</span>
-                        </div>
-                        {confirmBy && program.leadStatus !== 'built' && (
-                          <div className="mt-2">
-                            <DeadlineChip confirmByMs={confirmBy} size="sm" />
+                        <Link
+                          to={programLink}
+                          className="block"
+                        >
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                            <p className="text-[13px] font-semibold text-[#171717] truncate">
+                              {program.seasonName}
+                            </p>
+                            <StatusPill
+                              status={program.leadStatus}
+                              role="salesman"
+                            />
                           </div>
-                        )}
-                      </Link>
+                          <div className="flex items-center gap-2 text-[11px] text-[#888]">
+                            {half && (
+                              <span className="px-1.5 py-0.5 rounded bg-[#f5f5f5] font-medium">
+                                Half x {half.quantity ?? 1}
+                              </span>
+                            )}
+                            {full && (
+                              <span className="px-1.5 py-0.5 rounded bg-[#f5f5f5] font-medium">
+                                Full x {full.quantity ?? 1}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-2 text-[11px] text-[#666] tabular-nums">
+                            <span>{skuIds.size} SKUs</span>
+                            <span>·</span>
+                            <span>{totalCases} cases</span>
+                          </div>
+                          {confirmBy && program.leadStatus !== 'built' && (
+                            <div className="mt-2">
+                              <DeadlineChip confirmByMs={confirmBy} size="sm" />
+                            </div>
+                          )}
+                        </Link>
+
+                        <div className="mt-4 pt-3 border-t border-[#f0f0f0] grid gap-2">
+                          <p className="text-[10px] uppercase tracking-wider text-[#999]">
+                            Build in model
+                          </p>
+                          <div className="grid grid-cols-1 gap-2">
+                            {[half, full].filter((p): p is DisplayProject => Boolean(p)).map((pallet) => (
+                              <div key={pallet.id} className="flex items-center gap-2">
+                                <span className="w-9 shrink-0 text-[11px] font-medium text-[#666] capitalize">
+                                  {pallet.palletType}
+                                </span>
+                                <Link
+                                  to={`/salesman/retailers/${program.retailerId}/pallets/${pallet.id}/editor?view=2d`}
+                                  className="h-8 px-2.5 rounded-md bg-[#f5f5f5] text-[#333] text-[11px] font-medium inline-flex items-center gap-1.5 hover:bg-[#eee] transition-colors"
+                                >
+                                  <LayoutGrid className="w-3.5 h-3.5" />
+                                  2D plan
+                                </Link>
+                                <Link
+                                  to={`/salesman/retailers/${program.retailerId}/pallets/${pallet.id}/editor?view=3d`}
+                                  className="h-8 px-2.5 rounded-md bg-[#171717] text-white text-[11px] font-medium inline-flex items-center gap-1.5 hover:bg-[#333] transition-colors"
+                                >
+                                  <Box className="w-3.5 h-3.5" />
+                                  3D model
+                                </Link>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     )
                   })}
                 </div>

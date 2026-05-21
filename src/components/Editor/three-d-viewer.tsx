@@ -4,6 +4,7 @@ import { PalletNavigator } from './pallet-navigator'
 import { AutoPackButton } from './auto-pack-button'
 import { CompliancePanel } from './compliance-panel'
 import { RulesEditor } from './rules-editor'
+import { PackagePlus } from 'lucide-react'
 import { useAppSettingsStore } from '../../stores/app-settings-store'
 import { useCatalogStore } from '../../stores/catalog-store'
 import { useRetailerStore } from '../../stores/retailer-store'
@@ -30,6 +31,7 @@ export function ThreeDViewer() {
   const setPickerProduct = useDisplayStore(s => s.setPickerProduct)
   const placeProduct = useDisplayStore(s => s.placeProduct)
   const placeProductFreeform = useDisplayStore(s => s.placeProductFreeform)
+  const openPicker = useDisplayStore(s => s.openPicker)
   const rotateProduct = useDisplayStore(s => s.rotateProduct)
   const removeProduct = useDisplayStore(s => s.removeProduct)
   const show3DSlotGrid = useAppSettingsStore((s) => s.settings.show3DSlotGrid)
@@ -289,6 +291,15 @@ export function ThreeDViewer() {
       {/* Pallet Navigator — same widget as 2D, also controls camera in 3D */}
       <div className="absolute top-20 left-4 z-20">
         <PalletNavigator />
+      </div>
+      <div className="absolute top-20 left-[168px] z-20">
+        <button
+          onClick={openPicker}
+          className="h-9 px-3 rounded-md bg-white text-[#171717] text-[12px] font-medium inline-flex items-center gap-2 shadow-card hover:bg-[#fafafa] transition-colors"
+        >
+          <PackagePlus size={15} />
+          Add product
+        </button>
       </div>
       <AutoPackButton />
       <CompliancePanel />
