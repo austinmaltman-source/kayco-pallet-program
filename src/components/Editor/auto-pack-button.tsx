@@ -126,6 +126,15 @@ export function AutoPackButton() {
                   ))}
                 </ul>
               )}
+              {result.ruleWarnings && result.ruleWarnings.length > 0 && (
+                <ul className="mt-2 max-h-20 overflow-auto space-y-1">
+                  {result.ruleWarnings.slice(0, 3).map((entry, index) => (
+                    <li key={`${entry.ruleKind}-${index}`} className="text-[11px] text-[#9a3412]">
+                      {entry.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </div>

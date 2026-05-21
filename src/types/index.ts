@@ -426,6 +426,7 @@ export interface DisplayProject {
   branding: DisplayBranding
   placements: PlacedProduct[]
   assortment: AssortmentEntry[]
+  packingRules?: import('../lib/rules/types').Rule[]
   // Items the salesman has picked for this pallet. Persists across sessions
   // even when cases = 0. Undefined on legacy projects — fall back to deriving
   // selection from `assortment` entries.

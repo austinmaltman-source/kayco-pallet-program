@@ -3,6 +3,7 @@ import { PalletDisplay } from '../PalletDisplay'
 import { PalletNavigator } from './pallet-navigator'
 import { AutoPackButton } from './auto-pack-button'
 import { CompliancePanel } from './compliance-panel'
+import { RulesEditor } from './rules-editor'
 import { useAppSettingsStore } from '../../stores/app-settings-store'
 import { useCatalogStore } from '../../stores/catalog-store'
 import { useRetailerStore } from '../../stores/retailer-store'
@@ -291,6 +292,7 @@ export function ThreeDViewer() {
       </div>
       <AutoPackButton />
       <CompliancePanel />
+      <RulesEditor />
     </div>
   )
 }

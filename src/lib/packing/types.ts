@@ -1,4 +1,5 @@
 import type { Orientation3D, PalletSpec, Product } from '../../types'
+import type { RuleWarning } from '../rules/types'
 
 export interface PackBox {
   product: Product
@@ -36,6 +37,7 @@ export interface UnplacedBox {
 export interface PackResult {
   placements: PackedPlacement[]
   unplaced: UnplacedBox[]
+  ruleWarnings?: RuleWarning[]
 }
 
 export interface ExtremePoint {

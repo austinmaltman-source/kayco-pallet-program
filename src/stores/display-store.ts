@@ -35,6 +35,8 @@ import { computeKPIs } from '../lib/kpis'
 import { validateFreeformPlacement } from '../lib/geometry/freeform-validator'
 import { DEFAULT_PACK_OPTIONS, PackOptions, PackResult } from '../lib/packing/types'
 import { packEpffd } from '../lib/packing/epffd'
+import { applyRulesToPackInput } from '../lib/rules/apply'
+import type { Rule } from '../lib/rules/types'
 
 type PlacementMode = 'slot' | 'freeform'
 
@@ -79,6 +81,7 @@ interface DisplayState {
   ) => FullValidationResult | undefined
   setPlacementMode: (mode: PlacementMode) => void
   updatePalletSpec: (spec: PalletSpec) => void
+  setPackingRules: (rules: Rule[]) => void
   validateAllPlacements: () => PalletKPIs
   runAutoPack: (options?: Partial<PackOptions>) => PackResult | undefined
   selectSlot: (slotId: string | null) => void
@@ -606,6 +609,19 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     set(commitProjectUpdate(state, nextProject))
   },
 
+  setPackingRules: (rules) => {
+    const state = get()
+    if (!state.currentProject) return
+
+    const nextProject = {
+      ...state.currentProject,
+      packingRules: rules,
+      updatedAt: Date.now(),
+    }
+
+    set(commitProjectUpdate(state, nextProject))
+  },
+
   validateAllPlacements: () => {
     const state = get()
     const spec =
@@ -635,13 +651,18 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
 
     if (boxes.length === 0) return
 
-    const result = packEpffd(
+    const ruled = applyRulesToPackInput(
       {
         boxes,
         spec: state.currentProject.palletSpec,
       },
-      { ...DEFAULT_PACK_OPTIONS, ...options },
+      state.currentProject.packingRules ?? [],
     )
+
+    const result = {
+      ...packEpffd(ruled.input, { ...DEFAULT_PACK_OPTIONS, ...options }),
+      ruleWarnings: ruled.warnings,
+    }
 
     const placements: PlacedProduct[] = result.placements
       .map((packed): PlacedProduct | null => {
