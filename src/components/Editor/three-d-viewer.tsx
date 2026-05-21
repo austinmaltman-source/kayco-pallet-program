@@ -1,6 +1,7 @@
 import { useDisplayStore } from '../../stores/display-store'
 import { PalletDisplay } from '../PalletDisplay'
 import { PalletNavigator } from './pallet-navigator'
+import { AutoPackButton } from './auto-pack-button'
 import { useAppSettingsStore } from '../../stores/app-settings-store'
 import { useCatalogStore } from '../../stores/catalog-store'
 import { useRetailerStore } from '../../stores/retailer-store'
@@ -287,6 +288,7 @@ export function ThreeDViewer() {
       <div className="absolute top-20 left-4 z-20">
         <PalletNavigator />
       </div>
+      <AutoPackButton />
     </div>
   )
 }

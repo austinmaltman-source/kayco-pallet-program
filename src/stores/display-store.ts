@@ -32,6 +32,8 @@ import { validatePlacement } from '../lib/spatialValidator'
 import { getPalletSpecForRetailer } from '../lib/retailer-specs'
 import { computeKPIs } from '../lib/kpis'
 import { validateFreeformPlacement } from '../lib/geometry/freeform-validator'
+import { DEFAULT_PACK_OPTIONS, PackOptions, PackResult } from '../lib/packing/types'
+import { packEpffd } from '../lib/packing/epffd'
 
 type PlacementMode = 'slot' | 'freeform'
 
@@ -76,6 +78,7 @@ interface DisplayState {
   ) => FullValidationResult | undefined
   setPlacementMode: (mode: PlacementMode) => void
   validateAllPlacements: () => PalletKPIs
+  runAutoPack: (options?: Partial<PackOptions>) => PackResult | undefined
   selectSlot: (slotId: string | null) => void
   selectProduct: (productId: string | null) => void
   setGhostProduct: (ghost: GhostProduct | null) => void
@@ -599,6 +602,76 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       spec,
       useCatalogStore.getState().products,
     )
+  },
+
+  runAutoPack: (options = {}) => {
+    const state = get()
+    if (!state.currentProject?.palletSpec) return
+
+    const products = useCatalogStore.getState().products
+    const productMap = new Map(products.map((product) => [product.id, product]))
+    const boxes = state.currentProject.assortment
+      .map((entry) => {
+        const product = productMap.get(entry.productId)
+        if (!product || entry.cases <= 0) return null
+        return { product, quantity: entry.cases }
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+
+    if (boxes.length === 0) return
+
+    const result = packEpffd(
+      {
+        boxes,
+        spec: state.currentProject.palletSpec,
+      },
+      { ...DEFAULT_PACK_OPTIONS, ...options },
+    )
+
+    const placements: PlacedProduct[] = result.placements
+      .map((packed): PlacedProduct | null => {
+        const product = productMap.get(packed.productId)
+        if (!product) return null
+        return {
+          id: crypto.randomUUID(),
+          sourceProductId: product.id,
+          slotId: `auto-${packed.id}`,
+          width: product.caseWidth ?? product.width,
+          height: product.caseHeight ?? product.height,
+          depth: product.caseDepth ?? product.depth,
+          color: product.brandColor,
+          label: product.name,
+          sku: product.sku,
+          category: product.category,
+          imageUrl: product.imageUrl,
+          modelUrl: product.modelUrl,
+          packaging: product.packaging,
+          caseConfig: product.caseConfig,
+          position: { x: packed.x, y: packed.y, z: packed.z },
+          rotationDeg: packed.rotationDeg,
+          orientation3D: packed.orientation3D,
+          caseStackHeight: 1,
+          quantity: 1,
+          displayMode: 'face-out' as const,
+        }
+      })
+      .filter((placement): placement is PlacedProduct => Boolean(placement))
+
+    const nextProject = {
+      ...state.currentProject,
+      placements,
+      updatedAt: Date.now(),
+    }
+
+    set({
+      ...commitProjectUpdate(state, nextProject),
+      placementMode: 'freeform',
+      selectedSlotId: null,
+      selectedProductId: null,
+      ghostProduct: null,
+    })
+
+    return result
   },
 
   selectSlot: (slotId) =>
