@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Download, MoreHorizontal, Plus, Upload } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Box, Download, LayoutGrid, MoreHorizontal, Plus, Upload } from 'lucide-react'
 import { ProgramMatrix } from '../components/Assortment/program-matrix'
 import { ProgramItemPicker } from '../components/Assortment/program-item-picker'
 import { useCatalogStore } from '../stores/catalog-store'
@@ -18,7 +18,8 @@ import {
 import * as XLSX from 'xlsx'
 import type { DisplayProject, Holiday, PalletType } from '../types'
 
-type ProgramTab = 'items' | 'quantities'
+type ProgramTab = 'quantities' | 'items' | 'build'
+type BuildPalletTab = 'half' | 'full'
 
 function getSelectedIds(pallet: DisplayProject | null): string[] {
   if (!pallet) return []
@@ -96,7 +97,8 @@ export function ProgramRollupPage() {
   const deleteProject = useDisplayStore((state) => state.deleteProject)
   const { confirm, dialog } = useConfirm()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [tab, setTab] = useState<ProgramTab>('items')
+  const [tab, setTab] = useState<ProgramTab>('quantities')
+  const [buildPalletTab, setBuildPalletTab] = useState<BuildPalletTab>('half')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState<string | null>(null)
 
@@ -601,6 +603,12 @@ export function ProgramRollupPage() {
         <>
           <div className="flex items-center gap-1 mb-4 p-1 bg-[#f2f2f2] rounded-lg w-fit">
             <TabButton
+              active={tab === 'quantities'}
+              onClick={() => setTab('quantities')}
+              label="Quantities"
+              disabled={!hasAnySelection}
+            />
+            <TabButton
               active={tab === 'items'}
               onClick={() => setTab('items')}
               label="Items"
@@ -611,14 +619,14 @@ export function ProgramRollupPage() {
               }
             />
             <TabButton
-              active={tab === 'quantities'}
-              onClick={() => setTab('quantities')}
-              label="Quantities"
-              disabled={!hasAnySelection}
+              active={tab === 'build'}
+              onClick={() => setTab('build')}
+              label="Build"
+              disabled={!halfPallet && !fullPallet}
             />
           </div>
 
-          {tab === 'items' ? (
+          {tab === 'items' && (
             <ProgramItemPicker
               halfPallet={halfPallet}
               fullPallet={fullPallet}
@@ -627,7 +635,8 @@ export function ProgramRollupPage() {
               readOnly={isReadOnly}
               onToggle={handleToggleSelected}
             />
-          ) : (
+          )}
+          {tab === 'quantities' && (
             <ProgramMatrix
               halfPallet={halfPallet}
               fullPallet={fullPallet}
@@ -639,6 +648,15 @@ export function ProgramRollupPage() {
               }
               onQuantityChange={handleQuantityChange}
               onGoToItems={() => setTab('items')}
+            />
+          )}
+          {tab === 'build' && (
+            <ProgramBuildTab
+              halfPallet={halfPallet}
+              fullPallet={fullPallet}
+              activePalletTab={buildPalletTab}
+              onPalletTabChange={setBuildPalletTab}
+              roleHref={roleHref}
             />
           )}
         </>
@@ -708,4 +726,111 @@ function MenuItem({
 
 function Divider() {
   return <div className="h-px bg-[#f0f0f0] my-1" />
+}
+
+function ProgramBuildTab({
+  halfPallet,
+  fullPallet,
+  activePalletTab,
+  onPalletTabChange,
+  roleHref,
+}: {
+  halfPallet: DisplayProject | null
+  fullPallet: DisplayProject | null
+  activePalletTab: BuildPalletTab
+  onPalletTabChange: (next: BuildPalletTab) => void
+  roleHref: (path: string) => string
+}) {
+  // If only one pallet type exists, snap to it.
+  const effectiveTab: BuildPalletTab =
+    halfPallet && !fullPallet
+      ? 'half'
+      : fullPallet && !halfPallet
+        ? 'full'
+        : activePalletTab
+  const pallet = effectiveTab === 'half' ? halfPallet : fullPallet
+
+  if (!pallet) {
+    return (
+      <div className="bg-white shadow-card rounded-xl p-8 text-center">
+        <p className="text-[13px] text-[#888]">
+          Add a pallet to this program to build it.
+        </p>
+      </div>
+    )
+  }
+
+  const bothExist = !!halfPallet && !!fullPallet
+  const editorBase = `/retailers/${pallet.retailerId}/pallets/${pallet.id}/editor`
+
+  return (
+    <div className="space-y-4">
+      {bothExist && (
+        <div className="flex items-center gap-1 p-1 bg-[#f2f2f2] rounded-lg w-fit">
+          <PalletSubTab
+            active={effectiveTab === 'half'}
+            onClick={() => onPalletTabChange('half')}
+            label="Half"
+            quantity={halfPallet?.quantity ?? 1}
+          />
+          <PalletSubTab
+            active={effectiveTab === 'full'}
+            onClick={() => onPalletTabChange('full')}
+            label="Full"
+            quantity={fullPallet?.quantity ?? 1}
+          />
+        </div>
+      )}
+
+      <div className="bg-white shadow-card rounded-xl p-6">
+        <p className="text-[10px] uppercase tracking-wider text-[#999] mb-4">
+          Build in model
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            to={roleHref(`${editorBase}?view=2d`)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#f5f5f5] text-[#333] text-[13px] font-medium hover:bg-[#eee] transition-colors"
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            2D plan
+          </Link>
+          <Link
+            to={roleHref(`${editorBase}?view=3d`)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#171717] text-white text-[13px] font-medium hover:bg-[#333] transition-colors"
+          >
+            <Box className="w-3.5 h-3.5" />
+            3D model
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PalletSubTab({
+  active,
+  onClick,
+  label,
+  quantity,
+}: {
+  active: boolean
+  onClick: () => void
+  label: string
+  quantity: number
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-md text-[13px] font-medium transition-colors ${
+        active ? 'bg-white text-[#171717] shadow-sm' : 'text-[#777] hover:text-[#171717]'
+      }`}
+    >
+      {label}
+      <span
+        className={`text-[11px] tabular-nums ${active ? 'text-[#999]' : 'text-[#aaa]'}`}
+      >
+        x {quantity}
+      </span>
+    </button>
+  )
 }
