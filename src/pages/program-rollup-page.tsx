@@ -8,6 +8,7 @@ import { useDisplayStore } from '../stores/display-store'
 import { useRetailerStore } from '../stores/retailer-store'
 import { useSeasonStore } from '../stores/season-store'
 import { useRoleHref } from '../lib/role-href'
+import { useSmartBack } from '../lib/use-smart-back'
 import { useRoleStore } from '../stores/role-store'
 import { useConfirm } from '../components/ConfirmDialog'
 import { parseCsv } from '../lib/csv'
@@ -64,6 +65,7 @@ export function ProgramRollupPage() {
   const { retailerId, season: seasonParam } = useParams()
   const navigate = useNavigate()
   const roleHref = useRoleHref()
+  const smartBack = useSmartBack()
   const role = useRoleStore((state) => state.role)
   const retailer = useRetailerStore((state) =>
     retailerId ? state.getRetailer(retailerId) : undefined,
@@ -450,12 +452,12 @@ export function ProgramRollupPage() {
       <div className="flex items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-3 min-w-0">
           <button
-            onClick={() => navigate(roleHref(`/retailers/${retailerId}`))}
+            onClick={() => smartBack(roleHref(`/retailers/${retailerId}`))}
             className="inline-flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[12px] font-medium text-[#777] hover:text-[#171717] hover:bg-[#fafafa] transition-colors"
-            title={`Back to ${retailer.name}`}
+            title="Back"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            {retailer.name}
+            Back
           </button>
           <span className="text-[#ddd]">/</span>
           <h1 className="text-[18px] font-semibold tracking-tight text-[#171717] truncate">

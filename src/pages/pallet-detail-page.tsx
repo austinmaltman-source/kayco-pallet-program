@@ -13,6 +13,7 @@ import { useRetailerStore } from '../stores/retailer-store'
 import { useRoleStore } from '../stores/role-store'
 import { compareSeasonsByHolidayDate, useSeasonStore } from '../stores/season-store'
 import { useRoleHref } from '../lib/role-href'
+import { useSmartBack } from '../lib/use-smart-back'
 import { useConfirm } from '../components/ConfirmDialog'
 
 function fmtMoney(v: number) {
@@ -63,6 +64,7 @@ export function PalletDetailPage() {
   const { retailerId, palletId } = useParams()
   const navigate = useNavigate()
   const roleHref = useRoleHref()
+  const smartBack = useSmartBack()
   const role = useRoleStore((state) => state.role)
   const isSalesman = role === 'salesman'
   const { confirm, dialog: confirmDialog } = useConfirm()
@@ -167,11 +169,11 @@ export function PalletDetailPage() {
   return (
     <div className="px-10 py-10 max-w-[1300px]">
       <button
-        onClick={() => navigate(roleHref(`/retailers/${retailerId}`))}
+        onClick={() => smartBack(roleHref(`/retailers/${retailerId}`))}
         className="flex items-center gap-1.5 text-[#777] hover:text-[#171717] text-[12px] font-medium mb-5 transition-colors"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
-        {retailer.name}
+        Back
       </button>
 
       <div className="flex items-start justify-between gap-6 mb-8">

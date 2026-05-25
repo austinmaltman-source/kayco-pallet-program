@@ -21,6 +21,7 @@ import { useDisplayStore } from '../stores/display-store'
 import { useSalespersonStore } from '../stores/salesperson-store'
 import { useSeasonStore } from '../stores/season-store'
 import { useRoleHref } from '../lib/role-href'
+import { useSmartBack } from '../lib/use-smart-back'
 import { useRoleStore } from '../stores/role-store'
 import { PalletWizard } from '../components/Wizard/PalletWizard'
 import { StartProgramWizard } from '../components/StartProgramWizard'
@@ -694,6 +695,7 @@ export function RetailerDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const roleHref = useRoleHref()
+  const smartBack = useSmartBack()
   const role = useRoleStore((state) => state.role)
   // Salesman home merges retailers + programs + items into one screen, so
   // there's no value in a separate retailer detail for that role.
@@ -839,11 +841,11 @@ export function RetailerDetailPage() {
     <div className="px-10 py-10 max-w-[1400px]">
       {/* Breadcrumb */}
       <button
-        onClick={() => navigate(roleHref('/retailers'))}
+        onClick={() => smartBack(roleHref('/retailers'))}
         className="flex items-center gap-1.5 text-[#999] hover:text-[#171717] text-[12px] font-medium mb-6 transition-colors"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
-        Programs
+        Back
       </button>
 
       {/* Header */}

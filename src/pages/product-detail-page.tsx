@@ -19,6 +19,7 @@ import { BRAND_COLORS } from '../lib/mock-data'
 import { useCatalogStore } from '../stores/catalog-store'
 import { useRetailerStore } from '../stores/retailer-store'
 import { useRoleHref } from '../lib/role-href'
+import { useSmartBack } from '../lib/use-smart-back'
 import { useConfirm } from '../components/ConfirmDialog'
 
 const BRANDS: Brand[] = ['tuscanini', 'kedem', 'gefen', 'liebers', 'haddar', 'osem']
@@ -61,6 +62,7 @@ function getStackingGuidance(product: Product) {
 
 export function ProductDetailPage() {
   const roleHref = useRoleHref()
+  const smartBack = useSmartBack()
   const { confirm, dialog: confirmDialog } = useConfirm()
   const { id } = useParams()
   const navigate = useNavigate()
@@ -185,11 +187,11 @@ export function ProductDetailPage() {
           <h2 className="text-[17px] font-semibold text-[#171717]">Product not found</h2>
           <p className="text-[13px] text-[#888] mt-2 mb-5">This product may have been deleted.</p>
           <button
-            onClick={() => navigate(roleHref('/catalog'))}
+            onClick={() => smartBack(roleHref('/catalog'))}
             className="inline-flex items-center gap-2 px-4 py-2 text-[12px] font-medium text-[#555] shadow-border bg-white rounded-md hover:bg-[#fafafa] transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            Back to Catalog
+            Back
           </button>
         </div>
       </div>
@@ -251,11 +253,11 @@ export function ProductDetailPage() {
       <div className="sticky top-0 z-10 bg-[#fafafa] pt-8 pb-0">
         {/* Breadcrumb */}
         <button
-          onClick={() => navigate(roleHref('/catalog'))}
+          onClick={() => smartBack(roleHref('/catalog'))}
           className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#888] hover:text-[#171717] transition-colors mb-5"
         >
           <ArrowLeft className="w-3 h-3" />
-          Catalog
+          Back
         </button>
 
         {/* Header Bar */}

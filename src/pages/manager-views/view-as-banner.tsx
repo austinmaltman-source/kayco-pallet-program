@@ -1,7 +1,8 @@
-import { Link } from 'react-router-dom'
 import { ArrowLeft, Eye } from 'lucide-react'
+import { useSmartBack } from '../../lib/use-smart-back'
 
 export function ViewAsBanner({ label }: { label: string }) {
+  const smartBack = useSmartBack()
   return (
     <div className="bg-[#171717] text-white">
       <div className="max-w-[1400px] mx-auto px-8 py-2.5 flex items-center justify-between gap-4">
@@ -13,13 +14,13 @@ export function ViewAsBanner({ label }: { label: string }) {
             · changes here apply to the live data
           </span>
         </div>
-        <Link
-          to="/manager"
+        <button
+          onClick={() => smartBack('/manager')}
           className="inline-flex items-center gap-1.5 text-[12px] font-medium text-white/80 hover:text-white transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          Back to dashboard
-        </Link>
+          Back
+        </button>
       </div>
     </div>
   )

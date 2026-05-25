@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Briefcase, LogOut } from 'lucide-react'
 import { useRoleStore } from '../../stores/role-store'
 import { useSalespersonStore } from '../../stores/salesperson-store'
+import { useSmartBack } from '../../lib/use-smart-back'
 import { TopToolbar } from '../Toolbar/top-toolbar'
 
 const TABS: { to: string; label: string; end: boolean }[] = []
@@ -16,6 +17,7 @@ function initialsOf(name: string): string {
 
 export function SalesmanLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
+  const smartBack = useSmartBack()
   const { pathname } = useLocation()
   const isEditor = pathname.endsWith('/editor')
   const salespeople = useSalespersonStore((s) => s.salespeople)
@@ -26,18 +28,18 @@ export function SalesmanLayout({ children }: { children: ReactNode }) {
     : null
 
   if (isEditor) {
-    // /:role/retailers/:retailerId/pallets/:palletId/editor — peel off /editor
-    // to derive the pallet detail URL.
+    // Fallback to the pallet detail URL when there's no in-app history
+    // (e.g. someone opened the editor via a deep link).
     const palletPath = pathname.replace(/\/editor\/?$/, '')
     return (
       <div className="min-h-screen bg-[#fafafa]">
-        <Link
-          to={palletPath}
+        <button
+          onClick={() => smartBack(palletPath)}
           className="fixed top-4 left-4 z-[60] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white/95 backdrop-blur text-[12px] font-medium text-[#555] hover:text-[#171717] shadow-card transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          Back to pallet
-        </Link>
+          Back
+        </button>
         <TopToolbar />
         <main className="pt-16">{children}</main>
       </div>
