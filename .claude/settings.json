@@ -2,8 +2,29 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc --noEmit*)",
+      "Bash(npx tsc --noEmit *)",
       "Bash(npm run lint*)",
-      "Bash(npx vitest run*)"
+      "Bash(npm run lint *)",
+      "Bash(npx vitest run*)",
+      "Bash(npx vitest run *)",
+      "Bash(npm run build*)",
+      "Bash(npm run build *)",
+      "Bash(npx next build*)",
+      "Bash(npx next build *)",
+      "Bash(git add*)",
+      "Bash(git add *)",
+      "Bash(git commit*)",
+      "Bash(git commit *)",
+      "Bash(git push*)",
+      "Bash(git push *)",
+      "Bash(git checkout*)",
+      "Bash(git checkout *)",
+      "Bash(git stash*)",
+      "Bash(git stash *)",
+      "Bash(mkdir -p*)",
+      "Bash(mkdir -p *)",
+      "Bash(gh pr create*)",
+      "Bash(gh pr create *)"
     ]
   }
 }

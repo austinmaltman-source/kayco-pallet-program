@@ -79,6 +79,7 @@ export function PalletDetailPage() {
   const updateSeasonId = useDisplayStore((state) => state.updateSeasonId)
   const updateBuildLocation = useDisplayStore((state) => state.updateBuildLocation)
   const updateLaborCost = useDisplayStore((state) => state.updateLaborCost)
+  const updateCorrugateCost = useDisplayStore((state) => state.updateCorrugateCost)
   const updateQuantity = useDisplayStore((state) => state.updateQuantity)
   const updateStatus = useDisplayStore((state) => state.updateStatus)
   const deleteProject = useDisplayStore((state) => state.deleteProject)
@@ -135,7 +136,9 @@ export function PalletDetailPage() {
       }
     }
     const labor = typeof pallet.laborCost === 'number' ? pallet.laborCost * qty : 0
-    const cost = materialCost + labor
+    const corrugate =
+      typeof pallet.corrugateCost === 'number' ? pallet.corrugateCost * qty : 0
+    const cost = materialCost + labor + corrugate
     const marginDollars = revenue - cost
     const marginPct = revenue > 0 ? (marginDollars / revenue) * 100 : null
     return {
@@ -143,6 +146,7 @@ export function PalletDetailPage() {
       cost,
       materialCost,
       labor,
+      corrugate,
       marginDollars,
       marginPct,
       avgPrice: pricedCases > 0 ? revenue / pricedCases : null,
@@ -460,7 +464,29 @@ export function PalletDetailPage() {
                         const num = parseFloat(val)
                         updateLaborCost(isNaN(num) ? null : num)
                       }}
-                      placeholder="75"
+                      placeholder={pallet.palletType === 'half' ? '64.37' : '77.25'}
+                      className="flex-1 text-[14px] font-semibold text-[#171717] bg-transparent border-none outline-none focus:ring-2 focus:ring-[#0a72ef]/30 rounded-md -ml-1 pl-1"
+                    />
+                  </div>
+                </div>
+                <div className="rounded-lg bg-[#fafafa] px-4 py-4">
+                  <p className="text-[10px] uppercase tracking-wider text-[#999] mb-2">Corrugate cost</p>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[14px] font-semibold text-[#999]">$</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={pallet.corrugateCost ?? ''}
+                      onChange={(event) => {
+                        const val = event.target.value.replace(/[^0-9.]/g, '')
+                        if (val === '') {
+                          updateCorrugateCost(null)
+                          return
+                        }
+                        const num = parseFloat(val)
+                        updateCorrugateCost(isNaN(num) ? null : num)
+                      }}
+                      placeholder={pallet.palletType === 'half' ? '80' : '126'}
                       className="flex-1 text-[14px] font-semibold text-[#171717] bg-transparent border-none outline-none focus:ring-2 focus:ring-[#0a72ef]/30 rounded-md -ml-1 pl-1"
                     />
                   </div>
@@ -586,7 +612,7 @@ export function PalletDetailPage() {
             ))}
           </div>
           <div
-            className="grid grid-cols-2 lg:grid-cols-4"
+            className="grid grid-cols-2 lg:grid-cols-5"
             style={{ boxShadow: '0 1px 0 0 rgba(0,0,0,0.04) inset' }}
           >
             {[
@@ -599,6 +625,7 @@ export function PalletDetailPage() {
                 value: financials.avgCost === null ? '—' : fmtMoney(financials.avgCost),
               },
               { label: 'Labor', value: fmtMoney(financials.labor) },
+              { label: 'Corrugate', value: fmtMoney(financials.corrugate) },
               { label: 'Cases', value: financials.totalCases.toLocaleString() },
             ].map((row, i) => (
               <div

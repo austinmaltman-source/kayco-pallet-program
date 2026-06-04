@@ -140,7 +140,7 @@ export function BuildQueuePage() {
             Pallets ready or in progress, grouped by location. Log daily build counts.
           </p>
         </div>
-        <div className="bg-white shadow-card rounded-xl px-4 py-3 flex items-center gap-4">
+        <div className="bg-white shadow-card rounded-xl px-4 py-3 flex flex-wrap items-center gap-4">
           <span className="text-[10px] uppercase tracking-wider text-[#999]">Default labor</span>
           {(['Full', 'Half'] as const).map((kind) => {
             const key = kind === 'Full' ? 'defaultLaborCostFull' : 'defaultLaborCostHalf'
@@ -157,7 +157,28 @@ export function BuildQueuePage() {
                     const num = parseFloat(raw)
                     if (!isNaN(num)) updateSettings({ [key]: num })
                   }}
-                  className="w-[56px] text-[14px] font-semibold text-[#171717] tabular-nums shadow-border rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0a72ef]/30 focus:shadow-none"
+                  className="w-[64px] text-[14px] font-semibold text-[#171717] tabular-nums shadow-border rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0a72ef]/30 focus:shadow-none"
+                />
+              </div>
+            )
+          })}
+          <span className="text-[10px] uppercase tracking-wider text-[#999] ml-2">Default corrugate</span>
+          {(['Full', 'Half'] as const).map((kind) => {
+            const key = kind === 'Full' ? 'defaultCorrugateCostFull' : 'defaultCorrugateCostHalf'
+            return (
+              <div key={`corr-${kind}`} className="flex items-center gap-1">
+                <span className="text-[10px] uppercase tracking-wider text-[#999]">{kind}</span>
+                <span className="text-[14px] text-[#999]">$</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={settings[key]}
+                  onChange={(event) => {
+                    const raw = event.target.value.replace(/[^0-9.]/g, '')
+                    const num = parseFloat(raw)
+                    if (!isNaN(num)) updateSettings({ [key]: num })
+                  }}
+                  className="w-[64px] text-[14px] font-semibold text-[#171717] tabular-nums shadow-border rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0a72ef]/30 focus:shadow-none"
                 />
               </div>
             )

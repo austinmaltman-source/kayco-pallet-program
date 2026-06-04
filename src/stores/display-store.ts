@@ -99,6 +99,7 @@ interface DisplayState {
   updateSeasonId: (seasonId: string | null) => void
   updateBuildLocation: (location: DisplayProject['buildLocation']) => void
   updateLaborCost: (cost: number | null) => void
+  updateCorrugateCost: (cost: number | null) => void
   updateStatus: (status: DisplayProject['status']) => void
   updateStatusFor: (palletId: string, status: DisplayProject['status']) => void
   appendBuildLog: (palletId: string, entry: { date: string; built: number; note?: string }) => void
@@ -250,6 +251,10 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
         config.palletType === 'half'
           ? settings.defaultLaborCostHalf
           : settings.defaultLaborCostFull,
+      corrugateCost:
+        config.palletType === 'half'
+          ? settings.defaultCorrugateCostHalf
+          : settings.defaultCorrugateCostFull,
       status: 'draft',
       tierCount,
       palletType: config.palletType,
@@ -886,6 +891,19 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     const nextProject = {
       ...state.currentProject,
       laborCost: cost,
+      updatedAt: Date.now(),
+    }
+
+    set(commitProjectUpdate(state, nextProject))
+  },
+
+  updateCorrugateCost: (cost) => {
+    const state = get()
+    if (!state.currentProject) return
+
+    const nextProject = {
+      ...state.currentProject,
+      corrugateCost: cost,
       updatedAt: Date.now(),
     }
 

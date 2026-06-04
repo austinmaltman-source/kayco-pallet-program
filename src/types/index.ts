@@ -416,6 +416,7 @@ export interface DisplayProject {
   seasonId: string | null
   buildLocation: BuildLocation | null
   laborCost: number | null
+  corrugateCost: number | null
   status: PalletStatus
   buildLog?: BuildLogEntry[]
   comments?: PalletComment[]

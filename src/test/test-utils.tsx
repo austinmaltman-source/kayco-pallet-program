@@ -129,6 +129,7 @@ export function makeProject(overrides: Partial<DisplayProject> = {}): DisplayPro
     seasonId: overrides.seasonId ?? null,
     buildLocation: overrides.buildLocation ?? null,
     laborCost: overrides.laborCost ?? null,
+    corrugateCost: overrides.corrugateCost ?? null,
     status: overrides.status ?? 'draft',
     tierCount: overrides.tierCount ?? 4,
     palletType: overrides.palletType ?? 'full',

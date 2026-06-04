@@ -38,9 +38,11 @@ export interface AppSettings {
   // Data
   autoSaveProject: boolean
 
-  // Builder
+  // Builder - per-pallet costs, used for margin math
   defaultLaborCostFull: number
   defaultLaborCostHalf: number
+  defaultCorrugateCostFull: number
+  defaultCorrugateCostHalf: number
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -70,8 +72,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   autoSaveProject: true,
 
   // Builder
-  defaultLaborCostFull: 75,
-  defaultLaborCostHalf: 50,
+  defaultLaborCostFull: 77.25,
+  defaultLaborCostHalf: 64.37,
+  defaultCorrugateCostFull: 126,
+  defaultCorrugateCostHalf: 80,
 }
 
 function clampGridColumns(value: number) {
@@ -104,6 +108,10 @@ function sanitizeSettings(
     defaultLaborCostHalf:
       partial?.defaultLaborCostHalf ??
       (legacyLabor != null ? Math.round(legacyLabor * (50 / 75)) : DEFAULT_SETTINGS.defaultLaborCostHalf),
+    defaultCorrugateCostFull:
+      partial?.defaultCorrugateCostFull ?? DEFAULT_SETTINGS.defaultCorrugateCostFull,
+    defaultCorrugateCostHalf:
+      partial?.defaultCorrugateCostHalf ?? DEFAULT_SETTINGS.defaultCorrugateCostHalf,
   }
 }
 

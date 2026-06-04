@@ -175,6 +175,7 @@ function OverviewTab({
     let revenue = 0
     let materialCost = 0
     let labor = 0
+    let corrugate = 0
     let totalCases = 0
     let totalPallets = 0
     let pricedCases = 0
@@ -185,6 +186,9 @@ function OverviewTab({
       totalPallets += qty
       if (typeof pallet.laborCost === 'number') {
         labor += pallet.laborCost * qty
+      }
+      if (typeof pallet.corrugateCost === 'number') {
+        corrugate += pallet.corrugateCost * qty
       }
       for (const entry of pallet.assortment) {
         if (entry.cases <= 0) continue
@@ -203,7 +207,7 @@ function OverviewTab({
       }
     }
 
-    const cost = materialCost + labor
+    const cost = materialCost + labor + corrugate
     const marginDollars = revenue - cost
     const marginPct = revenue > 0 ? (marginDollars / revenue) * 100 : null
     const avgPrice = pricedCases > 0 ? revenue / pricedCases : null
@@ -214,6 +218,7 @@ function OverviewTab({
       cost,
       materialCost,
       labor,
+      corrugate,
       marginDollars,
       marginPct,
       avgPrice,
@@ -258,6 +263,7 @@ function OverviewTab({
     },
     { label: 'Material cost', value: fmtMoney(metrics.materialCost) },
     { label: 'Labor cost', value: fmtMoney(metrics.labor) },
+    { label: 'Corrugate cost', value: fmtMoney(metrics.corrugate) },
     { label: 'Total cases', value: metrics.totalCases.toLocaleString() },
     { label: 'Total pallets', value: metrics.totalPallets.toLocaleString() },
   ]

@@ -280,6 +280,7 @@ export default function App() {
     const legacyProject = loadPersistedState<DisplayProject>(PROJECT_STORAGE_KEY)
     const MOCK_PALLET_IDS = new Set(['proj-1', 'proj-2', 'proj-3'])
     const rawProjects = persistedProjects ?? (legacyProject ? [legacyProject] : [])
+    const appSettings = useAppSettingsStore.getState().settings
     const projects = rawProjects
       .filter((project) => !MOCK_PALLET_IDS.has(project.id))
       .map((project) => ({
@@ -288,7 +289,15 @@ export default function App() {
         seasonId: project.seasonId ?? null,
         buildLocation: project.buildLocation ?? null,
         laborCost:
-          project.laborCost ?? (project.palletType === 'half' ? 50 : 75),
+          project.laborCost ??
+          (project.palletType === 'half'
+            ? appSettings.defaultLaborCostHalf
+            : appSettings.defaultLaborCostFull),
+        corrugateCost:
+          project.corrugateCost ??
+          (project.palletType === 'half'
+            ? appSettings.defaultCorrugateCostHalf
+            : appSettings.defaultCorrugateCostFull),
         status: project.status ?? 'draft',
       }))
     const activePalletId = localStorage.getItem(ACTIVE_PALLET_STORAGE_KEY)
