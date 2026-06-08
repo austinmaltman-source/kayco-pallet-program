@@ -27,13 +27,16 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
   ghostProduct = null,
   draggedCaseProduct = null,
   selectedProductId = null,
+  hiddenProductId = null,
   onSlotClick,
   onSlotHover,
   onSlotHoverEnd,
   onProductClick,
   onRotateProduct,
   onDeleteProduct,
+  onProductDragStart,
   onFreeformDrop,
+  onFreeformDragCancel,
   validateFreeformDrop,
   autoRotate = false,
   cameraPreset,
@@ -219,9 +222,11 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
           palletType={palletType}
           palletDimensions={effectiveDimensions}
           selectedProductId={selectedProductId}
+          hiddenProductId={hiddenProductId}
           onProductClick={onProductClick}
           onRotateProduct={onRotateProduct}
           onDeleteProduct={onDeleteProduct}
+          onProductDragStart={onProductDragStart}
         />
 
         {ghostProduct && ghostPosition && (
@@ -249,6 +254,7 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
           draggedCaseProduct={draggedCaseProduct}
           palletDimensions={effectiveDimensions}
           onDrop={onFreeformDrop}
+          onCancel={onFreeformDragCancel}
           validateDrop={validateFreeformDrop}
         />
       </group>

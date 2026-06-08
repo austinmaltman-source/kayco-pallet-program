@@ -4,7 +4,6 @@ import { PalletDisplay } from '../PalletDisplay'
 import { PalletNavigator } from './pallet-navigator'
 import { AutoPackButton } from './auto-pack-button'
 import { CompliancePanel } from './compliance-panel'
-import { RulesEditor } from './rules-editor'
 import { CaseTray } from './case-tray'
 import { PackagePlus } from 'lucide-react'
 import { useAppSettingsStore } from '../../stores/app-settings-store'
@@ -23,8 +22,13 @@ import { validateFreeformPlacement } from '../../lib/geometry/freeform-validator
 import { getEffectiveCaseDimensions } from '../../lib/geometry/orientation'
 import type { PlacedProduct, Product } from '../../types'
 
+interface DraggingCase {
+  product: Product
+  placementId?: string
+}
+
 export function ThreeDViewer() {
-  const [draggingProduct, setDraggingProduct] = useState<Product | null>(null)
+  const [draggingCase, setDraggingCase] = useState<DraggingCase | null>(null)
   const currentProject = useDisplayStore(s => s.currentProject)
   const selectedProductId = useDisplayStore(s => s.selectedProductId)
   const ghostProduct = useDisplayStore(s => s.ghostProduct)
@@ -37,6 +41,7 @@ export function ThreeDViewer() {
   const setPickerProduct = useDisplayStore(s => s.setPickerProduct)
   const placeProduct = useDisplayStore(s => s.placeProduct)
   const placeProductFreeform = useDisplayStore(s => s.placeProductFreeform)
+  const movePlacement = useDisplayStore(s => s.movePlacement)
   const openPicker = useDisplayStore(s => s.openPicker)
   const rotateProduct = useDisplayStore(s => s.rotateProduct)
   const removeProduct = useDisplayStore(s => s.removeProduct)
@@ -70,33 +75,34 @@ export function ThreeDViewer() {
     base: activePalletDimensions,
     maxWeight: currentProject.palletSpec?.maxLoadLb ?? 2500,
   }
-  const draggedCaseProduct = draggingProduct
+  const draggedCaseProduct = draggingCase
     ? {
-        productId: draggingProduct.id,
-        ...getEffectiveCaseDimensions(draggingProduct),
-        color: draggingProduct.brandColor,
-        label: draggingProduct.name,
+        productId: draggingCase.product.id,
+        placementId: draggingCase.placementId,
+        ...getEffectiveCaseDimensions(draggingCase.product),
+        color: draggingCase.product.brandColor,
+        label: draggingCase.product.name,
       }
     : null
 
   const validateDraggedCase = (position: { x: number; y: number; z: number }) => {
-    if (!draggingProduct || !currentProject.palletSpec) return undefined
-    const dimensions = getEffectiveCaseDimensions(draggingProduct)
+    if (!draggingCase || !currentProject.palletSpec) return undefined
+    const dimensions = getEffectiveCaseDimensions(draggingCase.product)
     const placement: PlacedProduct = {
-      id: 'draft-drag-placement',
-      sourceProductId: draggingProduct.id,
+      id: draggingCase.placementId ?? 'draft-drag-placement',
+      sourceProductId: draggingCase.product.id,
       slotId: 'draft-drag-placement',
       width: dimensions.width,
       height: dimensions.height,
       depth: dimensions.depth,
-      color: draggingProduct.brandColor,
-      label: draggingProduct.name,
-      sku: draggingProduct.sku,
-      category: draggingProduct.category,
-      imageUrl: draggingProduct.imageUrl,
-      modelUrl: draggingProduct.modelUrl,
-      packaging: draggingProduct.packaging,
-      caseConfig: draggingProduct.caseConfig,
+      color: draggingCase.product.brandColor,
+      label: draggingCase.product.name,
+      sku: draggingCase.product.sku,
+      category: draggingCase.product.category,
+      imageUrl: draggingCase.product.imageUrl,
+      modelUrl: draggingCase.product.modelUrl,
+      packaging: draggingCase.product.packaging,
+      caseConfig: draggingCase.product.caseConfig,
       position,
       rotationDeg: 0,
       orientation3D: 'upright',
@@ -117,11 +123,23 @@ export function ThreeDViewer() {
   }
 
   const dropDraggedCase = (position: { x: number; y: number; z: number }) => {
-    if (!draggingProduct) return
-    const result = placeProductFreeform(draggingProduct, position, 0, 'upright')
+    if (!draggingCase) return
+    const result = draggingCase.placementId
+      ? movePlacement(draggingCase.placementId, position, 0)
+      : placeProductFreeform(draggingCase.product, position, 0, 'upright')
     if (result?.valid) {
-      setDraggingProduct(null)
+      setDraggingCase(null)
     }
+  }
+
+  const startPlacedCaseDrag = (placementId: string) => {
+    const placement = currentProject.placements.find((entry) => entry.id === placementId)
+    const product = placement?.sourceProductId
+      ? allProducts.find((entry) => entry.id === placement.sourceProductId)
+      : undefined
+    if (!placement || !product) return
+    setDraggingCase({ product, placementId })
+    selectProduct(placementId)
   }
 
   return (
@@ -134,11 +152,14 @@ export function ThreeDViewer() {
         placedProducts={currentProject.placements}
         ghostProduct={ghostProduct}
         draggedCaseProduct={draggedCaseProduct}
+        hiddenProductId={draggingCase?.placementId ?? null}
         selectedProductId={selectedProductId}
         onProductClick={(id) => selectProduct(id === selectedProductId ? null : id)}
         onRotateProduct={rotateProduct}
         onDeleteProduct={(id) => { removeProduct(id); selectProduct(null); }}
+        onProductDragStart={startPlacedCaseDrag}
         onFreeformDrop={dropDraggedCase}
+        onFreeformDragCancel={() => setDraggingCase(null)}
         validateFreeformDrop={validateDraggedCase}
         onSlotClick={(tierId, slotIndex) => {
           const slotId = `${tierId}-${slotIndex}`
@@ -354,13 +375,12 @@ export function ThreeDViewer() {
         </button>
       </div>
       <CaseTray
-        draggingProductId={draggingProduct?.id ?? null}
-        onDragStart={setDraggingProduct}
-        onDragEnd={() => setDraggingProduct(null)}
+        draggingProductId={draggingCase?.product.id ?? null}
+        onDragStart={(product) => setDraggingCase({ product })}
+        onDragEnd={() => setDraggingCase(null)}
       />
       <AutoPackButton />
       <CompliancePanel />
-      <RulesEditor />
     </div>
   )
 }

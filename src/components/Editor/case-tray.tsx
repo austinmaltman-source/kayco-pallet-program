@@ -61,14 +61,12 @@ export function CaseTray({
           return (
             <div
               key={product.id}
-              draggable={!disabled}
-              onDragStart={(event) => {
-                if (disabled) return
-                event.dataTransfer.effectAllowed = 'copy'
-                event.dataTransfer.setData('application/x-pallet-product-id', product.id)
+              onPointerDown={(event) => {
+                if (disabled || event.button !== 0) return
+                event.preventDefault()
                 onDragStart(product)
               }}
-              onDragEnd={onDragEnd}
+              onPointerCancel={onDragEnd}
               className={`group rounded-md border p-2.5 transition-colors ${
                 disabled
                   ? 'border-[#eee] bg-[#fafafa] opacity-55'

@@ -18,9 +18,11 @@ interface PlacedProductsProps {
   palletDimensions?: { width: number; depth: number; height: number }
   palletBaseHeight?: number
   selectedProductId?: string | null
+  hiddenProductId?: string | null
   onProductClick?: (productId: string) => void
   onRotateProduct?: (productId: string) => void
   onDeleteProduct?: (productId: string) => void
+  onProductDragStart?: (productId: string) => void
 }
 
 export const PlacedProducts: React.FC<PlacedProductsProps> = ({
@@ -30,9 +32,11 @@ export const PlacedProducts: React.FC<PlacedProductsProps> = ({
   palletDimensions = { width: 48, depth: 40, height: 6 },
   palletBaseHeight = 6,
   selectedProductId,
+  hiddenProductId,
   onProductClick,
   onRotateProduct,
   onDeleteProduct,
+  onProductDragStart,
 }) => {
   const catalogProducts = useCatalogStore((state) => state.products)
   const editorGridColumns = useAppSettingsStore((state) => state.settings.editorGridColumns)
@@ -72,6 +76,8 @@ export const PlacedProducts: React.FC<PlacedProductsProps> = ({
   return (
     <group>
       {products.map((product) => {
+        if (product.id === hiddenProductId) return null
+
         const catalogProduct = product.sourceProductId
           ? catalogProducts.find((entry) => entry.id === product.sourceProductId)
           : undefined
@@ -121,6 +127,7 @@ export const PlacedProducts: React.FC<PlacedProductsProps> = ({
               onClick={() => onProductClick?.(product.id)}
               onRotate={() => onRotateProduct?.(product.id)}
               onDelete={() => onDeleteProduct?.(product.id)}
+              onDragStart={() => onProductDragStart?.(product.id)}
             />
           )
         }
@@ -185,6 +192,7 @@ export const PlacedProducts: React.FC<PlacedProductsProps> = ({
             onClick={() => onProductClick?.(product.id)}
             onRotate={() => onRotateProduct?.(product.id)}
             onDelete={() => onDeleteProduct?.(product.id)}
+            onDragStart={() => onProductDragStart?.(product.id)}
           />
         )
       })}

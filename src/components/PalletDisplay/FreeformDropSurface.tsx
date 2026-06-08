@@ -8,6 +8,7 @@ interface FreeformDropSurfaceProps {
   draggedCaseProduct: DraggedCaseProduct | null
   palletDimensions: { width: number; depth: number; height: number }
   onDrop?: (position: { x: number; y: number; z: number }) => void
+  onCancel?: () => void
   validateDrop?: (
     position: { x: number; y: number; z: number },
   ) => FullValidationResult | undefined
@@ -28,6 +29,7 @@ export function FreeformDropSurface({
   draggedCaseProduct,
   palletDimensions,
   onDrop,
+  onCancel,
   validateDrop,
 }: FreeformDropSurfaceProps) {
   const { camera, gl } = useThree()
@@ -48,10 +50,25 @@ export function FreeformDropSurface({
 
     const canvas = gl.domElement
 
-    const updateDraft = (event: DragEvent) => {
+    const isInsideCanvas = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect()
-      mouse.x = ((event.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1
-      mouse.y = -(((event.clientY - rect.top) / Math.max(1, rect.height)) * 2 - 1)
+      return (
+        clientX >= rect.left &&
+        clientX <= rect.right &&
+        clientY >= rect.top &&
+        clientY <= rect.bottom
+      )
+    }
+
+    const updateDraft = (clientX: number, clientY: number) => {
+      const rect = canvas.getBoundingClientRect()
+      if (!isInsideCanvas(clientX, clientY)) {
+        setDraft(null)
+        return null
+      }
+
+      mouse.x = ((clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1
+      mouse.y = -(((clientY - rect.top) / Math.max(1, rect.height)) * 2 - 1)
       raycaster.setFromCamera(mouse, camera)
 
       const intersection = new THREE.Vector3()
@@ -96,28 +113,57 @@ export function FreeformDropSurface({
     const handleDragOver = (event: DragEvent) => {
       event.preventDefault()
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
-      updateDraft(event)
+      updateDraft(event.clientX, event.clientY)
     }
 
     const handleDrop = (event: DragEvent) => {
       event.preventDefault()
-      const nextDraft = updateDraft(event)
+      const nextDraft = updateDraft(event.clientX, event.clientY)
       if (nextDraft?.valid) {
         onDrop?.(nextDraft.palletPosition)
+      } else {
+        onCancel?.()
       }
       setDraft(null)
     }
 
-    const handleDragEnd = () => setDraft(null)
+    const handlePointerMove = (event: PointerEvent) => {
+      updateDraft(event.clientX, event.clientY)
+    }
+
+    const handlePointerUp = (event: PointerEvent) => {
+      const nextDraft = updateDraft(event.clientX, event.clientY)
+      if (nextDraft?.valid) {
+        onDrop?.(nextDraft.palletPosition)
+      } else {
+        onCancel?.()
+      }
+      setDraft(null)
+    }
+
+    const handleCancel = () => {
+      setDraft(null)
+      onCancel?.()
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') handleCancel()
+    }
 
     canvas.addEventListener('dragover', handleDragOver)
     canvas.addEventListener('drop', handleDrop)
-    window.addEventListener('dragend', handleDragEnd)
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('dragend', handleCancel)
+    window.addEventListener('keydown', handleKeyDown)
 
     return () => {
       canvas.removeEventListener('dragover', handleDragOver)
       canvas.removeEventListener('drop', handleDrop)
-      window.removeEventListener('dragend', handleDragEnd)
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('dragend', handleCancel)
+      window.removeEventListener('keydown', handleKeyDown)
     }
   }, [
     camera,
@@ -125,6 +171,7 @@ export function FreeformDropSurface({
     dropPlane,
     gl.domElement,
     mouse,
+    onCancel,
     onDrop,
     palletDimensions.depth,
     palletDimensions.height,

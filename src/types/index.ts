@@ -128,6 +128,7 @@ export interface GhostProduct {
 
 export interface DraggedCaseProduct {
   productId: string
+  placementId?: string
   width: number
   height: number
   depth: number
@@ -210,10 +211,13 @@ export interface PalletDisplayProps {
   onProductClick?: (productId: string) => void;
   onRotateProduct?: (productId: string) => void;
   onDeleteProduct?: (productId: string) => void;
+  onProductDragStart?: (productId: string) => void;
   onFreeformDrop?: (position: { x: number; y: number; z: number }) => void;
+  onFreeformDragCancel?: () => void;
   validateFreeformDrop?: (
     position: { x: number; y: number; z: number },
   ) => FullValidationResult | undefined;
+  hiddenProductId?: string | null;
 
   // Camera
   autoRotate?: boolean; // default false

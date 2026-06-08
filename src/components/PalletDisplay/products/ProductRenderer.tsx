@@ -17,6 +17,7 @@ interface ProductRendererProps {
   onRotate?: () => void
   onDuplicate?: () => void
   onDelete?: () => void
+  onDragStart?: () => void
 }
 
 export const ProductRenderer: React.FC<ProductRendererProps> = ({
@@ -30,6 +31,7 @@ export const ProductRenderer: React.FC<ProductRendererProps> = ({
   onRotate,
   onDuplicate,
   onDelete,
+  onDragStart,
 }) => {
   const [hovered, setHovered] = useState(false)
   const orientationRotation = getOrientationRotation(product.orientation)
@@ -111,6 +113,7 @@ export const ProductRenderer: React.FC<ProductRendererProps> = ({
       onRotate={onRotate}
       onDuplicate={onDuplicate}
       onDelete={onDelete}
+      onDragStart={onDragStart}
     >
       {renderProduct()}
     </ProductHoverEffect>

@@ -14,6 +14,7 @@ interface ProductHoverEffectProps {
   onRotate?: () => void
   onDuplicate?: () => void
   onDelete?: () => void
+  onDragStart?: () => void
   children: React.ReactNode
 }
 
@@ -28,6 +29,7 @@ export const ProductHoverEffect: React.FC<ProductHoverEffectProps> = ({
   onRotate,
   onDuplicate,
   onDelete,
+  onDragStart,
   children,
 }) => {
   const highlightRef = useRef<THREE.Group>(null)
@@ -50,7 +52,15 @@ export const ProductHoverEffect: React.FC<ProductHoverEffectProps> = ({
   })
 
   return (
-    <group position={position} rotation={rotation}>
+    <group
+      position={position}
+      rotation={rotation}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return
+        event.stopPropagation()
+        onDragStart?.()
+      }}
+    >
       {children}
 
       {/* Hover outline */}
