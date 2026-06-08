@@ -1,6 +1,30 @@
 {
   "version": 1,
   "skills": {
+    "3d-modeling": {
+      "source": "omer-metin/skills-for-antigravity",
+      "sourceType": "github",
+      "skillPath": "skills/3d-modeling/SKILL.md",
+      "computedHash": "dd0beea41a5f5711c6a8b209bb2218340ab7afabe26147eb1560e4d26d65f7c5"
+    },
+    "3d-spatial": {
+      "source": "dylantarre/animation-principles",
+      "sourceType": "github",
+      "skillPath": "skills/01-by-domain/3d-spatial/SKILL.md",
+      "computedHash": "20687f3db9e35853fc03444255c70771138c682ad83ad8213fa616011e6f39a1"
+    },
+    "3d-visualizer": {
+      "source": "daffy0208/ai-dev-standards",
+      "sourceType": "github",
+      "skillPath": "skills/3d-visualizer/SKILL.md",
+      "computedHash": "b40dd41e60b3d96671deecfc1695e9f30dfce5c7d5c1622d0366a04fecfcd2f1"
+    },
+    "3d-web-experience": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/3d-web-experience/SKILL.md",
+      "computedHash": "abf349a30764951de0ff17fe6e4b0d3a5332d3682b3b97109d7a23f813406d1a"
+    },
     "ai-image-generation": {
       "source": "infsh-skills/skills",
       "sourceType": "github",
@@ -18,6 +42,12 @@
       "sourceType": "github",
       "skillPath": "skills/frontend-design/SKILL.md",
       "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
+    },
+    "game-engine": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/game-engine/SKILL.md",
+      "computedHash": "20057f62cf7a8b2d9f940b3de0b18e5426e8f4bb50e236d36b1033aa0d42c4d8"
     },
     "remotion-best-practices": {
       "source": "remotion-dev/skills",
