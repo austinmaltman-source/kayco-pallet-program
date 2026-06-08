@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Briefcase, ChevronDown, Plus, UserCircle2 } from 'lucide-react'
+import { ArrowRight, Briefcase, ChevronDown, Plus, UserCircle2 } from 'lucide-react'
 import { useDisplayStore } from '../../stores/display-store'
 import { useRetailerStore } from '../../stores/retailer-store'
 import { useSeasonStore } from '../../stores/season-store'
