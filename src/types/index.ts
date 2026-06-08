@@ -126,6 +126,15 @@ export interface GhostProduct {
   }>
 }
 
+export interface DraggedCaseProduct {
+  productId: string
+  width: number
+  height: number
+  depth: number
+  color: string
+  label: string
+}
+
 export type PackagingType = 'box' | 'bottle' | 'jar' | 'bag' | 'tin' | 'pouch'
 
 export interface CaseConfig {
@@ -191,6 +200,7 @@ export interface PalletDisplayProps {
   // Products
   placedProducts?: PlacedProduct[];
   ghostProduct?: GhostProduct | null;
+  draggedCaseProduct?: DraggedCaseProduct | null;
   selectedProductId?: string | null;
 
   // Interaction callbacks
@@ -200,6 +210,10 @@ export interface PalletDisplayProps {
   onProductClick?: (productId: string) => void;
   onRotateProduct?: (productId: string) => void;
   onDeleteProduct?: (productId: string) => void;
+  onFreeformDrop?: (position: { x: number; y: number; z: number }) => void;
+  validateFreeformDrop?: (
+    position: { x: number; y: number; z: number },
+  ) => FullValidationResult | undefined;
 
   // Camera
   autoRotate?: boolean; // default false

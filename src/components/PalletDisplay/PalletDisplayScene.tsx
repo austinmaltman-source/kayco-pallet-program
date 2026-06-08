@@ -9,6 +9,7 @@ import { DisplayStructure } from './DisplayStructure';
 import { RetailEnvironment } from './RetailEnvironment';
 import { GhostProduct } from './GhostProduct';
 import { PlacedProducts } from './PlacedProducts';
+import { FreeformDropSurface } from './FreeformDropSurface';
 
 // Kayco half pallet visual components
 import { PalletBase as KaycoPalletBase } from '@/components/scene/pallet/PalletBase';
@@ -24,6 +25,7 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
   branding,
   placedProducts = [],
   ghostProduct = null,
+  draggedCaseProduct = null,
   selectedProductId = null,
   onSlotClick,
   onSlotHover,
@@ -31,6 +33,8 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
   onProductClick,
   onRotateProduct,
   onDeleteProduct,
+  onFreeformDrop,
+  validateFreeformDrop,
   autoRotate = false,
   cameraPreset,
   showSlotGrid = true,
@@ -240,11 +244,18 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
             ))}
           </>
         )}
+
+        <FreeformDropSurface
+          draggedCaseProduct={draggedCaseProduct}
+          palletDimensions={effectiveDimensions}
+          onDrop={onFreeformDrop}
+          validateDrop={validateFreeformDrop}
+        />
       </group>
 
       <OrbitControls
         makeDefault
-        enabled={!isAnimating}
+        enabled={!isAnimating && !draggedCaseProduct}
         minDistance={42}
         maxDistance={145}
         minPolarAngle={10 * (Math.PI / 180)}

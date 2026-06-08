@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { useDisplayStore } from '../../stores/display-store'
 import { PalletDisplay } from '../PalletDisplay'
 import { PalletNavigator } from './pallet-navigator'
 import { AutoPackButton } from './auto-pack-button'
 import { CompliancePanel } from './compliance-panel'
 import { RulesEditor } from './rules-editor'
+import { CaseTray } from './case-tray'
 import { PackagePlus } from 'lucide-react'
 import { useAppSettingsStore } from '../../stores/app-settings-store'
 import { useCatalogStore } from '../../stores/catalog-store'
@@ -17,8 +19,12 @@ import {
   getShelfPosition,
 } from '../../lib/shelfCoordinates'
 import { validatePlacement } from '../../lib/spatialValidator'
+import { validateFreeformPlacement } from '../../lib/geometry/freeform-validator'
+import { getEffectiveCaseDimensions } from '../../lib/geometry/orientation'
+import type { PlacedProduct, Product } from '../../types'
 
 export function ThreeDViewer() {
+  const [draggingProduct, setDraggingProduct] = useState<Product | null>(null)
   const currentProject = useDisplayStore(s => s.currentProject)
   const selectedProductId = useDisplayStore(s => s.selectedProductId)
   const ghostProduct = useDisplayStore(s => s.ghostProduct)
@@ -64,6 +70,59 @@ export function ThreeDViewer() {
     base: activePalletDimensions,
     maxWeight: currentProject.palletSpec?.maxLoadLb ?? 2500,
   }
+  const draggedCaseProduct = draggingProduct
+    ? {
+        productId: draggingProduct.id,
+        ...getEffectiveCaseDimensions(draggingProduct),
+        color: draggingProduct.brandColor,
+        label: draggingProduct.name,
+      }
+    : null
+
+  const validateDraggedCase = (position: { x: number; y: number; z: number }) => {
+    if (!draggingProduct || !currentProject.palletSpec) return undefined
+    const dimensions = getEffectiveCaseDimensions(draggingProduct)
+    const placement: PlacedProduct = {
+      id: 'draft-drag-placement',
+      sourceProductId: draggingProduct.id,
+      slotId: 'draft-drag-placement',
+      width: dimensions.width,
+      height: dimensions.height,
+      depth: dimensions.depth,
+      color: draggingProduct.brandColor,
+      label: draggingProduct.name,
+      sku: draggingProduct.sku,
+      category: draggingProduct.category,
+      imageUrl: draggingProduct.imageUrl,
+      modelUrl: draggingProduct.modelUrl,
+      packaging: draggingProduct.packaging,
+      caseConfig: draggingProduct.caseConfig,
+      position,
+      rotationDeg: 0,
+      orientation3D: 'upright',
+      quantity: 1,
+      displayMode: 'face-out',
+      renderStyle: 'case',
+      facings: 1,
+      rows: 1,
+      layers: 1,
+    }
+
+    return validateFreeformPlacement(
+      placement,
+      currentProject.placements,
+      allProducts,
+      currentProject.palletSpec,
+    )
+  }
+
+  const dropDraggedCase = (position: { x: number; y: number; z: number }) => {
+    if (!draggingProduct) return
+    const result = placeProductFreeform(draggingProduct, position, 0, 'upright')
+    if (result?.valid) {
+      setDraggingProduct(null)
+    }
+  }
 
   return (
     <div className="w-full h-full relative">
@@ -74,10 +133,13 @@ export function ThreeDViewer() {
         branding={currentProject.branding}
         placedProducts={currentProject.placements}
         ghostProduct={ghostProduct}
+        draggedCaseProduct={draggedCaseProduct}
         selectedProductId={selectedProductId}
         onProductClick={(id) => selectProduct(id === selectedProductId ? null : id)}
         onRotateProduct={rotateProduct}
         onDeleteProduct={(id) => { removeProduct(id); selectProduct(null); }}
+        onFreeformDrop={dropDraggedCase}
+        validateFreeformDrop={validateDraggedCase}
         onSlotClick={(tierId, slotIndex) => {
           const slotId = `${tierId}-${slotIndex}`
           if (pickerSelectedProduct) {
@@ -291,6 +353,11 @@ export function ThreeDViewer() {
           Add product
         </button>
       </div>
+      <CaseTray
+        draggingProductId={draggingProduct?.id ?? null}
+        onDragStart={setDraggingProduct}
+        onDragEnd={() => setDraggingProduct(null)}
+      />
       <AutoPackButton />
       <CompliancePanel />
       <RulesEditor />

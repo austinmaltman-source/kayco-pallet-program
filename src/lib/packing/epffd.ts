@@ -152,12 +152,10 @@ export function packEpffd(
   const expanded = expandBoxes(input).sort((a, b) => {
     const aWeight = a.product.caseWeight ?? a.product.weight
     const bWeight = b.product.caseWeight ?? b.product.weight
-    const aVolume = (a.product.caseWidth ?? a.product.width) *
-      (a.product.caseDepth ?? a.product.depth) *
-      (a.product.caseHeight ?? a.product.height)
-    const bVolume = (b.product.caseWidth ?? b.product.width) *
-      (b.product.caseDepth ?? b.product.depth) *
-      (b.product.caseHeight ?? b.product.height)
+    const aDimensions = getEffectiveCaseDimensions(a.product)
+    const bDimensions = getEffectiveCaseDimensions(b.product)
+    const aVolume = aDimensions.width * aDimensions.depth * aDimensions.height
+    const bVolume = bDimensions.width * bDimensions.depth * bDimensions.height
     return bWeight - aWeight || bVolume - aVolume
   })
 

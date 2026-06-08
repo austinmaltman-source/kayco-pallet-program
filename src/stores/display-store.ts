@@ -33,6 +33,7 @@ import { validatePlacement } from '../lib/spatialValidator'
 import { getPalletSpecForRetailer } from '../lib/retailer-specs'
 import { computeKPIs } from '../lib/kpis'
 import { validateFreeformPlacement } from '../lib/geometry/freeform-validator'
+import { getEffectiveCaseDimensions } from '../lib/geometry/orientation'
 import { DEFAULT_PACK_OPTIONS, PackOptions, PackResult } from '../lib/packing/types'
 import { packEpffd } from '../lib/packing/epffd'
 import { applyRulesToPackInput } from '../lib/rules/apply'
@@ -456,14 +457,15 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   ) => {
     const state = get()
     if (!state.currentProject?.palletSpec) return
+    const dimensions = getEffectiveCaseDimensions(product, orientation3D, rotationDeg)
 
     const placement: PlacedProduct = {
       id: crypto.randomUUID(),
       sourceProductId: product.id,
       slotId: `freeform-${crypto.randomUUID()}`,
-      width: product.caseWidth ?? product.width,
-      height: product.caseHeight ?? product.height,
-      depth: product.caseDepth ?? product.depth,
+      width: dimensions.width,
+      height: dimensions.height,
+      depth: dimensions.depth,
       color: product.brandColor,
       label: product.name,
       sku: product.sku,
@@ -478,6 +480,10 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       caseStackHeight: 1,
       quantity: 1,
       displayMode: 'face-out',
+      renderStyle: 'case',
+      facings: 1,
+      rows: 1,
+      layers: 1,
     }
 
     const validation = validateFreeformPlacement(
@@ -673,13 +679,18 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       .map((packed): PlacedProduct | null => {
         const product = productMap.get(packed.productId)
         if (!product) return null
+        const dimensions = getEffectiveCaseDimensions(
+          product,
+          packed.orientation3D,
+          packed.rotationDeg,
+        )
         return {
           id: crypto.randomUUID(),
           sourceProductId: product.id,
           slotId: `auto-${packed.id}`,
-          width: product.caseWidth ?? product.width,
-          height: product.caseHeight ?? product.height,
-          depth: product.caseDepth ?? product.depth,
+          width: dimensions.width,
+          height: dimensions.height,
+          depth: dimensions.depth,
           color: product.brandColor,
           label: product.name,
           sku: product.sku,
