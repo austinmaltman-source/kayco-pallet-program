@@ -129,6 +129,7 @@ export interface GhostProduct {
 export interface DraggedCaseProduct {
   productId: string
   placementId?: string
+  source?: 'tray' | 'scene'
   startClient?: { x: number; y: number }
   startPosition?: { x: number; y: number; z: number }
   width: number

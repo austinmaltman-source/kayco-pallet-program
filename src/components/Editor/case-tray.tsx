@@ -6,7 +6,7 @@ import type { Product } from '../../types'
 
 interface CaseTrayProps {
   draggingProductId: string | null
-  onDragStart: (product: Product) => void
+  onDragStart: (product: Product, pointer: { clientX: number; clientY: number }) => void
   onDragEnd: () => void
 }
 
@@ -48,7 +48,10 @@ export function CaseTray({
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
 
   return (
-    <div className="absolute left-4 top-[132px] z-30 w-[286px] rounded-lg bg-white shadow-elevated border border-black/5 overflow-hidden">
+    <div
+      data-case-tray
+      className="absolute left-4 top-[132px] z-30 w-[286px] rounded-lg bg-white shadow-elevated border border-black/5 overflow-hidden"
+    >
       <div className="px-3 py-3 border-b border-[#eee]">
         <p className="text-[12px] font-semibold text-[#171717]">Cases to place</p>
         <p className="mt-0.5 text-[11px] text-[#777]">Drag a case onto the pallet.</p>
@@ -64,7 +67,7 @@ export function CaseTray({
               onPointerDown={(event) => {
                 if (disabled || event.button !== 0) return
                 event.preventDefault()
-                onDragStart(product)
+                onDragStart(product, { clientX: event.clientX, clientY: event.clientY })
               }}
               onPointerCancel={onDragEnd}
               className={`group rounded-md border p-2.5 transition-colors ${

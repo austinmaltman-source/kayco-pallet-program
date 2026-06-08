@@ -25,6 +25,7 @@ import type { PlacedProduct, Product } from '../../types'
 interface DraggingCase {
   product: Product
   placementId?: string
+  source?: 'tray' | 'scene'
   startClient?: { x: number; y: number }
   startPosition?: { x: number; y: number; z: number }
 }
@@ -90,6 +91,7 @@ export function ThreeDViewer() {
     ? {
         productId: draggingCase.product.id,
         placementId: draggingCase.placementId,
+        source: draggingCase.source,
         startClient: draggingCase.startClient,
         startPosition: draggingCase.startPosition,
         ...getEffectiveCaseDimensions(draggingCase.product),
@@ -188,6 +190,7 @@ export function ThreeDViewer() {
     setDraggingCase({
       product,
       placementId,
+      source: 'scene',
       startClient: { x: pointer.clientX, y: pointer.clientY },
       startPosition: placement.position ?? {
         x: 0,
@@ -433,7 +436,13 @@ export function ThreeDViewer() {
       </div>
       <CaseTray
         draggingProductId={draggingCase?.product.id ?? null}
-        onDragStart={(product) => setDraggingCase({ product })}
+        onDragStart={(product, pointer) =>
+          setDraggingCase({
+            product,
+            source: 'tray',
+            startClient: { x: pointer.clientX, y: pointer.clientY },
+          })
+        }
         onDragEnd={() => setDraggingCase(null)}
       />
       <AutoPackButton />
