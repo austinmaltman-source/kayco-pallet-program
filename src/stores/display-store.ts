@@ -694,6 +694,10 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
           caseStackHeight: 1,
           quantity: 1,
           displayMode: 'face-out' as const,
+          renderStyle: 'case' as const,
+          facings: 1,
+          rows: 1,
+          layers: 1,
         }
       })
       .filter((placement): placement is PlacedProduct => Boolean(placement))

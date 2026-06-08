@@ -57,7 +57,7 @@ export function deriveMerchBlockLayout(
   >,
   availableSpace: { width: number; height: number; depth: number },
 ): MerchBlockLayout {
-  if (product.caseConfig) {
+  if (product.caseConfig || product.renderStyle === 'case') {
     return {
       renderStyle: 'case',
       facings: 1,

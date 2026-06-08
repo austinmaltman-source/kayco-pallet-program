@@ -53,11 +53,24 @@ export function ThreeDViewer() {
 
   if (!currentProject) return null
 
+  const activePalletDimensions = currentProject.palletSpec
+    ? {
+        width: currentProject.palletSpec.widthIn,
+        depth: currentProject.palletSpec.depthIn,
+        height: currentProject.palletSpec.baseHeightIn,
+      }
+    : retailer?.palletDimensions ?? { width: 48, depth: 40, height: 6 }
+  const activePalletConfig = {
+    base: activePalletDimensions,
+    maxWeight: currentProject.palletSpec?.maxLoadLb ?? 2500,
+  }
+
   return (
     <div className="w-full h-full relative">
       <PalletDisplay
         tierCount={currentProject.tierCount}
         palletType={currentProject.palletType}
+        palletDimensions={activePalletDimensions}
         branding={currentProject.branding}
         placedProducts={currentProject.placements}
         ghostProduct={ghostProduct}
@@ -94,28 +107,23 @@ export function ThreeDViewer() {
                 },
                 dimensions,
                 {
-                  base: currentProject.palletSpec
-                    ? {
-                        width: currentProject.palletSpec.widthIn,
-                        depth: currentProject.palletSpec.depthIn,
-                        height: currentProject.palletSpec.baseHeightIn,
-                      }
-                    : retailer.palletDimensions,
-                  maxWeight: currentProject.palletSpec?.maxLoadLb ?? 2500,
+                  ...activePalletConfig,
                 },
                 tiers,
                 wallConfigs[derivedPlacement.wall],
               )
-              const specWidth =
-                currentProject.palletSpec?.widthIn ?? retailer.palletDimensions.width
-              const specDepth =
-                currentProject.palletSpec?.depthIn ?? retailer.palletDimensions.depth
               const result = placeProductFreeform(
                 pickerSelectedProduct,
                 {
-                  x: shelfPosition.position[0] + specWidth / 2 - dimensions.width / 2,
+                  x:
+                    shelfPosition.position[0] +
+                    activePalletDimensions.width / 2 -
+                    dimensions.width / 2,
                   y: shelfPosition.position[1],
-                  z: specDepth / 2 - shelfPosition.position[2] - dimensions.depth / 2,
+                  z:
+                    activePalletDimensions.depth / 2 -
+                    shelfPosition.position[2] -
+                    dimensions.depth / 2,
                 },
                 0,
                 'upright',
@@ -161,10 +169,7 @@ export function ThreeDViewer() {
             displayMode,
             wallConfigs[derivedPlacement.wall],
             derivedPlacement.wall,
-            {
-              base: retailer.palletDimensions,
-              maxWeight: 2500,
-            },
+            activePalletConfig,
             allProducts,
           )
           const validation = validatePlacement(
@@ -178,10 +183,7 @@ export function ThreeDViewer() {
               displayMode,
             },
             {
-              palletConfig: {
-                base: retailer.palletDimensions,
-                maxWeight: 2500,
-              },
+              palletConfig: activePalletConfig,
               palletType: currentProject.palletType,
               tierConfigs: tiers,
               wallConfigs,
@@ -202,10 +204,7 @@ export function ThreeDViewer() {
               displayMode,
             },
             dimensions,
-            {
-              base: retailer.palletDimensions,
-              maxWeight: 2500,
-            },
+            activePalletConfig,
             tiers,
             wallConfigs[derivedPlacement.wall],
           )
@@ -224,10 +223,7 @@ export function ThreeDViewer() {
                       suggestion.displayMode,
                       wallConfigs[suggestion.wall!],
                       suggestion.wall!,
-                      {
-                        base: retailer.palletDimensions,
-                        maxWeight: 2500,
-                      },
+                      activePalletConfig,
                       allProducts,
                     )
                   : getEffectiveColSpan(
@@ -235,10 +231,7 @@ export function ThreeDViewer() {
                       displayMode,
                       wallConfigs[suggestion.wall!],
                       suggestion.wall!,
-                      {
-                        base: retailer.palletDimensions,
-                        maxWeight: 2500,
-                      },
+                      activePalletConfig,
                       allProducts,
                     )
 
@@ -251,10 +244,7 @@ export function ThreeDViewer() {
                   displayMode: suggestion.displayMode ?? displayMode,
                 },
                 dimensions,
-                {
-                  base: retailer.palletDimensions,
-                  maxWeight: 2500,
-                },
+                activePalletConfig,
                 tiers,
                 wallConfigs[suggestion.wall!],
               )

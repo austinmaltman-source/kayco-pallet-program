@@ -258,7 +258,7 @@ export function ProductPickerModal() {
                     </div>
                     {!product.caseConfig && (
                       <span className="text-[10px] font-medium text-[#4f46e5] bg-[#eef2ff] px-1.5 py-0.5 rounded">
-                        Single
+                        Case
                       </span>
                     )}
                     {product.caseConfig && (

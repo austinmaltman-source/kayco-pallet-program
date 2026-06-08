@@ -88,9 +88,13 @@ export const PlacedProducts: React.FC<PlacedProductsProps> = ({
                 depth: product.depth,
                 height: product.height,
               }
+          const bottomY =
+            product.position.y < palletBaseHeight
+              ? product.position.y + palletBaseHeight
+              : product.position.y
           const freeformPosition: [number, number, number] = [
             product.position.x - palletDimensions.width / 2 + dimensions.width / 2,
-            product.position.y,
+            bottomY,
             palletDimensions.depth / 2 - product.position.z - dimensions.depth / 2,
           ]
           const freeformProduct = {
@@ -99,6 +103,10 @@ export const PlacedProducts: React.FC<PlacedProductsProps> = ({
             depth: dimensions.depth,
             height: dimensions.height * (product.caseStackHeight ?? 1),
             orientation: 0,
+            renderStyle: 'case' as const,
+            facings: 1,
+            rows: 1,
+            layers: 1,
           }
 
           return (

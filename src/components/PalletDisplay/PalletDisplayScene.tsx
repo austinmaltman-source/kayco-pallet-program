@@ -39,7 +39,10 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
 }) => {
   const isHalf = palletType === 'half';
   const effectiveDimensions = isHalf
-    ? { ...palletDimensions, depth: palletDimensions.depth / 2 }
+    ? {
+        ...palletDimensions,
+        depth: palletDimensions.depth > 30 ? palletDimensions.depth / 2 : palletDimensions.depth,
+      }
     : palletDimensions;
 
   const tiers = useTierConfig(tierCount, maxDisplayHeight, palletType);
@@ -242,12 +245,15 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
       <OrbitControls
         makeDefault
         enabled={!isAnimating}
-        minDistance={36}
-        maxDistance={180}
+        minDistance={42}
+        maxDistance={145}
         minPolarAngle={10 * (Math.PI / 180)}
         maxPolarAngle={85 * (Math.PI / 180)}
         enableDamping
-        dampingFactor={0.05}
+        dampingFactor={0.08}
+        rotateSpeed={0.55}
+        zoomSpeed={0.75}
+        enablePan={false}
         autoRotate={autoRotate}
         target={[0, 24, 0]}
       />
