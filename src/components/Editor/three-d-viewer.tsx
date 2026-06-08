@@ -25,6 +25,17 @@ import type { PlacedProduct, Product } from '../../types'
 interface DraggingCase {
   product: Product
   placementId?: string
+  startClient?: { x: number; y: number }
+  startPosition?: { x: number; y: number; z: number }
+}
+
+function overlapArea(
+  a: { x: number; z: number; width: number; depth: number },
+  b: { x: number; z: number; width: number; depth: number },
+) {
+  const width = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x))
+  const depth = Math.max(0, Math.min(a.z + a.depth, b.z + b.depth) - Math.max(a.z, b.z))
+  return width * depth
 }
 
 export function ThreeDViewer() {
@@ -79,6 +90,8 @@ export function ThreeDViewer() {
     ? {
         productId: draggingCase.product.id,
         placementId: draggingCase.placementId,
+        startClient: draggingCase.startClient,
+        startPosition: draggingCase.startPosition,
         ...getEffectiveCaseDimensions(draggingCase.product),
         color: draggingCase.product.brandColor,
         label: draggingCase.product.name,
@@ -132,13 +145,56 @@ export function ThreeDViewer() {
     }
   }
 
-  const startPlacedCaseDrag = (placementId: string) => {
+  const settleDraggedCase = (position: { x: number; y: number; z: number }) => {
+    if (!draggingCase) return position
+    const dimensions = getEffectiveCaseDimensions(draggingCase.product)
+    const footprint = {
+      x: position.x,
+      z: position.z,
+      width: dimensions.width,
+      depth: dimensions.depth,
+    }
+    const minSupportArea = dimensions.width * dimensions.depth * 0.35
+    const settledY = currentProject.placements.reduce(
+      (highest, placement) => {
+        if (placement.id === draggingCase.placementId || !placement.position) return highest
+        const candidateArea = overlapArea(footprint, {
+          x: placement.position.x,
+          z: placement.position.z,
+          width: placement.width,
+          depth: placement.depth,
+        })
+        if (candidateArea < minSupportArea) return highest
+        return Math.max(highest, placement.position.y + placement.height)
+      },
+      activePalletDimensions.height,
+    )
+
+    return {
+      ...position,
+      y: settledY,
+    }
+  }
+
+  const startPlacedCaseDrag = (
+    placementId: string,
+    pointer: { clientX: number; clientY: number },
+  ) => {
     const placement = currentProject.placements.find((entry) => entry.id === placementId)
     const product = placement?.sourceProductId
       ? allProducts.find((entry) => entry.id === placement.sourceProductId)
       : undefined
     if (!placement || !product) return
-    setDraggingCase({ product, placementId })
+    setDraggingCase({
+      product,
+      placementId,
+      startClient: { x: pointer.clientX, y: pointer.clientY },
+      startPosition: placement.position ?? {
+        x: 0,
+        y: activePalletDimensions.height,
+        z: 0,
+      },
+    })
     selectProduct(placementId)
   }
 
@@ -160,6 +216,7 @@ export function ThreeDViewer() {
         onProductDragStart={startPlacedCaseDrag}
         onFreeformDrop={dropDraggedCase}
         onFreeformDragCancel={() => setDraggingCase(null)}
+        settleFreeformDrop={settleDraggedCase}
         validateFreeformDrop={validateDraggedCase}
         onSlotClick={(tierId, slotIndex) => {
           const slotId = `${tierId}-${slotIndex}`

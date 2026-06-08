@@ -22,7 +22,10 @@ interface PlacedProductsProps {
   onProductClick?: (productId: string) => void
   onRotateProduct?: (productId: string) => void
   onDeleteProduct?: (productId: string) => void
-  onProductDragStart?: (productId: string) => void
+  onProductDragStart?: (
+    productId: string,
+    pointer: { clientX: number; clientY: number },
+  ) => void
 }
 
 export const PlacedProducts: React.FC<PlacedProductsProps> = ({
@@ -127,7 +130,7 @@ export const PlacedProducts: React.FC<PlacedProductsProps> = ({
               onClick={() => onProductClick?.(product.id)}
               onRotate={() => onRotateProduct?.(product.id)}
               onDelete={() => onDeleteProduct?.(product.id)}
-              onDragStart={() => onProductDragStart?.(product.id)}
+              onDragStart={(pointer) => onProductDragStart?.(product.id, pointer)}
             />
           )
         }
@@ -192,7 +195,7 @@ export const PlacedProducts: React.FC<PlacedProductsProps> = ({
             onClick={() => onProductClick?.(product.id)}
             onRotate={() => onRotateProduct?.(product.id)}
             onDelete={() => onDeleteProduct?.(product.id)}
-            onDragStart={() => onProductDragStart?.(product.id)}
+            onDragStart={(pointer) => onProductDragStart?.(product.id, pointer)}
           />
         )
       })}

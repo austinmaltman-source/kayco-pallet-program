@@ -129,6 +129,8 @@ export interface GhostProduct {
 export interface DraggedCaseProduct {
   productId: string
   placementId?: string
+  startClient?: { x: number; y: number }
+  startPosition?: { x: number; y: number; z: number }
   width: number
   height: number
   depth: number
@@ -211,9 +213,15 @@ export interface PalletDisplayProps {
   onProductClick?: (productId: string) => void;
   onRotateProduct?: (productId: string) => void;
   onDeleteProduct?: (productId: string) => void;
-  onProductDragStart?: (productId: string) => void;
+  onProductDragStart?: (
+    productId: string,
+    pointer: { clientX: number; clientY: number },
+  ) => void;
   onFreeformDrop?: (position: { x: number; y: number; z: number }) => void;
   onFreeformDragCancel?: () => void;
+  settleFreeformDrop?: (
+    position: { x: number; y: number; z: number },
+  ) => { x: number; y: number; z: number };
   validateFreeformDrop?: (
     position: { x: number; y: number; z: number },
   ) => FullValidationResult | undefined;

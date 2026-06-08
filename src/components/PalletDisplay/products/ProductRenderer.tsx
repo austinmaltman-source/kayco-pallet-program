@@ -17,7 +17,7 @@ interface ProductRendererProps {
   onRotate?: () => void
   onDuplicate?: () => void
   onDelete?: () => void
-  onDragStart?: () => void
+  onDragStart?: (pointer: { clientX: number; clientY: number }) => void
 }
 
 export const ProductRenderer: React.FC<ProductRendererProps> = ({

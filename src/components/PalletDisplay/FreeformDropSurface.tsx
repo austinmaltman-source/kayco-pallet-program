@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Edges } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
-import * as THREE from 'three'
 import type { DraggedCaseProduct, FullValidationResult } from '../../types'
 
 interface FreeformDropSurfaceProps {
@@ -9,6 +8,9 @@ interface FreeformDropSurfaceProps {
   palletDimensions: { width: number; depth: number; height: number }
   onDrop?: (position: { x: number; y: number; z: number }) => void
   onCancel?: () => void
+  settleDrop?: (
+    position: { x: number; y: number; z: number },
+  ) => { x: number; y: number; z: number }
   validateDrop?: (
     position: { x: number; y: number; z: number },
   ) => FullValidationResult | undefined
@@ -30,17 +32,12 @@ export function FreeformDropSurface({
   palletDimensions,
   onDrop,
   onCancel,
+  settleDrop,
   validateDrop,
 }: FreeformDropSurfaceProps) {
-  const { camera, gl } = useThree()
+  const { gl } = useThree()
   const [draft, setDraft] = useState<DraftPlacement | null>(null)
-
-  const raycaster = useMemo(() => new THREE.Raycaster(), [])
-  const mouse = useMemo(() => new THREE.Vector2(), [])
-  const dropPlane = useMemo(
-    () => new THREE.Plane(new THREE.Vector3(0, 1, 0), -palletDimensions.height),
-    [palletDimensions.height],
-  )
+  const lastPointerRef = useMemo(() => ({ x: 0, y: 0 }), [])
 
   useEffect(() => {
     if (!draggedCaseProduct) {
@@ -62,37 +59,48 @@ export function FreeformDropSurface({
 
     const updateDraft = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect()
+      lastPointerRef.x = clientX
+      lastPointerRef.y = clientY
       if (!isInsideCanvas(clientX, clientY)) {
-        setDraft(null)
-        return null
-      }
-
-      mouse.x = ((clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1
-      mouse.y = -(((clientY - rect.top) / Math.max(1, rect.height)) * 2 - 1)
-      raycaster.setFromCamera(mouse, camera)
-
-      const intersection = new THREE.Vector3()
-      const hit = raycaster.ray.intersectPlane(dropPlane, intersection)
-      if (!hit) {
         setDraft(null)
         return null
       }
 
       const maxX = Math.max(0, palletDimensions.width - draggedCaseProduct.width)
       const maxZ = Math.max(0, palletDimensions.depth - draggedCaseProduct.depth)
-      const palletPosition = {
+      const localX = (clientX - rect.left) / Math.max(1, rect.width)
+      const localY = (clientY - rect.top) / Math.max(1, rect.height)
+      const deltaPosition =
+        draggedCaseProduct.startClient && draggedCaseProduct.startPosition
+          ? {
+              x:
+                draggedCaseProduct.startPosition.x +
+                ((clientX - draggedCaseProduct.startClient.x) / Math.max(1, rect.width)) *
+                  palletDimensions.width,
+              z:
+                draggedCaseProduct.startPosition.z +
+                ((clientY - draggedCaseProduct.startClient.y) / Math.max(1, rect.height)) *
+                  palletDimensions.depth,
+            }
+          : null
+      const tentativePosition = {
         x: clamp(
-          intersection.x + palletDimensions.width / 2 - draggedCaseProduct.width / 2,
+          deltaPosition
+            ? deltaPosition.x
+            : localX * palletDimensions.width - draggedCaseProduct.width / 2,
           0,
           maxX,
         ),
         y: palletDimensions.height,
         z: clamp(
-          palletDimensions.depth / 2 - intersection.z - draggedCaseProduct.depth / 2,
+          deltaPosition
+            ? deltaPosition.z
+            : localY * palletDimensions.depth - draggedCaseProduct.depth / 2,
           0,
           maxZ,
         ),
       }
+      const palletPosition = settleDrop?.(tentativePosition) ?? tentativePosition
       const validation = validateDrop?.(palletPosition)
       const scenePosition: [number, number, number] = [
         palletPosition.x - palletDimensions.width / 2 + draggedCaseProduct.width / 2,
@@ -128,10 +136,12 @@ export function FreeformDropSurface({
     }
 
     const handlePointerMove = (event: PointerEvent) => {
+      event.preventDefault()
       updateDraft(event.clientX, event.clientY)
     }
 
     const handlePointerUp = (event: PointerEvent) => {
+      event.preventDefault()
       const nextDraft = updateDraft(event.clientX, event.clientY)
       if (nextDraft?.valid) {
         onDrop?.(nextDraft.palletPosition)
@@ -152,8 +162,8 @@ export function FreeformDropSurface({
 
     canvas.addEventListener('dragover', handleDragOver)
     canvas.addEventListener('drop', handleDrop)
-    window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointermove', handlePointerMove, { passive: false })
+    window.addEventListener('pointerup', handlePointerUp, { passive: false })
     window.addEventListener('dragend', handleCancel)
     window.addEventListener('keydown', handleKeyDown)
 
@@ -166,17 +176,15 @@ export function FreeformDropSurface({
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [
-    camera,
     draggedCaseProduct,
-    dropPlane,
     gl.domElement,
-    mouse,
+    lastPointerRef,
     onCancel,
     onDrop,
     palletDimensions.depth,
     palletDimensions.height,
     palletDimensions.width,
-    raycaster,
+    settleDrop,
     validateDrop,
   ])
 

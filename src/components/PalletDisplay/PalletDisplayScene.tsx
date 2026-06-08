@@ -37,6 +37,7 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
   onProductDragStart,
   onFreeformDrop,
   onFreeformDragCancel,
+  settleFreeformDrop,
   validateFreeformDrop,
   autoRotate = false,
   cameraPreset,
@@ -255,6 +256,7 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
           palletDimensions={effectiveDimensions}
           onDrop={onFreeformDrop}
           onCancel={onFreeformDragCancel}
+          settleDrop={settleFreeformDrop}
           validateDrop={validateFreeformDrop}
         />
       </group>

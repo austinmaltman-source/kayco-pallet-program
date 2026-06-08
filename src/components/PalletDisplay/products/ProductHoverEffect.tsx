@@ -14,7 +14,7 @@ interface ProductHoverEffectProps {
   onRotate?: () => void
   onDuplicate?: () => void
   onDelete?: () => void
-  onDragStart?: () => void
+  onDragStart?: (pointer: { clientX: number; clientY: number }) => void
   children: React.ReactNode
 }
 
@@ -58,7 +58,7 @@ export const ProductHoverEffect: React.FC<ProductHoverEffectProps> = ({
       onPointerDown={(event) => {
         if (event.button !== 0) return
         event.stopPropagation()
-        onDragStart?.()
+        onDragStart?.({ clientX: event.clientX, clientY: event.clientY })
       }}
     >
       {children}
