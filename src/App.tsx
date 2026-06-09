@@ -32,6 +32,7 @@ import { useAppSettingsStore } from './stores/app-settings-store'
 import { mockRetailers } from './lib/mock-data'
 import { loadInventoryInfo } from './lib/inventory-info-loader'
 import { mergeInventoryInfoIntoProducts } from './lib/inventory-info-import'
+import { migrateProjectPlacements } from './lib/placementMigration'
 
 const PROJECT_STORAGE_KEY = 'palletforge-project'
 const PALLETS_STORAGE_KEY = 'palletforge-pallets'
@@ -280,6 +281,8 @@ export default function App() {
     const legacyProject = loadPersistedState<DisplayProject>(PROJECT_STORAGE_KEY)
     const MOCK_PALLET_IDS = new Set(['proj-1', 'proj-2', 'proj-3'])
     const rawProjects = persistedProjects ?? (legacyProject ? [legacyProject] : [])
+    const getRetailerForProject = (retailerId: string) =>
+      useRetailerStore.getState().getRetailer(retailerId)
     const projects = rawProjects
       .filter((project) => !MOCK_PALLET_IDS.has(project.id))
       .map((project) => ({
@@ -291,6 +294,11 @@ export default function App() {
           project.laborCost ?? (project.palletType === 'half' ? 50 : 75),
         status: project.status ?? 'draft',
       }))
+      // Physics sandbox migration: give every slot-based placement a world
+      // transform so it can spawn as a rigid body where it always rendered.
+      .map((project) =>
+        migrateProjectPlacements(project, getRetailerForProject(project.retailerId)),
+      )
     const activePalletId = localStorage.getItem(ACTIVE_PALLET_STORAGE_KEY)
     const activeProject =
       projects.find((project) => project.id === activePalletId) ??

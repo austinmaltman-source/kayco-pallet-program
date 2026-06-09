@@ -27,6 +27,7 @@ import {
   derivePlacementFromSlotId,
 } from '../lib/shelfCoordinates'
 import { validatePlacement } from '../lib/spatialValidator'
+import { computePlacementTransform } from '../lib/placementMigration'
 
 interface DisplayState {
   projects: DisplayProject[]
@@ -147,6 +148,34 @@ function buildValidationContext(state: DisplayState) {
     wallConfigs,
     existingPlacements: state.currentProject.placements,
     allProducts: useCatalogStore.getState().products,
+  }
+}
+
+// Stamp a slot-based placement with its world transform so the physics
+// sandbox can spawn it as a rigid body. No-op for placements whose slot data
+// cannot be resolved (their existing transform, if any, stays).
+function withTransform(
+  placement: PlacedProduct,
+  project: DisplayProject,
+): PlacedProduct {
+  const retailer = useRetailerStore.getState().getRetailer(project.retailerId)
+  const transform = computePlacementTransform(placement, {
+    palletType: project.palletType,
+    tierCount: project.tierCount,
+    palletDimensions: retailer?.palletDimensions ?? { width: 48, depth: 40, height: 6 },
+    maxDisplayHeight: retailer?.maxDisplayHeight ?? 60,
+  })
+  return transform ? { ...placement, ...transform } : placement
+}
+
+// Recompute transforms for every slot-based placement. Needed when the shelf
+// geometry itself changes (tier count, pallet type).
+function refreshSlotTransforms(project: DisplayProject): DisplayProject {
+  return {
+    ...project,
+    placements: project.placements.map((placement) =>
+      withTransform(placement, project),
+    ),
   }
 }
 
@@ -380,7 +409,10 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
 
     const nextProject = {
       ...state.currentProject,
-      placements: [...filteredPlacements, placement],
+      placements: [
+        ...filteredPlacements,
+        withTransform(placement, state.currentProject),
+      ],
       updatedAt: Date.now(),
     }
 
@@ -401,7 +433,10 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       ...state.currentProject,
       placements: state.currentProject.placements.map((placement) =>
         placement.id === placementId
-          ? { ...placement, orientation: nextOrientation(placement.orientation) }
+          ? withTransform(
+              { ...placement, orientation: nextOrientation(placement.orientation) },
+              state.currentProject!,
+            )
           : placement
       ),
       updatedAt: Date.now(),
@@ -433,13 +468,35 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     const state = get()
     if (!state.currentProject) return
 
+    const context = buildValidationContext(state)
+
     const nextProject = {
       ...state.currentProject,
-      placements: state.currentProject.placements.map((placement) =>
-        placement.id === placementId
-          ? { ...placement, slotId: newSlotId }
-          : placement
-      ),
+      placements: state.currentProject.placements.map((placement) => {
+        if (placement.id !== placementId) return placement
+
+        // Re-derive wall/tier/gridCol from the new slot so the stale explicit
+        // fields don't win over the new slotId, then restamp the transform.
+        const derived = context
+          ? derivePlacementFromSlotId(
+              newSlotId,
+              context.tierConfigs,
+              state.currentProject!.palletType,
+            )
+          : null
+
+        const moved = derived
+          ? {
+              ...placement,
+              slotId: newSlotId,
+              wall: derived.wall,
+              tier: derived.tier,
+              gridCol: derived.gridCol,
+            }
+          : { ...placement, slotId: newSlotId }
+
+        return withTransform(moved, state.currentProject!)
+      }),
       updatedAt: Date.now(),
     }
 
@@ -520,12 +577,12 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       return !Number.isNaN(tierId) && tierId <= clamped
     })
 
-    const nextProject = {
+    const nextProject = refreshSlotTransforms({
       ...state.currentProject,
       tierCount: clamped,
       placements: validPlacements,
       updatedAt: Date.now(),
-    }
+    })
 
     set(commitProjectUpdate(state, nextProject))
   },
@@ -542,12 +599,12 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
           })
         : state.currentProject.placements
 
-    const nextProject = {
+    const nextProject = refreshSlotTransforms({
       ...state.currentProject,
       palletType: type,
       placements,
       updatedAt: Date.now(),
-    }
+    })
 
     set({
       ...commitProjectUpdate(state, nextProject),
@@ -1060,11 +1117,11 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       })
     }
 
-    const nextProject = {
+    const nextProject = refreshSlotTransforms({
       ...state.currentProject,
       placements,
       updatedAt: Date.now(),
-    }
+    })
 
     set(commitProjectUpdate(state, nextProject))
   },

@@ -9,6 +9,8 @@ import { DisplayStructure } from './DisplayStructure';
 import { RetailEnvironment } from './RetailEnvironment';
 import { GhostProduct } from './GhostProduct';
 import { PlacedProducts } from './PlacedProducts';
+import { SandboxPhysics } from './physics/SandboxPhysics';
+import { FixedColliders } from './physics/FixedColliders';
 
 // Kayco half pallet visual components
 import { PalletBase as KaycoPalletBase } from '@/components/scene/pallet/PalletBase';
@@ -158,7 +160,13 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
     <>
       <RetailEnvironment environmentType={environment} />
 
+      <SandboxPhysics>
       <group position={[0, 0, 0]}>
+        <FixedColliders
+          tiers={tiers}
+          palletType={palletType}
+          palletDimensions={effectiveDimensions}
+        />
         {isHalf && kaycoPallet ? (
           <>
             {/* Kayco half pallet visuals */}
@@ -238,6 +246,7 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
           </>
         )}
       </group>
+      </SandboxPhysics>
 
       <OrbitControls
         makeDefault

@@ -2,6 +2,7 @@ import React, { useMemo, useEffect } from 'react'
 import { useGLTF } from '@react-three/drei'
 import { PlacedProduct, TierConfig, PalletType } from '../../types'
 import { ProductRenderer } from './products/ProductRenderer'
+import { ItemBody } from './physics/ItemBody'
 import { useCatalogStore } from '../../stores/catalog-store'
 import { useAppSettingsStore } from '../../stores/app-settings-store'
 import {
@@ -71,6 +72,28 @@ export const PlacedProducts: React.FC<PlacedProductsProps> = ({
   return (
     <group>
       {products.map((product) => {
+        // Physics path: placements carrying a world transform spawn as
+        // dynamic rigid bodies. Migration stamps transforms on load, so this
+        // is the normal path; the slot math below is the legacy fallback.
+        if (product.position && product.quaternion) {
+          return (
+            <ItemBody
+              key={product.id}
+              placement={
+                product as PlacedProduct & {
+                  position: [number, number, number]
+                  quaternion: [number, number, number, number]
+                }
+              }
+              products={catalogProducts}
+              isSelected={product.id === selectedProductId}
+              onClick={() => onProductClick?.(product.id)}
+              onRotate={() => onRotateProduct?.(product.id)}
+              onDelete={() => onDeleteProduct?.(product.id)}
+            />
+          )
+        }
+
         const placement =
           product.wall && product.tier && product.gridCol !== undefined
             ? {

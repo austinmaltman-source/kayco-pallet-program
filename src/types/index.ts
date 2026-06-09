@@ -93,7 +93,12 @@ export interface CaseConfig {
 export interface PlacedProduct {
   id: string;              // unique placement ID
   sourceProductId?: string; // original catalog product ID
-  slotId: string;          // "tierId-slotIndex"
+  slotId: string;          // "tierId-slotIndex" (legacy slot model; kept until retirement)
+  // Physics sandbox transform - source of truth for where the item sits.
+  // position is the bottom-center anchor in world inches (matches the render
+  // convention: products build upward from their anchor).
+  position?: [number, number, number];
+  quaternion?: [number, number, number, number];
   width: number;           // case dimensions
   height: number;
   depth: number;
