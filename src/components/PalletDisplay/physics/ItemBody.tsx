@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { RigidBody, CuboidCollider, type RapierRigidBody } from '@react-three/rapier'
 import type { PlacedProduct, Product } from '../../../types'
 import { ProductRenderer } from '../products/ProductRenderer'
-import { resolveProductWeight } from '../../../lib/dimensionEngine'
+import { resolvePlacementWeight } from '../../../lib/dimensionEngine'
 import { useDisplayStore } from '../../../stores/display-store'
 import { usePhysicsDisabled } from './SandboxPhysics'
 import { useDragManager } from './DragManager'
@@ -52,13 +52,9 @@ export const ItemBody: React.FC<ItemBodyProps> = ({
   )
 
   const mass = useMemo(() => {
-    const source = placement.sourceProductId
-      ? products.find((product) => product.id === placement.sourceProductId)
-      : undefined
-    if (!source) return 1
-    const weight = resolveProductWeight(source, products)
+    const weight = resolvePlacementWeight(placement, products)
     return Number.isFinite(weight) && weight > 0 ? weight : 1
-  }, [placement.sourceProductId, products])
+  }, [placement, products])
 
   // Slot-derived placements sit exactly on a shelf surface, so they spawn
   // asleep and a reloaded pallet never twitches. Free transforms (physics
@@ -138,6 +134,9 @@ export const ItemBody: React.FC<ItemBodyProps> = ({
         isSelected={isSelected}
         onClick={handleClick}
         onRotate={onRotate}
+        onDuplicate={() =>
+          useDisplayStore.getState().duplicatePlacement(placement.id)
+        }
         onDelete={onDelete}
       />
     </React.Suspense>

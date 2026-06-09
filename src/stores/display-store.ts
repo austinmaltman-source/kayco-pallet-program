@@ -26,6 +26,8 @@ import {
   createDefaultWallConfigs,
   derivePlacementFromSlotId,
 } from '../lib/shelfCoordinates'
+import { deriveCaseLayout } from '../lib/caseLayout'
+import { calculateCaseDimensions } from '../lib/dimensionEngine'
 import { validatePlacement } from '../lib/spatialValidator'
 import { computePlacementTransform } from '../lib/placementMigration'
 
@@ -71,6 +73,8 @@ interface DisplayState {
       quaternion: [number, number, number, number]
     }[],
   ) => void
+  // Clone a free placement just above the original so it falls and stacks.
+  duplicatePlacement: (placementId: string) => void
   setCarryPlacement: (placementId: string | null) => void
   setDragging3D: (dragging: boolean) => void
   setHeldPlacement: (placementId: string | null) => void
@@ -456,7 +460,34 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     if (!state.currentProject) return undefined
 
     const allProducts = useCatalogStore.getState().products
-    const dimensions = resolveProductDimensions(product, allProducts)
+    let dimensions = resolveProductDimensions(product, allProducts)
+
+    // Pallet programs deal in cases. When the catalog product is a single
+    // unit but knows its case count, synthesize a caseConfig so the item
+    // places as a real case and renders every unit inside it.
+    let caseConfig = product.caseConfig
+    if (
+      !caseConfig &&
+      (product.unitsPerCase ?? 0) > 1 &&
+      product.width > 0 &&
+      product.height > 0 &&
+      product.depth > 0
+    ) {
+      const layout = deriveCaseLayout(product.unitsPerCase!)
+      caseConfig = {
+        unitProductId: product.id,
+        layout,
+        caseStyle: 'open-top',
+        innerPadding: 0.25,
+        dividers: false,
+      }
+      dimensions = calculateCaseDimensions(
+        { width: product.width, height: product.height, depth: product.depth, source: 'manual' },
+        layout,
+        0.25,
+        false,
+      )
+    }
 
     // Spawn in midair in front of the display; the drag manager picks it up
     // and follows the cursor immediately (carry mode).
@@ -474,7 +505,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       imageUrl: product.imageUrl,
       modelUrl: product.modelUrl,
       packaging: product.packaging,
-      caseConfig: product.caseConfig,
+      caseConfig,
       quantity: 1,
       position: [0, 50, 30],
       quaternion: [0, 0, 0, 1],
@@ -606,6 +637,41 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
           }
         : {}),
     })
+  },
+
+  duplicatePlacement: (placementId) => {
+    const state = get()
+    if (!state.currentProject) return
+
+    const source = state.currentProject.placements.find(
+      (placement) => placement.id === placementId,
+    )
+    if (!source || !source.position) return
+
+    // Spawn the copy just above the original so it falls and stacks.
+    const copy: PlacedProduct = {
+      ...structuredClone(source),
+      id: crypto.randomUUID(),
+      slotId: '',
+      wall: undefined,
+      tier: undefined,
+      gridCol: undefined,
+      colSpan: undefined,
+      displayMode: undefined,
+      position: [
+        source.position[0],
+        source.position[1] + source.height + 1,
+        source.position[2],
+      ],
+    }
+
+    const nextProject = {
+      ...state.currentProject,
+      placements: [...state.currentProject.placements, copy],
+      updatedAt: Date.now(),
+    }
+
+    set(commitProjectUpdate(state, nextProject))
   },
 
   setCarryPlacement: (placementId) => set({ carryPlacementId: placementId }),

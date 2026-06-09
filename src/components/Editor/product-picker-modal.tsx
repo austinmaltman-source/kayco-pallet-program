@@ -266,7 +266,12 @@ export function ProductPickerModal() {
                             .join(' · ')
                         : product.sku}
                     </div>
-                    {!product.caseConfig && (
+                    {!product.caseConfig && (product.unitsPerCase ?? 0) > 1 && (
+                      <span className="text-[10px] font-medium text-[#666] bg-[#f5f5f5] px-1.5 py-0.5 rounded">
+                        {product.unitsPerCase}/case
+                      </span>
+                    )}
+                    {!product.caseConfig && (product.unitsPerCase ?? 0) <= 1 && (
                       <span className="text-[10px] font-medium text-[#4f46e5] bg-[#eef2ff] px-1.5 py-0.5 rounded">
                         Single
                       </span>

@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { Plus, Undo2, Weight } from 'lucide-react'
 import { useDisplayStore } from '../../stores/display-store'
 import { PalletDisplay } from '../PalletDisplay'
-import { resolveProductWeight } from '../../lib/dimensionEngine'
+import { resolvePlacementWeight } from '../../lib/dimensionEngine'
 import { PALLET_WEIGHT_LIMIT } from '../../lib/constants'
 import { PalletNavigator } from './pallet-navigator'
 import { useAppSettingsStore } from '../../stores/app-settings-store'
@@ -35,7 +35,6 @@ export function ThreeDViewer() {
   const carryPlacementId = useDisplayStore(s => s.carryPlacementId)
   const offPalletNotice = useDisplayStore(s => s.offPalletNotice)
   const clearOffPalletNotice = useDisplayStore(s => s.clearOffPalletNotice)
-  const show3DSlotGrid = useAppSettingsStore((s) => s.settings.show3DSlotGrid)
   const show3DHeader = useAppSettingsStore((s) => s.settings.show3DHeader)
   const editorGridColumns = useAppSettingsStore((s) => s.settings.editorGridColumns)
   const displayEnvironment = useAppSettingsStore(
@@ -63,11 +62,7 @@ export function ThreeDViewer() {
   const totalWeight = useMemo(() => {
     if (!currentProject) return 0
     return currentProject.placements.reduce((sum, placement) => {
-      const source = placement.sourceProductId
-        ? allProducts.find((p) => p.id === placement.sourceProductId)
-        : undefined
-      if (!source) return sum
-      const weight = resolveProductWeight(source, allProducts)
+      const weight = resolvePlacementWeight(placement, allProducts)
       return sum + (Number.isFinite(weight) ? weight : 0)
     }, 0)
   }, [currentProject, allProducts])
@@ -248,7 +243,7 @@ export function ThreeDViewer() {
         onSlotHoverEnd={() => setGhostProduct(null)}
         cameraPreset={cameraPreset}
         lipColor={currentProject.lipColor}
-        showSlotGrid={show3DSlotGrid}
+        showSlotGrid={false}
         showHeader={show3DHeader}
         environment={displayEnvironment}
       />

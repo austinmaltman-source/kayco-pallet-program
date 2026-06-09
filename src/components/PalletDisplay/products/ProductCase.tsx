@@ -3,6 +3,7 @@ import type { PlacedProduct, Product } from '../../../types'
 import { BasicBoxProduct } from './BasicBoxProduct'
 import { CaseDividers } from './CaseDividers'
 import { CaseItemGrid } from './CaseItemGrid'
+import { PrimitiveCaseItemGrid } from './PrimitiveCaseItemGrid'
 import { CaseShell } from './CaseShell'
 
 interface ProductCaseProps {
@@ -26,7 +27,7 @@ function ProductCaseInner({
   onPointerOver,
   onPointerOut,
 }: ProductCaseProps) {
-  if (!product.caseConfig || !unitProduct.modelUrl) {
+  if (!product.caseConfig) {
     return (
       <BasicBoxProduct
         product={product}
@@ -66,24 +67,44 @@ function ProductCaseInner({
         color={product.color}
       />
 
-      {product.caseConfig.caseStyle !== 'closed' && (
-        <CaseItemGrid
-          unitModelUrl={unitProduct.modelUrl}
-          packaging={unitProduct.packaging}
-          unitDimensions={{
-            width: unitProduct.width,
-            height: unitProduct.height,
-            depth: unitProduct.depth,
-          }}
-          caseDimensions={{
-            width: product.width,
-            height: product.height,
-            depth: product.depth,
-          }}
-          layout={product.caseConfig.layout}
-          padding={product.caseConfig.innerPadding}
-        />
-      )}
+      {product.caseConfig.caseStyle !== 'closed' &&
+        (unitProduct.modelUrl ? (
+          <CaseItemGrid
+            unitModelUrl={unitProduct.modelUrl}
+            packaging={unitProduct.packaging}
+            unitDimensions={{
+              width: unitProduct.width,
+              height: unitProduct.height,
+              depth: unitProduct.depth,
+            }}
+            caseDimensions={{
+              width: product.width,
+              height: product.height,
+              depth: product.depth,
+            }}
+            layout={product.caseConfig.layout}
+            padding={product.caseConfig.innerPadding}
+          />
+        ) : (
+          // No GLB for the unit: render each unit as a primitive sized from
+          // its real dimensions, so a case of 12 still shows 12 items.
+          <PrimitiveCaseItemGrid
+            color={unitProduct.brandColor || product.color}
+            packaging={unitProduct.packaging}
+            unitDimensions={{
+              width: unitProduct.width,
+              height: unitProduct.height,
+              depth: unitProduct.depth,
+            }}
+            caseDimensions={{
+              width: product.width,
+              height: product.height,
+              depth: product.depth,
+            }}
+            layout={product.caseConfig.layout}
+            padding={product.caseConfig.innerPadding}
+          />
+        ))}
 
       {product.caseConfig.dividers && (
         <CaseDividers
