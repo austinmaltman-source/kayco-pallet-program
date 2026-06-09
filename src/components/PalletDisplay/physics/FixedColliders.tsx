@@ -11,6 +11,9 @@ interface FixedCollidersProps {
   tiers: TierConfig[]
   palletType: PalletType
   palletDimensions: { width: number; depth: number; height: number }
+  // Retailer display ceiling, measured from the floor. Items physically
+  // cannot occupy space above it over the pallet footprint.
+  maxDisplayHeight?: number
 }
 
 // Invisible static collision geometry mirroring what the scene renders:
@@ -20,6 +23,7 @@ export const FixedColliders: React.FC<FixedCollidersProps> = ({
   tiers,
   palletType,
   palletDimensions,
+  maxDisplayHeight = 60,
 }) => {
   const physicsDisabled = usePhysicsDisabled()
   if (physicsDisabled) return null
@@ -36,6 +40,13 @@ export const FixedColliders: React.FC<FixedCollidersProps> = ({
       <CuboidCollider
         args={[palletDimensions.width / 2, palletHeight / 2, palletDimensions.depth / 2]}
         position={[0, palletHeight / 2, 0]}
+      />
+
+      {/* Invisible ceiling at the retailer's max display height - makes
+          vertical overfill physically impossible over the footprint */}
+      <CuboidCollider
+        args={[palletDimensions.width / 2 + 2, 0.5, palletDimensions.depth / 2 + 2]}
+        position={[0, maxDisplayHeight + 0.5, 0]}
       />
 
       {tiers.map((tier) => {

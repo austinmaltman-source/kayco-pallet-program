@@ -49,6 +49,8 @@ interface DisplayState {
   // Placement currently held by the cursor; its body renders kinematic so
   // React re-renders cannot flip it back to dynamic mid-drag.
   heldPlacementId: string | null
+  // Set when an item settles on the floor and is returned to the catalog.
+  offPalletNotice: { label: string; at: number } | null
 
   setProjects: (projects: DisplayProject[]) => void
   createProject: (name: string, config: PalletWizardConfig, tierCount?: number) => DisplayProject
@@ -72,6 +74,7 @@ interface DisplayState {
   setCarryPlacement: (placementId: string | null) => void
   setDragging3D: (dragging: boolean) => void
   setHeldPlacement: (placementId: string | null) => void
+  clearOffPalletNotice: () => void
   rotateProduct: (placementId: string) => void
   removeProduct: (placementId: string) => void
   moveProduct: (placementId: string, newSlotId: string) => void
@@ -227,6 +230,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   carryPlacementId: null,
   isDragging3D: false,
   heldPlacementId: null,
+  offPalletNotice: null,
 
   setProjects: (projects) => {
     const currentProject = projects[0] ?? null
@@ -502,7 +506,36 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     const updateMap = new Map(updates.map((update) => [update.id, update]))
     let changed = false
 
-    const placements = state.currentProject.placements.map((placement) => {
+    // Items that settle on the floor fell (or were dropped) off the pallet:
+    // return them to the catalog instead of persisting a floor position.
+    // Two signals: anchor near the ground anywhere, or low and outside the
+    // pallet footprint (a tipped-over item's anchor can sit a half-extent
+    // above the floor, so a pure height test misses it).
+    const retailer = useRetailerStore
+      .getState()
+      .getRetailer(state.currentProject.retailerId)
+    const halfWidth = (retailer?.palletDimensions.width ?? 48) / 2 + 2
+    const halfDepth = (retailer?.palletDimensions.depth ?? 40) / 2 + 2
+    const isOffPallet = (position: [number, number, number]) => {
+      const [x, y, z] = position
+      if (!Number.isFinite(y)) return false
+      if (y < 2) return true
+      const outsideFootprint = Math.abs(x) > halfWidth || Math.abs(z) > halfDepth
+      return outsideFootprint && y < 10
+    }
+
+    const returned: PlacedProduct[] = []
+    const kept = state.currentProject.placements.filter((placement) => {
+      const update = updateMap.get(placement.id)
+      if (!update) return true
+      if (!isOffPallet(update.position)) return true
+      returned.push(placement)
+      updateMap.delete(placement.id)
+      return false
+    })
+    if (returned.length > 0) changed = true
+
+    const placements = kept.map((placement) => {
       const update = updateMap.get(placement.id)
       if (!update) return placement
 
@@ -545,13 +578,34 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
 
     if (!changed) return
 
-    set(
-      commitProjectUpdate(state, {
+    set({
+      ...commitProjectUpdate(state, {
         ...state.currentProject,
         placements,
         updatedAt: Date.now(),
       }),
-    )
+      ...(returned.length > 0
+        ? {
+            offPalletNotice: {
+              label:
+                returned.length === 1
+                  ? returned[0].label
+                  : `${returned.length} items`,
+              at: Date.now(),
+            },
+            selectedProductId: returned.some(
+              (p) => p.id === state.selectedProductId,
+            )
+              ? null
+              : state.selectedProductId,
+            carryPlacementId: returned.some(
+              (p) => p.id === state.carryPlacementId,
+            )
+              ? null
+              : state.carryPlacementId,
+          }
+        : {}),
+    })
   },
 
   setCarryPlacement: (placementId) => set({ carryPlacementId: placementId }),
@@ -559,6 +613,8 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   setDragging3D: (dragging) => set({ isDragging3D: dragging }),
 
   setHeldPlacement: (placementId) => set({ heldPlacementId: placementId }),
+
+  clearOffPalletNotice: () => set({ offPalletNotice: null }),
 
   rotateProduct: (placementId) => {
     const state = get()

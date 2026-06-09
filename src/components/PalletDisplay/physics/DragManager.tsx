@@ -403,8 +403,9 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
 
     if (!target) return
 
-    // Keep the held item inside the workable height band.
-    const maxY = Math.max(2, maxDisplayHeight + 14)
+    // Keep the held item below the display ceiling (it is kinematic, so the
+    // ceiling collider alone cannot stop it).
+    const maxY = Math.max(2, maxDisplayHeight - 1)
     target.y = Math.min(Math.max(target.y, 0.5), maxY)
 
     // Smooth follow, exact rotation.

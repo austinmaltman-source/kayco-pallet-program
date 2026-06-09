@@ -170,6 +170,7 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
           tiers={tiers}
           palletType={palletType}
           palletDimensions={effectiveDimensions}
+          maxDisplayHeight={maxDisplayHeight}
         />
         {isHalf && kaycoPallet ? (
           <>
