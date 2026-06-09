@@ -3,11 +3,8 @@ import {
   AssortmentEntry,
   DisplayProject,
   PlacedProduct,
-  GhostProduct,
   Product,
-  FullValidationResult,
   CameraPreset,
-  ViewMode,
   DisplayBranding,
   TrayFace,
   PalletType,
@@ -19,25 +16,18 @@ import { getAppSettingsSnapshot } from './app-settings-store'
 import { nextOrientation } from '../lib/orientation-presets'
 import { useRetailerStore } from './retailer-store'
 import { useCatalogStore } from './catalog-store'
-import { getEffectiveColSpan } from '../lib/colSpanCalculator'
-import { resolveProductDimensions } from '../lib/dimensionEngine'
 import {
-  buildTierConfigs,
-  createDefaultWallConfigs,
-  derivePlacementFromSlotId,
-} from '../lib/shelfCoordinates'
+  resolveProductDimensions,
+  calculateCaseDimensions,
+} from '../lib/dimensionEngine'
+import { buildTierConfigs } from '../lib/shelfCoordinates'
 import { deriveCaseLayout } from '../lib/caseLayout'
-import { calculateCaseDimensions } from '../lib/dimensionEngine'
-import { validatePlacement } from '../lib/spatialValidator'
 import { computePlacementTransform } from '../lib/placementMigration'
 
 interface DisplayState {
   projects: DisplayProject[]
   currentProject: DisplayProject | null
-  selectedSlotId: string | null
   selectedProductId: string | null
-  ghostProduct: GhostProduct | null
-  viewMode: ViewMode
   activeFace: TrayFace
   cameraPreset: CameraPreset
   isPickerOpen: boolean
@@ -53,6 +43,9 @@ interface DisplayState {
   heldPlacementId: string | null
   // Set when an item settles on the floor and is returned to the catalog.
   offPalletNotice: { label: string; at: number } | null
+  // Bumped when shelf geometry changes (tier count, pallet type) so the
+  // physics scene wakes every body and items re-settle on the new shape.
+  wakeToken: number
 
   setProjects: (projects: DisplayProject[]) => void
   createProject: (name: string, config: PalletWizardConfig, tierCount?: number) => DisplayProject
@@ -62,7 +55,6 @@ interface DisplayState {
   getProjectsForRetailer: (retailerId: string) => DisplayProject[]
   selectProject: (id: string) => void
   setCurrentProject: (project: DisplayProject) => void
-  placeProduct: (product: Product, slotId: string) => FullValidationResult | undefined
   // Spawn a free (physics) placement carried by the cursor until placed.
   spawnProduct: (product: Product) => string | undefined
   // Write physics-settled transforms back; clears slot fields on moved items.
@@ -81,11 +73,7 @@ interface DisplayState {
   clearOffPalletNotice: () => void
   rotateProduct: (placementId: string) => void
   removeProduct: (placementId: string) => void
-  moveProduct: (placementId: string, newSlotId: string) => void
-  selectSlot: (slotId: string | null) => void
   selectProduct: (productId: string | null) => void
-  setGhostProduct: (ghost: GhostProduct | null) => void
-  setViewMode: (mode: ViewMode) => void
   setActiveFace: (face: TrayFace) => void
   setCameraPreset: (preset: CameraPreset) => void
   updateBranding: (branding: Partial<DisplayBranding>) => void
@@ -141,40 +129,41 @@ function replaceProject(projects: DisplayProject[], nextProject: DisplayProject)
 function hydrateSelectionState() {
   const settings = getAppSettingsSnapshot()
   return {
-    viewMode: settings.defaultViewMode,
     activeFace: settings.defaultFace,
     cameraPreset: settings.defaultCameraPreset,
   }
 }
 
-function buildValidationContext(state: DisplayState) {
-  if (!state.currentProject) return null
+// Synthesize the physical shape a product takes on a pallet: its caseConfig
+// (authored, or derived from unitsPerCase) and the resulting dimensions.
+function buildPlacementShape(product: Product, allProducts: Product[]) {
+  let dimensions = resolveProductDimensions(product, allProducts)
+  let caseConfig = product.caseConfig
 
-  const retailer = useRetailerStore.getState().getRetailer(state.currentProject.retailerId)
-  if (!retailer) return null
-
-  const settings = getAppSettingsSnapshot()
-  const tierConfigs = buildTierConfigs(
-    state.currentProject.tierCount,
-    retailer.maxDisplayHeight,
-    state.currentProject.palletType,
-  )
-  const wallConfigs = createDefaultWallConfigs(
-    state.currentProject.palletType,
-    settings.editorGridColumns,
-  )
-
-  return {
-    palletConfig: {
-      base: retailer.palletDimensions,
-      maxWeight: 2500,
-    },
-    palletType: state.currentProject.palletType,
-    tierConfigs,
-    wallConfigs,
-    existingPlacements: state.currentProject.placements,
-    allProducts: useCatalogStore.getState().products,
+  if (
+    !caseConfig &&
+    (product.unitsPerCase ?? 0) > 1 &&
+    product.width > 0 &&
+    product.height > 0 &&
+    product.depth > 0
+  ) {
+    const layout = deriveCaseLayout(product.unitsPerCase!)
+    caseConfig = {
+      unitProductId: product.id,
+      layout,
+      caseStyle: 'open-top' as const,
+      innerPadding: 0.25,
+      dividers: false,
+    }
+    dimensions = calculateCaseDimensions(
+      { width: product.width, height: product.height, depth: product.depth, source: 'manual' },
+      layout,
+      0.25,
+      false,
+    )
   }
+
+  return { dimensions, caseConfig }
 }
 
 // Stamp a slot-based placement with its world transform so the physics
@@ -222,9 +211,7 @@ function commitProjectUpdate(state: DisplayState, nextProject: DisplayProject) {
 export const useDisplayStore = create<DisplayState>((set, get) => ({
   projects: [],
   currentProject: null,
-  selectedSlotId: null,
   selectedProductId: null,
-  ghostProduct: null,
   ...hydrateSelectionState(),
   isPickerOpen: false,
   pickerSelectedProduct: null,
@@ -235,6 +222,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   isDragging3D: false,
   heldPlacementId: null,
   offPalletNotice: null,
+  wakeToken: 0,
 
   setProjects: (projects) => {
     const currentProject = projects[0] ?? null
@@ -283,7 +271,6 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       projects: [...state.projects, project],
       currentProject: project,
       lastUsedConfig: config,
-      viewMode: settings.defaultViewMode,
       activeFace: settings.defaultFace,
       cameraPreset: settings.defaultCameraPreset,
       history: [structuredClone(project)],
@@ -329,9 +316,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       currentProject: project,
       history: [structuredClone(project)],
       historyIndex: 0,
-      selectedSlotId: null,
       selectedProductId: null,
-      ghostProduct: null,
       isPickerOpen: false,
       pickerSelectedProduct: null,
       ...hydrateSelectionState(),
@@ -344,115 +329,11 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       projects: replaceProject(get().projects, project),
       history: [structuredClone(project)],
       historyIndex: 0,
-      selectedSlotId: null,
       selectedProductId: null,
-      ghostProduct: null,
       isPickerOpen: false,
       pickerSelectedProduct: null,
       ...hydrateSelectionState(),
     })
-  },
-
-  placeProduct: (product, slotId) => {
-    const state = get()
-    if (!state.currentProject) return
-
-    const context = buildValidationContext(state)
-    if (!context) return
-
-    const derivedPlacement = derivePlacementFromSlotId(
-      slotId,
-      context.tierConfigs,
-      state.currentProject.palletType,
-    )
-
-    if (!derivedPlacement) {
-      return {
-        valid: false,
-        errors: [{ rule: 'slot', reason: `Slot ${slotId} could not be resolved.` }],
-        warnings: [],
-        suggestions: [],
-      }
-    }
-
-    const existingIndex = state.currentProject.placements.findIndex(
-      (placement) => placement.slotId === slotId
-    )
-    const ignoredPlacementId =
-      existingIndex >= 0 ? state.currentProject.placements[existingIndex].id : undefined
-
-    const displayMode = 'face-out' as const
-    const colSpan = getEffectiveColSpan(
-      product,
-      displayMode,
-      context.wallConfigs[derivedPlacement.wall],
-      derivedPlacement.wall,
-      context.palletConfig,
-      context.allProducts,
-    )
-    const validation = validatePlacement(
-      product,
-      {
-        wall: derivedPlacement.wall,
-        tier: derivedPlacement.tier,
-        gridCol: derivedPlacement.gridCol,
-        colSpan,
-        quantity: 1,
-        displayMode,
-      },
-      context,
-      ignoredPlacementId,
-    )
-
-    if (!validation.valid) {
-      return validation
-    }
-
-    const dimensions = resolveProductDimensions(product, context.allProducts)
-    const filteredPlacements =
-      existingIndex >= 0
-        ? state.currentProject.placements.filter((placement) => placement.slotId !== slotId)
-        : state.currentProject.placements
-
-    const placement: PlacedProduct = {
-      id: crypto.randomUUID(),
-      sourceProductId: product.id,
-      slotId,
-      width: dimensions.width,
-      height: dimensions.height,
-      depth: dimensions.depth,
-      color: product.brandColor,
-      label: product.name,
-      sku: product.sku,
-      category: product.category,
-      imageUrl: product.imageUrl,
-      modelUrl: product.modelUrl,
-      packaging: product.packaging,
-      caseConfig: product.caseConfig,
-      wall: derivedPlacement.wall,
-      tier: derivedPlacement.tier,
-      gridCol: derivedPlacement.gridCol,
-      colSpan,
-      quantity: 1,
-      displayMode,
-    }
-
-    const nextProject = {
-      ...state.currentProject,
-      placements: [
-        ...filteredPlacements,
-        withTransform(placement, state.currentProject),
-      ],
-      updatedAt: Date.now(),
-    }
-
-    set({
-      ...commitProjectUpdate(state, nextProject),
-      isPickerOpen: false,
-      pickerSelectedProduct: null,
-    })
-
-    return validation
   },
 
   spawnProduct: (product) => {
@@ -460,34 +341,9 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     if (!state.currentProject) return undefined
 
     const allProducts = useCatalogStore.getState().products
-    let dimensions = resolveProductDimensions(product, allProducts)
-
-    // Pallet programs deal in cases. When the catalog product is a single
-    // unit but knows its case count, synthesize a caseConfig so the item
-    // places as a real case and renders every unit inside it.
-    let caseConfig = product.caseConfig
-    if (
-      !caseConfig &&
-      (product.unitsPerCase ?? 0) > 1 &&
-      product.width > 0 &&
-      product.height > 0 &&
-      product.depth > 0
-    ) {
-      const layout = deriveCaseLayout(product.unitsPerCase!)
-      caseConfig = {
-        unitProductId: product.id,
-        layout,
-        caseStyle: 'open-top',
-        innerPadding: 0.25,
-        dividers: false,
-      }
-      dimensions = calculateCaseDimensions(
-        { width: product.width, height: product.height, depth: product.depth, source: 'manual' },
-        layout,
-        0.25,
-        false,
-      )
-    }
+    // Pallet programs deal in cases: a single-unit product that knows its
+    // case count places as a real case rendering every unit inside it.
+    const { dimensions, caseConfig } = buildPlacementShape(product, allProducts)
 
     // Spawn in midair in front of the display; the drag manager picks it up
     // and follows the cursor immediately (carry mode).
@@ -523,8 +379,6 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       isPickerOpen: false,
       pickerSelectedProduct: null,
       selectedProductId: null,
-      selectedSlotId: null,
-      ghostProduct: null,
     })
 
     return placement.id
@@ -748,78 +602,15 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     })
   },
 
-  moveProduct: (placementId, newSlotId) => {
-    const state = get()
-    if (!state.currentProject) return
-
-    const context = buildValidationContext(state)
-
-    const nextProject = {
-      ...state.currentProject,
-      placements: state.currentProject.placements.map((placement) => {
-        if (placement.id !== placementId) return placement
-
-        // Re-derive wall/tier/gridCol from the new slot so the stale explicit
-        // fields don't win over the new slotId, then restamp the transform.
-        const derived = context
-          ? derivePlacementFromSlotId(
-              newSlotId,
-              context.tierConfigs,
-              state.currentProject!.palletType,
-            )
-          : null
-
-        const moved = derived
-          ? {
-              ...placement,
-              slotId: newSlotId,
-              wall: derived.wall,
-              tier: derived.tier,
-              gridCol: derived.gridCol,
-            }
-          : { ...placement, slotId: newSlotId }
-
-        return withTransform(moved, state.currentProject!)
-      }),
-      updatedAt: Date.now(),
-    }
-
-    set(commitProjectUpdate(state, nextProject))
-  },
-
-  selectSlot: (slotId) =>
-    set({
-      selectedSlotId: slotId,
-      selectedProductId: null,
-      ghostProduct: null,
-      pickerSelectedProduct: null,
-    }),
-
   selectProduct: (productId) =>
     set({
       selectedProductId: productId,
-      selectedSlotId: null,
-      ghostProduct: null,
       pickerSelectedProduct: null,
-    }),
-
-  setGhostProduct: (ghost) => set({ ghostProduct: ghost }),
-
-  setViewMode: (mode) =>
-    set({
-      viewMode: mode,
-      selectedSlotId: null,
-      selectedProductId: null,
-      ghostProduct: null,
-      pickerSelectedProduct: null,
-      isPickerOpen: false,
     }),
 
   setActiveFace: (face) =>
     set({
       activeFace: face,
-      selectedSlotId: null,
-      ghostProduct: null,
       pickerSelectedProduct: null,
     }),
 
@@ -856,9 +647,13 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     if (!state.currentProject) return
 
     const clamped = Math.min(6, Math.max(2, count))
+    // Legacy slot placements above the new top tier are dropped; free
+    // (physics) placements are kept - waking the scene lets anything left
+    // hanging in the air fall and re-settle on the new shape.
     const validPlacements = state.currentProject.placements.filter((placement) => {
       const tierId = parseInt(placement.slotId.split('-')[0], 10)
-      return !Number.isNaN(tierId) && tierId <= clamped
+      if (Number.isNaN(tierId)) return true
+      return tierId <= clamped
     })
 
     const nextProject = refreshSlotTransforms({
@@ -868,18 +663,25 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       updatedAt: Date.now(),
     })
 
-    set(commitProjectUpdate(state, nextProject))
+    set({
+      ...commitProjectUpdate(state, nextProject),
+      wakeToken: state.wakeToken + 1,
+    })
   },
 
   setPalletType: (type) => {
     const state = get()
     if (!state.currentProject) return
 
+    // Legacy slot placements on walls a half pallet does not have are
+    // dropped; free (physics) placements are kept - the woken scene dumps
+    // anything the new shape cannot support and returns it to the catalog.
     const placements =
       type === 'half'
         ? state.currentProject.placements.filter((placement) => {
             const slotIndex = parseInt(placement.slotId.split('-')[1], 10)
-            return !Number.isNaN(slotIndex) && slotIndex < 1000
+            if (Number.isNaN(slotIndex)) return true
+            return slotIndex < 1000
           })
         : state.currentProject.placements
 
@@ -893,9 +695,8 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     set({
       ...commitProjectUpdate(state, nextProject),
       activeFace: type === 'half' ? 'front' : state.activeFace,
-      selectedSlotId: null,
       selectedProductId: null,
-      ghostProduct: null,
+      wakeToken: state.wakeToken + 1,
     })
   },
 
@@ -1303,22 +1104,22 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       .sort((a, b) => (b.product!.weight ?? 0) - (a.product!.weight ?? 0))
 
     const tierCount = state.currentProject.tierCount
-
-    const context = buildValidationContext(state)
-    if (!context) return
-
-    const wallConfig = context.wallConfigs.front
-    const gridColumns = wallConfig.gridColumns
+    const retailer = useRetailerStore
+      .getState()
+      .getRetailer(state.currentProject.retailerId)
+    const tiers = buildTierConfigs(
+      tierCount,
+      retailer?.maxDisplayHeight ?? 60,
+      state.currentProject.palletType,
+    )
+    const palletHeight = retailer?.palletDimensions.height ?? 6
 
     // Weight-based tier assignment:
-    // Tier 1 (bottom) = heavy items only (heaviest by weight)
-    // Tier N (top)     = lightest items (chips, small packages)
-    // Tiers 2 to N-1   = everything else
+    // Tier 1 (bottom) = heavy items, tier N (top) = lightest, rest between.
     const placements: PlacedProduct[] = []
 
-    // Categorize by weight thresholds
-    const HEAVY_THRESHOLD = 1.5  // lbs — anything above goes on tier 1
-    const LIGHT_THRESHOLD = 0.6  // lbs — anything below goes on top tier
+    const HEAVY_THRESHOLD = 1.5  // lbs - anything above goes on tier 1
+    const LIGHT_THRESHOLD = 0.6  // lbs - anything below goes on top tier
 
     const heavy: typeof sorted = []
     const mid: typeof sorted = []
@@ -1331,20 +1132,14 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       else mid.push(entry)
     }
 
-    // Build assignment: tier 1 = heavy, tier N = light, tiers 2-(N-1) = mid
     const assignments: Array<{ product: typeof sorted[0]['product'], tier: number }> = []
 
-    // Heavy → tier 1
     for (const entry of heavy) {
       assignments.push({ product: entry.product, tier: 1 })
     }
-
-    // Light → top tier
     for (const entry of light) {
       assignments.push({ product: entry.product, tier: tierCount })
     }
-
-    // Mid → distribute across tiers 2 to (N-1), or overflow to 2-N if needed
     const midTierStart = 2
     const midTierEnd = Math.max(midTierStart, tierCount - 1)
     const midTierCount = midTierEnd - midTierStart + 1
@@ -1353,34 +1148,31 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       assignments.push({ product: mid[i].product, tier })
     }
 
-    for (let i = 0; i < assignments.length; i++) {
-      const { product, tier } = assignments[i]
+    // Lay items out left-to-right along each tier's front tray as free
+    // physics placements; gravity settles them when the scene loads.
+    const GAP = 0.75
+    const cursors = new Map<number, number>()
+
+    for (const { product, tier: tierId } of assignments) {
       if (!product) continue
+      const tier = tiers.find((t) => t.id === tierId)
+      if (!tier) continue
 
-      // Find next available column on this tier
-      const usedCols = placements
-        .filter(p => p.tier === tier && p.wall === 'front')
-        .reduce((max, p) => Math.max(max, (p.gridCol ?? 0) + (p.colSpan ?? 1)), 0)
+      const { dimensions, caseConfig } = buildPlacementShape(product, allProducts)
+      if (dimensions.height > tier.trayHeight + 0.5) continue // too tall for this tier
 
-      if (usedCols >= gridColumns) continue // tier is full
+      const startX = -tier.width / 2 + 1
+      const cursor = cursors.get(tierId) ?? startX
+      if (cursor + dimensions.width > tier.width / 2 - 1) continue // tier full
+      cursors.set(tierId, cursor + dimensions.width + GAP)
 
-      const dimensions = resolveProductDimensions(product, allProducts)
-      const colSpan = getEffectiveColSpan(
-        product,
-        'face-out',
-        wallConfig,
-        'front',
-        context.palletConfig,
-        allProducts,
-      )
-
-      const gridCol = Math.min(usedCols, gridColumns - colSpan)
-      const slotId = `${tier}-${gridCol}`
+      const surfaceY = palletHeight + tier.yOffset + 1
+      const frontZ = tier.depth / 2 - dimensions.depth / 2 - 1
 
       placements.push({
         id: crypto.randomUUID(),
         sourceProductId: product.id,
-        slotId,
+        slotId: '',
         width: dimensions.width,
         height: dimensions.height,
         depth: dimensions.depth,
@@ -1391,21 +1183,18 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
         imageUrl: product.imageUrl,
         modelUrl: product.modelUrl,
         packaging: product.packaging,
-        caseConfig: product.caseConfig,
-        wall: 'front',
-        tier,
-        gridCol,
-        colSpan,
+        caseConfig,
         quantity: 1,
-        displayMode: 'face-out',
+        position: [cursor + dimensions.width / 2, surfaceY, frontZ],
+        quaternion: [0, 0, 0, 1],
       })
     }
 
-    const nextProject = refreshSlotTransforms({
+    const nextProject = {
       ...state.currentProject,
       placements,
       updatedAt: Date.now(),
-    })
+    }
 
     set(commitProjectUpdate(state, nextProject))
   },
@@ -1418,9 +1207,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
 
   resetEditorUi: () =>
     set({
-      selectedSlotId: null,
       selectedProductId: null,
-      ghostProduct: null,
       isPickerOpen: false,
       pickerSelectedProduct: null,
       carryPlacementId: null,
@@ -1438,9 +1225,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       currentProject: nextProject,
       projects: replaceProject(projects, nextProject),
       historyIndex: nextHistoryIndex,
-      selectedSlotId: null,
       selectedProductId: null,
-      ghostProduct: null,
     })
   },
 
@@ -1455,9 +1240,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       currentProject: nextProject,
       projects: replaceProject(projects, nextProject),
       historyIndex: nextHistoryIndex,
-      selectedSlotId: null,
       selectedProductId: null,
-      ghostProduct: null,
     })
   },
 }))

@@ -28,16 +28,8 @@ describe('AppLayout', () => {
     const user = userEvent.setup()
 
     useDisplayStore.setState({
-      selectedSlotId: '1-0',
       selectedProductId: 'placed-1',
-      ghostProduct: {
-        slotId: '1-0',
-        width: 1,
-        height: 1,
-        depth: 1,
-        color: '#000',
-        isValid: true,
-      },
+      carryPlacementId: 'placed-1',
       isPickerOpen: true,
     })
 
@@ -57,9 +49,8 @@ describe('AppLayout', () => {
     await user.click(screen.getByRole('button', {name: 'Go Catalog'}))
 
     expect(screen.queryByText('Toolbar Stub')).not.toBeInTheDocument()
-    expect(useDisplayStore.getState().selectedSlotId).toBeNull()
     expect(useDisplayStore.getState().selectedProductId).toBeNull()
-    expect(useDisplayStore.getState().ghostProduct).toBeNull()
+    expect(useDisplayStore.getState().carryPlacementId).toBeNull()
     expect(useDisplayStore.getState().isPickerOpen).toBe(false)
   })
 })

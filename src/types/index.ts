@@ -34,47 +34,6 @@ export interface PalletConfig {
   maxWeight?: number
 }
 
-export interface PlacementSuggestion {
-  type:
-    | 'alternative-position'
-    | 'alternative-tier'
-    | 'alternative-wall'
-    | 'rotate'
-    | 'reduce-quantity'
-  message: string
-  wall?: WallFace
-  tier?: number
-  gridCol?: number
-  displayMode?: 'face-out' | 'spine-out'
-  maxQuantity?: number
-  priority: number
-}
-
-export interface FullValidationResult {
-  valid: boolean
-  errors: Array<{ rule: string; reason: string }>
-  warnings: Array<{ rule: string; reason: string }>
-  suggestions: PlacementSuggestion[]
-}
-
-export interface GhostProduct {
-  slotId: string;          // "tierId-slotIndex"
-  width: number;           // product case width in inches
-  height: number;          // product case height
-  depth: number;           // product case depth
-  color: string;           // brand color hex
-  label?: string;          // product name to show on the box
-  isValid: boolean;        // green if valid, red if invalid
-  worldPosition?: [number, number, number]
-  rotation?: [number, number, number]
-  errorReason?: string
-  suggestions?: PlacementSuggestion[]
-  suggestionMarkers?: Array<{
-    position: [number, number, number]
-    message: string
-  }>
-}
-
 export type PackagingType = 'box' | 'bottle' | 'jar' | 'bag' | 'tin' | 'pouch'
 
 export interface CaseConfig {
@@ -140,13 +99,9 @@ export interface PalletDisplayProps {
 
   // Products
   placedProducts?: PlacedProduct[];
-  ghostProduct?: GhostProduct | null;
   selectedProductId?: string | null;
 
   // Interaction callbacks
-  onSlotClick?: (tierId: number, slotIndex: number, position: [number, number, number]) => void;
-  onSlotHover?: (tierId: number, slotIndex: number, position: [number, number, number]) => void;
-  onSlotHoverEnd?: () => void;
   onProductClick?: (productId: string) => void;
   onRotateProduct?: (productId: string) => void;
   onDeleteProduct?: (productId: string) => void;
@@ -158,7 +113,6 @@ export interface PalletDisplayProps {
   onCameraPresetChange?: (preset: CameraPreset) => void;
 
   // Display
-  showSlotGrid?: boolean; // default true
   showHeader?: boolean; // default true
   environment?: DisplayEnvironment; // default 'retail'
 }
@@ -382,16 +336,4 @@ export interface Season {
   archived: boolean
   createdAt: number
   holidayDate?: number
-}
-
-export interface SlotGridItem {
-  slotId: string
-  tierId: number
-  slotIndex: number
-  face: TrayFace
-  row: number
-  col: number
-  position: [number, number, number]
-  width: number
-  depth: number
 }

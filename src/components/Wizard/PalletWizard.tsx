@@ -167,7 +167,6 @@ export function PalletWizard({
                     headerBackgroundColor: state.headerColor,
                   }}
                   placedProducts={[]}
-                  showSlotGrid={false}
                   showHeader={state.headerEnabled}
                   autoRotate
                   environment="retail"

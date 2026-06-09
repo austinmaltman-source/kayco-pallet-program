@@ -1,22 +1,14 @@
-import React, { useMemo, useEffect } from 'react'
+import React, { useEffect } from 'react'
 import { useGLTF } from '@react-three/drei'
 import { PlacedProduct, TierConfig, PalletType } from '../../types'
-import { ProductRenderer } from './products/ProductRenderer'
 import { ItemBody } from './physics/ItemBody'
 import { useCatalogStore } from '../../stores/catalog-store'
-import { useAppSettingsStore } from '../../stores/app-settings-store'
-import {
-  createDefaultWallConfigs,
-  derivePlacementFromSlotId,
-  getShelfPosition,
-} from '../../lib/shelfCoordinates'
 
 interface PlacedProductsProps {
   products: PlacedProduct[]
   tiers: TierConfig[]
   palletType?: PalletType
   palletDimensions?: { width: number; depth: number; height: number }
-  palletBaseHeight?: number
   selectedProductId?: string | null
   onProductClick?: (productId: string) => void
   onRotateProduct?: (productId: string) => void
@@ -25,17 +17,12 @@ interface PlacedProductsProps {
 
 export const PlacedProducts: React.FC<PlacedProductsProps> = ({
   products,
-  tiers,
-  palletType = 'full',
-  palletDimensions = { width: 48, depth: 40, height: 6 },
-  palletBaseHeight = 6,
   selectedProductId,
   onProductClick,
   onRotateProduct,
   onDeleteProduct,
 }) => {
   const catalogProducts = useCatalogStore((state) => state.products)
-  const editorGridColumns = useAppSettingsStore((state) => state.settings.editorGridColumns)
 
   // Preload all .glb models
   useEffect(() => {
@@ -64,92 +51,23 @@ export const PlacedProducts: React.FC<PlacedProductsProps> = ({
     uniqueUrls.forEach((url) => useGLTF.preload(url))
   }, [catalogProducts, products])
 
-  const wallConfigs = useMemo(
-    () => createDefaultWallConfigs(palletType, editorGridColumns),
-    [editorGridColumns, palletType],
-  )
-
   return (
     <group>
       {products.map((product) => {
-        // Physics path: placements carrying a world transform spawn as
-        // dynamic rigid bodies. Migration stamps transforms on load, so this
-        // is the normal path; the slot math below is the legacy fallback.
-        if (product.position && product.quaternion) {
-          return (
-            <ItemBody
-              key={product.id}
-              placement={
-                product as PlacedProduct & {
-                  position: [number, number, number]
-                  quaternion: [number, number, number, number]
-                }
-              }
-              products={catalogProducts}
-              isSelected={product.id === selectedProductId}
-              onClick={() => onProductClick?.(product.id)}
-              onRotate={() => onRotateProduct?.(product.id)}
-              onDelete={() => onDeleteProduct?.(product.id)}
-            />
-          )
-        }
-
-        const placement =
-          product.wall && product.tier && product.gridCol !== undefined
-            ? {
-                wall: product.wall,
-                tier: product.tier,
-                gridCol: product.gridCol,
-                colSpan: product.colSpan ?? 1,
-                displayMode: product.displayMode ?? 'face-out',
-              }
-            : (() => {
-                const derived = derivePlacementFromSlotId(
-                  product.slotId,
-                  tiers,
-                  palletType,
-                )
-                if (!derived) return null
-                return {
-                  wall: derived.wall,
-                  tier: derived.tier,
-                  gridCol: derived.gridCol,
-                  colSpan: product.colSpan ?? 1,
-                  displayMode: product.displayMode ?? 'face-out',
-                }
-              })()
-
-        if (!placement) return null
-
-        const shelfPosition = getShelfPosition(
-          placement,
-          {
-            width: product.width,
-            height: product.height,
-            depth: product.depth,
-            source: 'manual',
-          },
-          {
-            base: palletDimensions,
-            maxWeight: 2500,
-          },
-          tiers,
-          wallConfigs[placement.wall],
-        )
-        const position: [number, number, number] = [
-          shelfPosition.position[0],
-          shelfPosition.position[1],
-          shelfPosition.position[2],
-        ]
+        // Every placement carries a world transform (stamped by migration or
+        // by physics settling); anything without one cannot be positioned.
+        if (!product.position || !product.quaternion) return null
 
         return (
-          <ProductRenderer
+          <ItemBody
             key={product.id}
-            product={product}
+            placement={
+              product as PlacedProduct & {
+                position: [number, number, number]
+                quaternion: [number, number, number, number]
+              }
+            }
             products={catalogProducts}
-            position={position}
-            rotation={shelfPosition.rotation}
-            availableSpace={shelfPosition.availableSpace}
             isSelected={product.id === selectedProductId}
             onClick={() => onProductClick?.(product.id)}
             onRotate={() => onRotateProduct?.(product.id)}

@@ -127,13 +127,7 @@ export function PalletWizardPreview(props: PalletWizardPreviewProps) {
         palletType={palletType === 'custom' ? 'full' : palletType}
         lipColor={lipColor}
         branding={branding}
-        showSlotGrid={false}
         showHeader={headerEnabled}
-        hoveredSlot={null}
-        selectedSlot={null}
-        onPointerOver={noopPointer}
-        onPointerOut={noopOut}
-        onClick={noopPointer}
       />
 
       {/* Branded panels */}

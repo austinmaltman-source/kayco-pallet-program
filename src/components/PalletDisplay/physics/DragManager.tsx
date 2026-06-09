@@ -97,6 +97,14 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
     | null
 
   const carryPlacementId = useDisplayStore((s) => s.carryPlacementId)
+  const wakeToken = useDisplayStore((s) => s.wakeToken)
+
+  // Shelf geometry changed (tier count, pallet type): wake every body so
+  // items left hanging in the air fall and re-settle on the new shape.
+  useEffect(() => {
+    if (wakeToken === 0) return
+    bodies.current.forEach((body) => body.wakeUp())
+  }, [wakeToken])
 
   const setControlsEnabled = useCallback(
     (enabled: boolean) => {

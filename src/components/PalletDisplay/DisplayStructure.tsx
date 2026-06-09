@@ -8,14 +8,7 @@ interface DisplayStructureProps {
   palletType?: PalletType;
   lipColor?: string;
   branding?: DisplayBranding;
-  showSlotGrid?: boolean;
   showHeader?: boolean;
-  slotsOnly?: boolean;
-  hoveredSlot: string | null;
-  selectedSlot: string | null;
-  onPointerOver: (tierId: number, slotIndex: number, position: [number, number, number], e: any) => void;
-  onPointerOut: (e: any) => void;
-  onClick: (tierId: number, slotIndex: number, position: [number, number, number], e: any) => void;
 }
 
 export const DisplayStructure: React.FC<DisplayStructureProps> = ({
@@ -23,14 +16,7 @@ export const DisplayStructure: React.FC<DisplayStructureProps> = ({
   palletType = 'full',
   lipColor,
   branding,
-  showSlotGrid,
   showHeader,
-  slotsOnly = false,
-  hoveredSlot,
-  selectedSlot,
-  onPointerOver,
-  onPointerOut,
-  onClick,
 }) => {
   // Pallet height is 6, so we start the structure at y=6
   const palletHeight = 6;
@@ -47,17 +33,10 @@ export const DisplayStructure: React.FC<DisplayStructureProps> = ({
           palletType={palletType}
           lipColor={lipColor}
           branding={branding}
-          showSlotGrid={showSlotGrid}
-          slotsOnly={slotsOnly}
-          hoveredSlot={hoveredSlot}
-          selectedSlot={selectedSlot}
-          onPointerOver={onPointerOver}
-          onPointerOut={onPointerOut}
-          onClick={onClick}
         />
       ))}
 
-      {showHeader && !slotsOnly && (
+      {showHeader && (
         <HeaderTopper
           yPosition={totalHeight}
           text={branding?.headerText}

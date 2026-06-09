@@ -20,10 +20,7 @@ export function resetAllStores() {
   useDisplayStore.setState({
     projects: [],
     currentProject: null,
-    selectedSlotId: null,
     selectedProductId: null,
-    ghostProduct: null,
-    viewMode: DEFAULT_SETTINGS.defaultViewMode,
     activeFace: DEFAULT_SETTINGS.defaultFace,
     cameraPreset: DEFAULT_SETTINGS.defaultCameraPreset,
     isPickerOpen: false,
@@ -31,6 +28,11 @@ export function resetAllStores() {
     history: [],
     historyIndex: -1,
     lastUsedConfig: null,
+    carryPlacementId: null,
+    isDragging3D: false,
+    heldPlacementId: null,
+    offPalletNotice: null,
+    wakeToken: 0,
   })
 }
 

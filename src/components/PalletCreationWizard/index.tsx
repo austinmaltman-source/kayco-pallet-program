@@ -140,7 +140,6 @@ function PalletTypeCarousel({
                 headerBackgroundColor: '#3B7DD8',
               }}
               placedProducts={[]}
-              showSlotGrid={false}
               showHeader
               autoRotate
               environment="retail"
