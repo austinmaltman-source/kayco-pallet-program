@@ -11,6 +11,8 @@ import { GhostProduct } from './GhostProduct';
 import { PlacedProducts } from './PlacedProducts';
 import { SandboxPhysics } from './physics/SandboxPhysics';
 import { FixedColliders } from './physics/FixedColliders';
+import { DragManager } from './physics/DragManager';
+import { useDisplayStore } from '../../stores/display-store';
 
 // Kayco half pallet visual components
 import { PalletBase as KaycoPalletBase } from '@/components/scene/pallet/PalletBase';
@@ -55,6 +57,7 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
   } = useSlotInteraction(onSlotClick, onSlotHover, onSlotHoverEnd);
 
   const { isAnimating } = useCameraPresets(cameraPreset);
+  const isDragging3D = useDisplayStore((s) => s.isDragging3D);
 
   // Kayco PalletConfig for half pallet visuals
   const kaycoPallet = useMemo(() => {
@@ -161,6 +164,7 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
       <RetailEnvironment environmentType={environment} />
 
       <SandboxPhysics>
+      <DragManager maxDisplayHeight={maxDisplayHeight}>
       <group position={[0, 0, 0]}>
         <FixedColliders
           tiers={tiers}
@@ -246,11 +250,12 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
           </>
         )}
       </group>
+      </DragManager>
       </SandboxPhysics>
 
       <OrbitControls
         makeDefault
-        enabled={!isAnimating}
+        enabled={!isAnimating && !isDragging3D}
         minDistance={36}
         maxDistance={180}
         minPolarAngle={10 * (Math.PI / 180)}

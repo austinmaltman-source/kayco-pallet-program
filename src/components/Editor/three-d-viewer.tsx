@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react'
 import { useDisplayStore } from '../../stores/display-store'
 import { PalletDisplay } from '../PalletDisplay'
 import { PalletNavigator } from './pallet-navigator'
@@ -27,6 +28,8 @@ export function ThreeDViewer() {
   const placeProduct = useDisplayStore(s => s.placeProduct)
   const rotateProduct = useDisplayStore(s => s.rotateProduct)
   const removeProduct = useDisplayStore(s => s.removeProduct)
+  const openPicker = useDisplayStore(s => s.openPicker)
+  const carryPlacementId = useDisplayStore(s => s.carryPlacementId)
   const show3DSlotGrid = useAppSettingsStore((s) => s.settings.show3DSlotGrid)
   const show3DHeader = useAppSettingsStore((s) => s.settings.show3DHeader)
   const editorGridColumns = useAppSettingsStore((s) => s.settings.editorGridColumns)
@@ -224,6 +227,22 @@ export function ThreeDViewer() {
       {/* Pallet Navigator — same widget as 2D, also controls camera in 3D */}
       <div className="absolute top-20 left-4 z-20">
         <PalletNavigator />
+      </div>
+
+      {/* Add product: spawns an item carried by the cursor */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2">
+        {carryPlacementId && (
+          <div className="px-3 py-1.5 rounded-md bg-black/70 backdrop-blur text-[11px] font-medium text-white">
+            Click to place &middot; R rotates &middot; Esc cancels
+          </div>
+        )}
+        <button
+          onClick={openPicker}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md bg-[#171717] text-white text-[12px] font-medium hover:bg-[#333] shadow-elevated transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Add product
+        </button>
       </div>
     </div>
   )

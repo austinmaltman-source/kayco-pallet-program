@@ -43,6 +43,12 @@ interface DisplayState {
   history: DisplayProject[]
   historyIndex: number
   lastUsedConfig: PalletWizardConfig | null
+  // Physics sandbox interaction state (not persisted)
+  carryPlacementId: string | null
+  isDragging3D: boolean
+  // Placement currently held by the cursor; its body renders kinematic so
+  // React re-renders cannot flip it back to dynamic mid-drag.
+  heldPlacementId: string | null
 
   setProjects: (projects: DisplayProject[]) => void
   createProject: (name: string, config: PalletWizardConfig, tierCount?: number) => DisplayProject
@@ -53,6 +59,19 @@ interface DisplayState {
   selectProject: (id: string) => void
   setCurrentProject: (project: DisplayProject) => void
   placeProduct: (product: Product, slotId: string) => FullValidationResult | undefined
+  // Spawn a free (physics) placement carried by the cursor until placed.
+  spawnProduct: (product: Product) => string | undefined
+  // Write physics-settled transforms back; clears slot fields on moved items.
+  settlePlacements: (
+    updates: {
+      id: string
+      position: [number, number, number]
+      quaternion: [number, number, number, number]
+    }[],
+  ) => void
+  setCarryPlacement: (placementId: string | null) => void
+  setDragging3D: (dragging: boolean) => void
+  setHeldPlacement: (placementId: string | null) => void
   rotateProduct: (placementId: string) => void
   removeProduct: (placementId: string) => void
   moveProduct: (placementId: string, newSlotId: string) => void
@@ -205,6 +224,9 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   history: [],
   historyIndex: -1,
   lastUsedConfig: JSON.parse(localStorage.getItem('lastUsedConfig') ?? 'null'),
+  carryPlacementId: null,
+  isDragging3D: false,
+  heldPlacementId: null,
 
   setProjects: (projects) => {
     const currentProject = projects[0] ?? null
@@ -425,20 +447,158 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     return validation
   },
 
+  spawnProduct: (product) => {
+    const state = get()
+    if (!state.currentProject) return undefined
+
+    const allProducts = useCatalogStore.getState().products
+    const dimensions = resolveProductDimensions(product, allProducts)
+
+    // Spawn in midair in front of the display; the drag manager picks it up
+    // and follows the cursor immediately (carry mode).
+    const placement: PlacedProduct = {
+      id: crypto.randomUUID(),
+      sourceProductId: product.id,
+      slotId: '',
+      width: dimensions.width,
+      height: dimensions.height,
+      depth: dimensions.depth,
+      color: product.brandColor,
+      label: product.name,
+      sku: product.sku,
+      category: product.category,
+      imageUrl: product.imageUrl,
+      modelUrl: product.modelUrl,
+      packaging: product.packaging,
+      caseConfig: product.caseConfig,
+      quantity: 1,
+      position: [0, 50, 30],
+      quaternion: [0, 0, 0, 1],
+    }
+
+    const nextProject = {
+      ...state.currentProject,
+      placements: [...state.currentProject.placements, placement],
+      updatedAt: Date.now(),
+    }
+
+    set({
+      ...commitProjectUpdate(state, nextProject),
+      carryPlacementId: placement.id,
+      isPickerOpen: false,
+      pickerSelectedProduct: null,
+      selectedProductId: null,
+      selectedSlotId: null,
+      ghostProduct: null,
+    })
+
+    return placement.id
+  },
+
+  settlePlacements: (updates) => {
+    const state = get()
+    if (!state.currentProject || updates.length === 0) return
+
+    const updateMap = new Map(updates.map((update) => [update.id, update]))
+    let changed = false
+
+    const placements = state.currentProject.placements.map((placement) => {
+      const update = updateMap.get(placement.id)
+      if (!update) return placement
+
+      // Skip writes that are within noise of the stored transform so a
+      // body's spawn-time auto-sleep does not strip its slot data or spam
+      // the undo history.
+      if (placement.position && placement.quaternion) {
+        const [px, py, pz] = placement.position
+        const [ux, uy, uz] = update.position
+        const positionClose =
+          Math.abs(px - ux) < 0.05 &&
+          Math.abs(py - uy) < 0.05 &&
+          Math.abs(pz - uz) < 0.05
+        const [qx, qy, qz, qw] = placement.quaternion
+        const [vx, vy, vz, vw] = update.quaternion
+        const dot = Math.abs(qx * vx + qy * vy + qz * vz + qw * vw)
+        if (positionClose && dot > 0.99995) return placement
+      }
+
+      // Reject blown-up physics states; keep the last good transform.
+      const values = [...update.position, ...update.quaternion]
+      if (values.some((value) => !Number.isFinite(value)) || update.position[1] < -10) {
+        return placement
+      }
+
+      changed = true
+      // The item physically moved: world transform is now its only truth.
+      return {
+        ...placement,
+        position: update.position,
+        quaternion: update.quaternion,
+        slotId: '',
+        wall: undefined,
+        tier: undefined,
+        gridCol: undefined,
+        colSpan: undefined,
+        displayMode: undefined,
+      }
+    })
+
+    if (!changed) return
+
+    set(
+      commitProjectUpdate(state, {
+        ...state.currentProject,
+        placements,
+        updatedAt: Date.now(),
+      }),
+    )
+  },
+
+  setCarryPlacement: (placementId) => set({ carryPlacementId: placementId }),
+
+  setDragging3D: (dragging) => set({ isDragging3D: dragging }),
+
+  setHeldPlacement: (placementId) => set({ heldPlacementId: placementId }),
+
   rotateProduct: (placementId) => {
     const state = get()
     if (!state.currentProject) return
 
     const nextProject = {
       ...state.currentProject,
-      placements: state.currentProject.placements.map((placement) =>
-        placement.id === placementId
-          ? withTransform(
-              { ...placement, orientation: nextOrientation(placement.orientation) },
-              state.currentProject!,
-            )
-          : placement
-      ),
+      placements: state.currentProject.placements.map((placement) => {
+        if (placement.id !== placementId) return placement
+
+        // Free (physics) placement: step the quaternion 90 degrees around
+        // the world up axis and let the body re-settle.
+        const isFree =
+          placement.position &&
+          placement.quaternion &&
+          placement.wall === undefined &&
+          !placement.slotId
+        if (isFree) {
+          const [qx, qy, qz, qw] = placement.quaternion!
+          const half = Math.PI / 4
+          const yawX = 0
+          const yawY = Math.sin(half)
+          const yawZ = 0
+          const yawW = Math.cos(half)
+          // quaternion multiply: yaw * q
+          const nx = yawW * qx + yawX * qw + yawY * qz - yawZ * qy
+          const ny = yawW * qy - yawX * qz + yawY * qw + yawZ * qx
+          const nz = yawW * qz + yawX * qy - yawY * qx + yawZ * qw
+          const nw = yawW * qw - yawX * qx - yawY * qy - yawZ * qz
+          return {
+            ...placement,
+            quaternion: [nx, ny, nz, nw] as [number, number, number, number],
+          }
+        }
+
+        return withTransform(
+          { ...placement, orientation: nextOrientation(placement.orientation) },
+          state.currentProject!,
+        )
+      }),
       updatedAt: Date.now(),
     }
 
@@ -461,6 +621,8 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       ...commitProjectUpdate(state, nextProject),
       selectedProductId:
         state.selectedProductId === placementId ? null : state.selectedProductId,
+      carryPlacementId:
+        state.carryPlacementId === placementId ? null : state.carryPlacementId,
     })
   },
 
@@ -1139,6 +1301,8 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
       ghostProduct: null,
       isPickerOpen: false,
       pickerSelectedProduct: null,
+      carryPlacementId: null,
+      isDragging3D: false,
     }),
 
   undo: () => {

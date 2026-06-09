@@ -21,6 +21,8 @@ export function ProductPickerModal() {
   const closePicker = useDisplayStore(s => s.closePicker)
   const selectedSlotId = useDisplayStore(s => s.selectedSlotId)
   const placeProduct = useDisplayStore(s => s.placeProduct)
+  const spawnProduct = useDisplayStore(s => s.spawnProduct)
+  const viewMode = useDisplayStore(s => s.viewMode)
   const pickerSelectedProduct = useDisplayStore(s => s.pickerSelectedProduct)
   const setPickerProduct = useDisplayStore(s => s.setPickerProduct)
 
@@ -148,6 +150,14 @@ export function ProductPickerModal() {
 
   const handleStartPlacement = () => {
     if (!selectedProduct) return
+    if (viewMode === '3d') {
+      // Physics sandbox: spawn the item carried by the cursor; the user
+      // drops it wherever it should live and gravity settles it.
+      spawnProduct(selectedProduct)
+      setSelectedProduct(null)
+      resetFilters()
+      return
+    }
     setPickerProduct(selectedProduct)
     closePicker()
     setSelectedProduct(null)
@@ -329,7 +339,7 @@ export function ProductPickerModal() {
                   : 'bg-[#f5f5f5] text-[#ccc] cursor-not-allowed'
               }`}
             >
-              {selectedSlotId ? 'Place Product' : 'Choose Slot'}
+              {selectedSlotId ? 'Place Product' : viewMode === '3d' ? 'Add to Pallet' : 'Choose Slot'}
             </button>
           </div>
         </footer>
