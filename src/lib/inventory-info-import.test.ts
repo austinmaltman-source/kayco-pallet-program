@@ -182,7 +182,7 @@ describe('mergeInventoryInfoRowsIntoProducts', () => {
     })
   })
 
-  it('replaces the catalog with active inventory products only', () => {
+  it('updates matched products and preserves the rest of the catalog', () => {
     const result = mergeInventoryInfoIntoProducts(
       [
         makeProduct({
@@ -210,7 +210,7 @@ describe('mergeInventoryInfoRowsIntoProducts', () => {
       ],
     )
 
-    expect(result.products).toHaveLength(1)
+    expect(result.products).toHaveLength(3)
     expect(result.products[0]).toMatchObject({
       id: 'active-product',
       name: 'ACTIVE ITEM',
@@ -218,6 +218,11 @@ describe('mergeInventoryInfoRowsIntoProducts', () => {
       kaycoItemNumber: '100104',
       weight: 4.67,
     })
+    // Unmatched products survive the merge - manually authorized or
+    // hand-imported items must not be dropped by an inventory refresh.
+    const ids = result.products.map((product) => product.id)
+    expect(ids).toContain('inactive-product')
+    expect(ids).toContain('manual-product')
     expect(result.skippedRows).toBe(2)
   })
 })

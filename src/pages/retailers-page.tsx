@@ -26,11 +26,6 @@ export function RetailersPage() {
   const { retailers, addRetailer, updateRetailer, deleteRetailer } = useRetailerStore()
   const projects = useDisplayStore((state) => state.projects)
   const role = useRoleStore((state) => state.role)
-  // The salesman home already lists every assigned retailer with their
-  // programs underneath, so this directory view is redundant for that role.
-  if (role === 'salesman') {
-    return <Navigate to="/salesman" replace />
-  }
   const activeSalesperson = null
   const navigate = useNavigate()
   const { confirm, dialog: confirmDialog } = useConfirm()
@@ -129,6 +124,13 @@ export function RetailersPage() {
 
   function handleCardClick(id: string) {
     navigate(`/${role}/retailers/${id}`)
+  }
+
+  // The salesman home already lists every assigned retailer with their
+  // programs underneath, so this directory view is redundant for that role.
+  // Must stay below every hook call so the hook order never changes.
+  if (role === 'salesman') {
+    return <Navigate to="/salesman" replace />
   }
 
   const isSalesman = false

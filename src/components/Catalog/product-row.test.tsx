@@ -1,6 +1,7 @@
 import {render, screen} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {describe, expect, it, vi} from 'vitest'
+import {MemoryRouter} from 'react-router-dom'
 import {ProductRow} from './product-row'
 import {useCatalogStore} from '../../stores/catalog-store'
 import {makeProduct} from '../../test/test-utils'
@@ -22,15 +23,18 @@ describe('ProductRow', () => {
     useCatalogStore.getState().setProducts([product])
 
     render(
-      <table>
-        <tbody>
-          <ProductRow product={product} />
-        </tbody>
-      </table>
+      <MemoryRouter initialEntries={['/manager/catalog']}>
+        <table>
+          <tbody>
+            <ProductRow product={product} />
+          </tbody>
+        </table>
+      </MemoryRouter>
     )
 
+    // Row clicks navigate with the role prefix taken from the current URL.
     await user.click(screen.getByText('Row Product'))
-    expect(navigateMock).toHaveBeenCalledWith('/catalog/prod-row')
+    expect(navigateMock).toHaveBeenCalledWith('/manager/catalog/prod-row')
 
     navigateMock.mockClear()
     await user.click(screen.getByRole('button', {name: /More actions for Row Product/i}))

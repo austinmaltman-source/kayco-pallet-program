@@ -5,13 +5,8 @@ import {useAppSettingsStore} from './stores/app-settings-store'
 import {useCatalogStore} from './stores/catalog-store'
 import {useDisplayStore} from './stores/display-store'
 import {useRetailerStore} from './stores/retailer-store'
-import {mockProducts, mockRetailers} from './lib/mock-data'
+import {mockRetailers} from './lib/mock-data'
 import {makeProduct, makeProject, makeRetailer} from './test/test-utils'
-
-vi.mock('./components/layout/app-layout', async () => {
-  const {Outlet} = await import('react-router-dom')
-  return {AppLayout: () => <Outlet />}
-})
 
 vi.mock('./pages/editor-page', () => ({
   EditorPage: () => <div>Editor Page</div>,
@@ -46,21 +41,9 @@ vi.mock('./pages/settings-page', () => ({
 }))
 
 describe('App', () => {
-  it('hydrates persisted data while merging in missing mock products and authorizations', async () => {
+  it('hydrates persisted data while merging in mock retailers and authorizations', async () => {
     const persistedProducts = [
       makeProduct({id: 'prod-persisted', name: 'Persisted Product'}),
-      makeProduct({
-        id: 'prod-8',
-        name: 'Tea Biscuits',
-        sku: 'KED-TBSC-1',
-        brand: 'kedem',
-        brandColor: '#991B1B',
-        category: 'Snacks',
-        width: 6,
-        height: 3,
-        depth: 2,
-        weight: 0.5,
-      }),
     ]
     const persistedRetailers = [makeRetailer({id: 'ret-persisted', name: 'Persisted Retailer'})]
     const persistedProject = makeProject({
@@ -77,30 +60,34 @@ describe('App', () => {
     render(<App />)
 
     await waitFor(() => {
+      // The product seed was removed: the catalog hydrates from persistence
+      // only (the inventory feed is absent in tests, so nothing merges in).
       const catalogProducts = useCatalogStore.getState().products
-      expect(catalogProducts.length).toBeGreaterThan(mockProducts.length)
-      expect(catalogProducts.some((product) => product.id === 'prod-persisted')).toBe(true)
-      expect(useCatalogStore.getState().getProduct('prod-8')?.modelUrl).toBe(
-        '/models/kedem-tea-biscuits.glb'
-      )
-      expect(useCatalogStore.getState().getProduct('prod-8')?.packaging).toBe('box')
-      expect(useRetailerStore.getState().retailers).toEqual([
-        ...persistedRetailers,
-        ...mockRetailers,
-      ])
-      expect(useDisplayStore.getState().projects).toEqual([persistedProject])
-      expect(useDisplayStore.getState().currentProject).toEqual(persistedProject)
+      expect(catalogProducts.map((product) => product.id)).toEqual(['prod-persisted'])
+
+      const retailerIds = useRetailerStore.getState().retailers.map((retailer) => retailer.id)
+      expect(retailerIds[0]).toBe('ret-persisted')
+      mockRetailers.forEach((retailer) => expect(retailerIds).toContain(retailer.id))
+
+      expect(useDisplayStore.getState().projects).toHaveLength(1)
+      expect(useDisplayStore.getState().projects[0]).toMatchObject({
+        id: 'proj-persisted',
+        name: 'Persisted Project',
+        retailerId: 'ret-persisted',
+      })
+      expect(useDisplayStore.getState().currentProject?.id).toBe('proj-persisted')
     })
   })
 
-  it('falls back to mock data and clears corrupt persisted catalog data', async () => {
+  it('clears corrupt persisted catalog data', async () => {
     localStorage.setItem('palletforge-products', '{bad json')
 
     render(<App />)
 
     await waitFor(() => {
       expect(localStorage.getItem('palletforge-products')).toBeNull()
-      expect(useCatalogStore.getState().products.length).toBeGreaterThan(0)
+      // No product seed: the catalog stays empty until the inventory feed loads.
+      expect(useCatalogStore.getState().products).toEqual([])
     })
   })
 

@@ -27,17 +27,19 @@ describe('RetailersPage', () => {
 
   it('filters retailers and supports add flow', async () => {
     const user = userEvent.setup()
-    renderWithRouter(<RetailersPage />, {route: '/retailers'})
+    renderWithRouter(<RetailersPage />, {route: '/manager/retailers'})
 
     await user.type(screen.getByPlaceholderText('Search retailers...'), 'Queens')
     expect(screen.getByText('Alpha Stores')).toBeInTheDocument()
     expect(screen.queryByText('Beta Market')).not.toBeInTheDocument()
 
     await user.clear(screen.getByPlaceholderText('Search retailers...'))
-    await user.click(screen.getByRole('button', {name: /Add Retailer/i}))
+    // Retailers are presented as "programs" - the opener and the form submit
+    // share the Add Program label, so the second match is the submit.
+    await user.click(screen.getByRole('button', {name: /Add Program/i}))
 
     await user.type(screen.getByPlaceholderText('e.g. Walmart'), 'Gamma Wholesale')
-    await user.click(screen.getAllByRole('button', {name: /^Add Retailer$/i})[1])
+    await user.click(screen.getAllByRole('button', {name: /^Add Program$/i})[1])
 
     expect(useRetailerStore.getState().retailers.some((retailer) => retailer.name === 'Gamma Wholesale')).toBe(true)
   })

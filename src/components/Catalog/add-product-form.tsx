@@ -203,7 +203,7 @@ export function AddProductForm({ onClose }: AddProductFormProps) {
           </div>
           <div className="col-span-4 flex gap-2 pt-2">
             <div className="w-full text-[11px] text-[#777] mb-1">
-              {inventoryNotice ?? 'Adding a product creates the single SKU plus auto-generated 6-pack, 12-pack, and 24-pack case variants.'}
+              {inventoryNotice ?? 'Tip: enter a Kayco Item # to pull dimensions, case pack, and cost from inventory info. Case Pack controls how many units a case holds in the 3D editor.'}
             </div>
           </div>
           <div className="col-span-4 flex gap-2">

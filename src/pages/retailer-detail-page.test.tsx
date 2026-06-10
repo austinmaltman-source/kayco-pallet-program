@@ -48,25 +48,27 @@ describe('RetailerDetailPage', () => {
       screen.getByPlaceholderText('Search by name, SKU, brand, or category...'),
       'Add Me',
     )
-    const productRow = screen.getByText('Add Me Product').closest('div[class*="flex-1"]')?.parentElement
-    expect(productRow).not.toBeNull()
-    await user.click(within(productRow as HTMLElement).getByRole('button', { name: /^Add$/i }))
+    await user.click(screen.getByRole('button', { name: /^Add$/i }))
 
+    // New items land as authorized; status changes via action buttons.
     await waitFor(() => {
       expect(screen.getByText('Add Me Product')).toBeInTheDocument()
     })
+    expect(
+      useRetailerStore
+        .getState()
+        .getRetailer('ret-1')
+        ?.authorizedItems.find((item) => item.productId === 'prod-add')?.status,
+    ).toBe('authorized')
 
-    await user.selectOptions(
-      screen.getByLabelText('Status for Add Me Product'),
-      'pending',
-    )
+    await user.click(screen.getByRole('button', { name: /Discontinue/i }))
 
     expect(
       useRetailerStore
         .getState()
         .getRetailer('ret-1')
         ?.authorizedItems.find((item) => item.productId === 'prod-add')?.status,
-    ).toBe('pending')
+    ).toBe('discontinued')
 
     await user.click(screen.getByLabelText('Remove Add Me Product'))
 
