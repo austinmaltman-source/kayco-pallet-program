@@ -730,6 +730,10 @@ export function RetailerDetailPage() {
             label: formatHoliday(pallet.season),
           })
         }
+      } else if (!byKey.has('none')) {
+        // Pallets without a season still belong to a program - the same
+        // "Everyday" group the salesman home links to via /program/none.
+        byKey.set('none', { key: 'none', label: 'Everyday' })
       }
     }
     return Array.from(byKey.values())

@@ -1,17 +1,39 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { RetailerDetailPage } from './retailer-detail-page'
 import { useCatalogStore } from '../stores/catalog-store'
+import { useDisplayStore } from '../stores/display-store'
 import { useRetailerStore } from '../stores/retailer-store'
-import { makeProduct, makeRetailer } from '../test/test-utils'
+import { useRoleStore } from '../stores/role-store'
+import { makeProduct, makeProject, makeRetailer } from '../test/test-utils'
 
 vi.mock('../components/Wizard/PalletWizard', () => ({
   PalletWizard: () => null,
 }))
 
 describe('RetailerDetailPage', () => {
+  it('shows an Everyday program card for salesmen when a pallet has no season', async () => {
+    useRoleStore.getState().setRole('salesman')
+    useRetailerStore.getState().setRetailers([
+      makeRetailer({ id: 'ret-1', name: 'Retail Partner' }),
+    ])
+    useDisplayStore.getState().setProjects([
+      makeProject({ id: 'proj-none', retailerId: 'ret-1', season: 'none', seasonId: null }),
+    ])
+
+    render(
+      <MemoryRouter initialEntries={['/salesman/retailers/ret-1']}>
+        <Routes>
+          <Route path="/:role/retailers/:id" element={<RetailerDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Everyday')).toBeInTheDocument()
+  })
+
   it('supports adding, updating, and removing retailer items', async () => {
     const user = userEvent.setup()
 

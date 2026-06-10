@@ -29,7 +29,7 @@ import { useSeasonStore } from './stores/season-store'
 import { useSalespersonStore } from './stores/salesperson-store'
 import { useInventoryStore } from './stores/inventory-store'
 import { useAppSettingsStore } from './stores/app-settings-store'
-import { mockRetailers } from './lib/mock-data'
+import { mockRetailers, mockSalespeople } from './lib/mock-data'
 import { loadInventoryInfo } from './lib/inventory-info-loader'
 import { mergeInventoryInfoIntoProducts } from './lib/inventory-info-import'
 import { migrateProjectPlacements } from './lib/placementMigration'
@@ -268,8 +268,11 @@ export default function App() {
       })),
     )
 
+    // Fall back to the demo team (same pattern as retailers) so the salesman
+    // workspace is usable in a fresh browser instead of dead-ending on
+    // "no salespeople yet".
     const persistedSalespeople =
-      loadPersistedState<Salesperson[]>(SALESPEOPLE_STORAGE_KEY) ?? []
+      loadPersistedState<Salesperson[]>(SALESPEOPLE_STORAGE_KEY) ?? mockSalespeople
     useSalespersonStore.getState().setSalespeople(persistedSalespeople)
 
     const persistedInventory = loadPersistedState<
