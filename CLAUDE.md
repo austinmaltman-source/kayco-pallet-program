@@ -32,6 +32,20 @@ PalletForge plans pallet programs for **Kayco**. Single-tenant, no auth — role
 - **CSV exports:** use [`buildCsv` + `downloadCsv`](src/lib/csv.ts). Don't roll your own.
 - **Visual style:** white cards on `#fafafa`, black accent `#171717` for primary buttons, `text-[10px] uppercase tracking-wider` for label captions, `tabular-nums` on numeric cells. Don't redesign without explicit ask.
 
+## 3D physics editor (the only pallet editor)
+
+The slot-grid/2D editor is retired. The editor is a Rapier physics sandbox
+([src/components/PalletDisplay/physics/](src/components/PalletDisplay/physics/)):
+
+- **World units are inches**, gravity is `-386 in/s2` (`SandboxPhysics.tsx`). Y-up, origin at pallet center.
+- **Source of truth:** `PlacedProduct.position` (bottom-center anchor) + `quaternion`, plain JSON in `display-store`. Never persist physics engine state. Legacy slot fields (`slotId`, `wall`, `tier`, `gridCol`) exist only so [placementMigration.ts](src/lib/placementMigration.ts) can convert old localStorage data on load.
+- **Settle write-back:** bodies report transforms on sleep (`settle.ts`, debounced) -> `settlePlacements`. Rapier's sleep thresholds assume meters, so `DragManager` force-sleeps quiet bodies and clamps bystander velocity - don't remove the watchdog.
+- **Held items** are kinematic via the `heldPlacementId` store field driving the RigidBody `type` prop. Never set body type only imperatively; a React re-render will revert it.
+- **Suspense:** every item's visuals load inside the per-item boundary in `ItemBody`. Don't add a scene-wide Suspense that can remount rigid bodies.
+- **Fit is physical:** colliders (deck, shelves, lips, max-height ceiling) enforce volume; items settling on the floor are returned to the catalog. The only advisory check is the total-weight HUD chip (`resolvePlacementWeight`).
+- **Cases:** products with `unitsPerCase > 1` get a synthesized `caseConfig` (`buildPlacementShape` in display-store, `deriveCaseLayout`); units render via `CaseItemGrid` (GLB) or `PrimitiveCaseItemGrid` (no GLB). A case is one rigid body.
+- When shelf geometry changes (tier count, pallet type), bump `wakeToken` so bodies wake and re-settle.
+
 ## Pallet creation wizard
 
 [`<PalletCreationWizard>`](src/components/PalletCreationWizard/index.tsx) accepts:
