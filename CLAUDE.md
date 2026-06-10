@@ -21,6 +21,7 @@ PalletForge plans pallet programs for **Kayco**. Single-tenant, no auth — role
 
 ## Architecture conventions (don't drift)
 
+- **No early returns above hooks.** Stores hydrate a tick after first render on a hard page load, so a "not found" guard above a `useMemo`/`useEffect` crashes React with a hook-order error the moment data arrives. Guards go after the last hook. (Bit us twice: retailers-page, program-rollup-page.)
 - **Stores:** zustand, one per concept under [src/stores/](src/stores/). Persistence is wired in [src/App.tsx](src/App.tsx) (`loadPersistedState` → `setX` on startup, `subscribe` → `localStorage.setItem` for writes). Follow this pattern for any new store.
 - **Role-route gating:** [src/lib/role-routes.ts](src/lib/role-routes.ts) is the **single source of truth**. The Sidebar nav and AppLayout's redirect both consume it. Never duplicate role-permission logic elsewhere — extend the rules array.
 - **Context-switch redirects:** AppLayout watches role + pathname and redirects to `/` if the route isn't allowed for the current role. Apply this rule to any future context (active salesperson, current pallet, etc.) — never leave the user stranded on an invalid route after a switch.
