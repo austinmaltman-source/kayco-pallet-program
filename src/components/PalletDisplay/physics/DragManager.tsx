@@ -30,9 +30,24 @@ const QUIET_SECONDS = 1
 const MAX_LINEAR_SPEED = 50
 const MAX_ANGULAR_SPEED = 12
 
+// Inches per keyboard-nudge keypress on a selected item (Shift = fine step).
+const NUDGE_STEP = 1
+const NUDGE_FINE_STEP = 0.25
+
 const PRESET_QUATERNIONS = ORIENTATION_PRESETS.map((preset) =>
   new THREE.Quaternion().setFromEuler(new THREE.Euler(...preset.rotation, 'XYZ')),
 )
+
+// Scratch objects reused by the per-frame follow code; useFrame runs once per
+// canvas frame on one thread, so module-level reuse is safe and avoids
+// allocating several vectors per frame for the whole length of a drag.
+const _normal = new THREE.Vector3()
+const _anchor = new THREE.Vector3()
+const _plane = new THREE.Plane()
+const _intersection = new THREE.Vector3()
+const _target = new THREE.Vector3()
+const _next = new THREE.Vector3()
+const _quat = new THREE.Quaternion()
 
 function nearestPresetIndex(q: THREE.Quaternion): number {
   let best = 0
@@ -90,6 +105,8 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
   const shiftDown = useRef(false)
 
   const { world, rapier } = useRapier()
+  // Reused across frames; rapier.Ray is only constructible once rapier loads.
+  const rayRef = useRef<InstanceType<typeof rapier.Ray> | null>(null)
   const camera = useThree((state) => state.camera)
   const gl = useThree((state) => state.gl)
   const controls = useThree((state) => state.controls) as unknown as
@@ -277,6 +294,40 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
           removeProduct(selectedProductId)
           selectProduct(null)
         }
+        return
+      }
+
+      if (
+        (event.key === 'd' || event.key === 'D') &&
+        !held.current &&
+        !event.metaKey &&
+        !event.ctrlKey
+      ) {
+        const { selectedProductId, duplicatePlacement } = useDisplayStore.getState()
+        if (selectedProductId) duplicatePlacement(selectedProductId)
+        return
+      }
+
+      if ((event.key === 'c' || event.key === 'C') && !event.metaKey && !event.ctrlKey) {
+        useDisplayStore.getState().resetCamera()
+        return
+      }
+
+      // Arrow keys nudge the selected item by an inch (Shift for quarter-inch).
+      if (event.key.startsWith('Arrow') && !held.current) {
+        const { selectedProductId, nudgePlacement } = useDisplayStore.getState()
+        if (!selectedProductId) return
+        event.preventDefault()
+        const step = event.shiftKey ? NUDGE_FINE_STEP : NUDGE_STEP
+        const delta: [number, number, number] =
+          event.key === 'ArrowLeft'
+            ? [-step, 0, 0]
+            : event.key === 'ArrowRight'
+              ? [step, 0, 0]
+              : event.key === 'ArrowUp'
+                ? [0, 0, -step]
+                : [0, 0, step]
+        nudgePlacement(selectedProductId, delta)
       }
     }
 
@@ -370,30 +421,34 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
     const direction = raycaster.ray.direction
     const translation = body.translation()
 
-    let target: THREE.Vector3 | null = null
+    let hasTarget = false
 
     if (shiftDown.current) {
       // Vertical mode: keep x/z, slide the item up and down along a
       // camera-facing plane through its current position.
-      const normal = new THREE.Vector3(direction.x, 0, direction.z)
-      if (normal.lengthSq() > 1e-6) {
-        normal.normalize()
-        const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(
-          normal,
-          new THREE.Vector3(translation.x, translation.y, translation.z),
-        )
-        const intersection = new THREE.Vector3()
-        if (raycaster.ray.intersectPlane(plane, intersection)) {
-          target = new THREE.Vector3(translation.x, intersection.y, translation.z)
+      _normal.set(direction.x, 0, direction.z)
+      if (_normal.lengthSq() > 1e-6) {
+        _normal.normalize()
+        _anchor.set(translation.x, translation.y, translation.z)
+        _plane.setFromNormalAndCoplanarPoint(_normal, _anchor)
+        if (raycaster.ray.intersectPlane(_plane, _intersection)) {
+          _target.set(translation.x, _intersection.y, translation.z)
+          hasTarget = true
         }
       }
     } else {
       // Surface mode: cast against the physics world (excluding the held
       // body) and hover just above whatever is under the cursor.
-      const ray = new rapier.Ray(
-        { x: origin.x, y: origin.y, z: origin.z },
-        { x: direction.x, y: direction.y, z: direction.z },
-      )
+      const ray = (rayRef.current ??= new rapier.Ray(
+        { x: 0, y: 0, z: 0 },
+        { x: 0, y: 0, z: 0 },
+      ))
+      ray.origin.x = origin.x
+      ray.origin.y = origin.y
+      ray.origin.z = origin.z
+      ray.dir.x = direction.x
+      ray.dir.y = direction.y
+      ray.dir.z = direction.z
       const hit = world.castRay(
         ray,
         1000,
@@ -405,32 +460,30 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
       )
       if (hit) {
         const point = ray.pointAt(hit.timeOfImpact)
-        target = new THREE.Vector3(point.x, point.y + HOVER_OFFSET, point.z)
+        _target.set(point.x, point.y + HOVER_OFFSET, point.z)
+        hasTarget = true
       }
     }
 
-    if (!target) return
+    if (!hasTarget) return
 
     // Keep the held item below the display ceiling (it is kinematic, so the
     // ceiling collider alone cannot stop it).
     const maxY = Math.max(2, maxDisplayHeight - 1)
-    target.y = Math.min(Math.max(target.y, 0.5), maxY)
+    _target.y = Math.min(Math.max(_target.y, 0.5), maxY)
 
     // Smooth follow, exact rotation.
-    const next = new THREE.Vector3(translation.x, translation.y, translation.z).lerp(
-      target,
-      0.4,
-    )
-    body.setNextKinematicTranslation({ x: next.x, y: next.y, z: next.z })
+    _next.set(translation.x, translation.y, translation.z).lerp(_target, 0.4)
+    body.setNextKinematicTranslation({ x: _next.x, y: _next.y, z: _next.z })
 
     const rotation = body.rotation()
-    const currentQ = new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w)
-    currentQ.slerp(current.targetQuaternion, 0.5)
+    _quat.set(rotation.x, rotation.y, rotation.z, rotation.w)
+    _quat.slerp(current.targetQuaternion, 0.5)
     body.setNextKinematicRotation({
-      x: currentQ.x,
-      y: currentQ.y,
-      z: currentQ.z,
-      w: currentQ.w,
+      x: _quat.x,
+      y: _quat.y,
+      z: _quat.z,
+      w: _quat.w,
     })
   })
 

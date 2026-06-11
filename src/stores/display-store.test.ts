@@ -283,6 +283,36 @@ describe('display-store', () => {
     expect(heavy.position![1]).toBeLessThan(light.position![1])
   })
 
+  it('nudges a placement by inches and clears its slot fields', () => {
+    const store = useDisplayStore.getState()
+    store.createProject('Nudge Project', {
+      palletType: 'full',
+      season: 'none',
+      retailerId: 'ret-main',
+    })
+
+    useDisplayStore.setState((state) => ({
+      currentProject: state.currentProject && {
+        ...state.currentProject,
+        placements: [
+          {
+            id: 'p-1', slotId: '1-0', wall: 'front' as const, tier: 1, gridCol: 0,
+            width: 4, height: 8, depth: 3, color: '#000', label: 'Alpha', sku: 'A',
+            position: [0, 7, 14] as [number, number, number],
+            quaternion: [0, 0, 0, 1] as [number, number, number, number],
+          },
+        ],
+      },
+    }))
+
+    store.nudgePlacement('p-1', [1, 0, -0.25])
+
+    const placement = useDisplayStore.getState().currentProject!.placements[0]
+    expect(placement.position).toEqual([1, 7, 13.75])
+    expect(placement.slotId).toBe('')
+    expect(placement.wall).toBeUndefined()
+  })
+
   it('enforces forward-only status transitions with a single backward step', () => {
     const store = useDisplayStore.getState()
     store.createProject('Status Project', {

@@ -3,7 +3,9 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { CameraPreset } from '../types';
 
-export function useCameraPresets(preset?: CameraPreset) {
+// resetToken: bump it to re-run the current preset animation (camera reset
+// shortcut). With no preset set, a reset flies back to the isometric default.
+export function useCameraPresets(preset?: CameraPreset, resetToken = 0) {
   const { camera } = useThree();
   const targetRef = useRef(new THREE.Vector3(0, 24, 0)); // Default look at target
   const animatingRef = useRef(false);
@@ -12,13 +14,13 @@ export function useCameraPresets(preset?: CameraPreset) {
   const progressRef = useRef(0);
 
   useEffect(() => {
-    if (!preset) return;
+    if (!preset && resetToken === 0) return;
 
     startPosRef.current.copy(camera.position);
     progressRef.current = 0;
     animatingRef.current = true;
 
-    switch (preset) {
+    switch (preset ?? 'isometric') {
       case 'front':
         endPosRef.current.set(0, 30, 80);
         break;
@@ -33,7 +35,7 @@ export function useCameraPresets(preset?: CameraPreset) {
         endPosRef.current.set(72, 48, 72);
         break;
     }
-  }, [preset, camera]);
+  }, [preset, resetToken, camera]);
 
   useFrame((state, delta) => {
     if (animatingRef.current) {

@@ -48,6 +48,8 @@ interface DisplayState {
   // Bumped when shelf geometry changes (tier count, pallet type) so the
   // physics scene wakes every body and items re-settle on the new shape.
   wakeToken: number
+  // Bumped to re-run the current camera preset animation (camera reset).
+  cameraResetToken: number
 
   setProjects: (projects: DisplayProject[]) => void
   createProject: (name: string, config: PalletWizardConfig, tierCount?: number) => DisplayProject
@@ -69,6 +71,9 @@ interface DisplayState {
   ) => void
   // Clone a free placement just above the original so it falls and stacks.
   duplicatePlacement: (placementId: string) => void
+  // Move a free placement by inches (keyboard nudge); clears slot fields.
+  nudgePlacement: (placementId: string, delta: [number, number, number]) => void
+  resetCamera: () => void
   setCarryPlacement: (placementId: string | null) => void
   setDragging3D: (dragging: boolean) => void
   setHeldPlacement: (placementId: string | null) => void
@@ -232,6 +237,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   heldPlacementId: null,
   offPalletNotice: null,
   wakeToken: 0,
+  cameraResetToken: 0,
 
   setProjects: (projects) => {
     const currentProject = projects[0] ?? null
@@ -539,6 +545,45 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
 
     set(commitProjectUpdate(state, nextProject))
   },
+
+  nudgePlacement: (placementId, delta) => {
+    const state = get()
+    if (!state.currentProject) return
+
+    let changed = false
+    const placements = state.currentProject.placements.map((placement) => {
+      if (placement.id !== placementId || !placement.position) return placement
+      changed = true
+      const [x, y, z] = placement.position
+      return {
+        ...placement,
+        position: [x + delta[0], Math.max(0.5, y + delta[1]), z + delta[2]] as [
+          number,
+          number,
+          number,
+        ],
+        // The item moved off its slot-derived spot: world transform is now
+        // its only truth (same contract as settlePlacements).
+        slotId: '',
+        wall: undefined,
+        tier: undefined,
+        gridCol: undefined,
+        colSpan: undefined,
+        displayMode: undefined,
+      }
+    })
+    if (!changed) return
+
+    set(
+      commitProjectUpdate(state, {
+        ...state.currentProject,
+        placements,
+        updatedAt: Date.now(),
+      }),
+    )
+  },
+
+  resetCamera: () => set((state) => ({ cameraResetToken: state.cameraResetToken + 1 })),
 
   setCarryPlacement: (placementId) => set({ carryPlacementId: placementId }),
 

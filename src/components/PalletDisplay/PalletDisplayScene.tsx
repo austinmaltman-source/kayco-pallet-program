@@ -41,7 +41,8 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
 
   const tiers = useTierConfig(tierCount, maxDisplayHeight, palletType);
 
-  const { isAnimating } = useCameraPresets(cameraPreset);
+  const cameraResetToken = useDisplayStore((s) => s.cameraResetToken);
+  const { isAnimating } = useCameraPresets(cameraPreset, cameraResetToken);
   const isDragging3D = useDisplayStore((s) => s.isDragging3D);
 
   // Kayco PalletConfig for half pallet visuals
