@@ -3,6 +3,8 @@ import { useState } from 'react'
 import type { Product } from '../../types'
 import { ProductRow } from './product-row'
 import { AddProductForm } from './add-product-form'
+import { useConfirm } from '../ConfirmDialog'
+import { cascadeDeleteProduct, describeProductReferences } from '../../lib/cascade-delete'
 
 const PAGE_SIZE = 10
 
@@ -14,6 +16,18 @@ interface ProductTableProps {
 
 export function ProductTable({ products, showAddForm, onCloseAddForm }: ProductTableProps) {
   const [currentPage, setCurrentPage] = useState(1)
+  const { confirm, dialog: confirmDialog } = useConfirm()
+
+  const handleDelete = async (product: Product) => {
+    const ok = await confirm({
+      title: `Delete "${product.name}" from the catalog?`,
+      description: describeProductReferences(product.id),
+      confirmLabel: 'Delete product',
+      destructive: true,
+    })
+    if (!ok) return
+    cascadeDeleteProduct(product.id)
+  }
 
   const totalPages = Math.max(1, Math.ceil(products.length / PAGE_SIZE))
   const safeCurrentPage = Math.min(currentPage, totalPages)
@@ -25,6 +39,7 @@ export function ProductTable({ products, showAddForm, onCloseAddForm }: ProductT
 
   return (
     <div className="bg-white shadow-card rounded-lg overflow-hidden">
+      {confirmDialog}
       <table className="w-full">
         <thead>
           <tr style={{ boxShadow: '0 1px 0 0 rgba(0,0,0,0.06)' }}>
@@ -54,7 +69,7 @@ export function ProductTable({ products, showAddForm, onCloseAddForm }: ProductT
         <tbody>
           {showAddForm && <AddProductForm onClose={onCloseAddForm} />}
           {pageProducts.map((product) => (
-            <ProductRow key={product.id} product={product} />
+            <ProductRow key={product.id} product={product} onDelete={handleDelete} />
           ))}
           {pageProducts.length === 0 && !showAddForm && (
             <tr>

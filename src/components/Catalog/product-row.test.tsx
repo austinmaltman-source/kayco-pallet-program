@@ -17,16 +17,17 @@ vi.mock('react-router-dom', async () => {
 })
 
 describe('ProductRow', () => {
-  it('navigates on row click and deletes from the overflow menu without navigating', async () => {
+  it('navigates on row click and reports deletes from the overflow menu without navigating', async () => {
     const user = userEvent.setup()
     const product = makeProduct({id: 'prod-row', name: 'Row Product'})
+    const onDelete = vi.fn()
     useCatalogStore.getState().setProducts([product])
 
     render(
       <MemoryRouter initialEntries={['/manager/catalog']}>
         <table>
           <tbody>
-            <ProductRow product={product} />
+            <ProductRow product={product} onDelete={onDelete} />
           </tbody>
         </table>
       </MemoryRouter>
@@ -40,7 +41,8 @@ describe('ProductRow', () => {
     await user.click(screen.getByRole('button', {name: /More actions for Row Product/i}))
     await user.click(screen.getByRole('button', {name: /Delete/i}))
 
-    expect(useCatalogStore.getState().getProduct('prod-row')).toBeUndefined()
+    // Deletion is delegated to the parent so it can confirm + cascade.
+    expect(onDelete).toHaveBeenCalledWith(product)
     expect(navigateMock).not.toHaveBeenCalled()
   })
 })

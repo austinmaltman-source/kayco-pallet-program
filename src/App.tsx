@@ -33,6 +33,10 @@ import { mockRetailers, mockSalespeople } from './lib/mock-data'
 import { loadInventoryInfo } from './lib/inventory-info-loader'
 import { mergeInventoryInfoIntoProducts } from './lib/inventory-info-import'
 import { migrateProjectPlacements } from './lib/placementMigration'
+import {
+  pruneOrphanedAssortmentAndPlacements,
+  pruneOrphanedAuthorizedItems,
+} from './lib/cascade-delete'
 
 const PROJECT_STORAGE_KEY = 'palletforge-project'
 const PALLETS_STORAGE_KEY = 'palletforge-pallets'
@@ -131,61 +135,6 @@ function mergeRetailers(
   })
 
   return mergedRetailers
-}
-
-function pruneOrphanedAuthorizedItems(
-  retailers: Retailer[],
-  validProductIds: Set<string>,
-): { next: Retailer[]; dropped: number } {
-  let dropped = 0
-  const next = retailers.map((retailer) => {
-    const filtered = retailer.authorizedItems.filter((item) => {
-      const ok = validProductIds.has(item.productId)
-      if (!ok) dropped += 1
-      return ok
-    })
-    if (filtered.length === retailer.authorizedItems.length) return retailer
-    return { ...retailer, authorizedItems: filtered }
-  })
-  return { next, dropped }
-}
-
-function pruneOrphanedAssortmentAndPlacements(
-  projects: DisplayProject[],
-  validProductIds: Set<string>,
-): { next: DisplayProject[]; assortmentDropped: number; placementsDropped: number } {
-  let assortmentDropped = 0
-  let placementsDropped = 0
-
-  const next = projects.map((project) => {
-    const nextAssortment = project.assortment.filter((entry) => {
-      const ok = validProductIds.has(entry.productId)
-      if (!ok) assortmentDropped += 1
-      return ok
-    })
-    const nextPlacements = project.placements.filter((placement) => {
-      if (!placement.sourceProductId) return true
-      const ok = validProductIds.has(placement.sourceProductId)
-      if (!ok) placementsDropped += 1
-      return ok
-    })
-
-    if (
-      nextAssortment.length === project.assortment.length &&
-      nextPlacements.length === project.placements.length
-    ) {
-      return project
-    }
-
-    return {
-      ...project,
-      assortment: nextAssortment,
-      placements: nextPlacements,
-      updatedAt: Date.now(),
-    }
-  })
-
-  return { next, assortmentDropped, placementsDropped }
 }
 
 export default function App() {

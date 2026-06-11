@@ -25,6 +25,7 @@ import { useRoleStore } from '../stores/role-store'
 import { PalletWizard } from '../components/Wizard/PalletWizard'
 import { StartProgramWizard } from '../components/StartProgramWizard'
 import { useConfirm } from '../components/ConfirmDialog'
+import { cascadeDeleteRetailer } from '../lib/cascade-delete'
 import type { WizardPalletConfig } from '../components/Wizard/wizardTypes'
 import type { AuthorizedItem, DisplayProject, Holiday, Retailer } from '../types'
 
@@ -695,7 +696,6 @@ export function RetailerDetailPage() {
   const navigate = useNavigate()
   const roleHref = useRoleHref()
   const role = useRoleStore((state) => state.role)
-  const deleteRetailer = useRetailerStore((state) => state.deleteRetailer)
   const updateRetailer = useRetailerStore((state) => state.updateRetailer)
   const retailer = useRetailerStore((state) => state.getRetailer(id ?? ''))
   const salespeople = useSalespersonStore((state) => state.salespeople)
@@ -779,13 +779,13 @@ export function RetailerDetailPage() {
       title: `Delete "${retailer.name}"?`,
       description:
         pallets.length > 0
-          ? `This program and ${pallets.length} pallet${pallets.length === 1 ? '' : 's'} under it will be removed. This cannot be undone.`
+          ? `This program and ${pallets.length} pallet${pallets.length === 1 ? '' : 's'} under it will be removed, and salespeople will be unassigned from it. This cannot be undone.`
           : 'This cannot be undone.',
       confirmLabel: 'Delete program',
       destructive: true,
     })
     if (!ok) return
-    deleteRetailer(retailer.id)
+    cascadeDeleteRetailer(retailer.id)
     navigate(roleHref('/retailers'), { replace: true })
   }
 
