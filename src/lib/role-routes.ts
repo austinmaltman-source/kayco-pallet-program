@@ -24,6 +24,24 @@ export const ROUTE_RULES: RouteRule[] = [
   { match: (p) => p.startsWith('/views/'), allowedRoles: ['manager'] },
 ]
 
+// Action-level permissions. UI copy may still branch on role for wording,
+// but anything that gates a mutation belongs here so route and action rules
+// live in one place.
+const ACTION_RULES = {
+  createSeason: ['manager'],
+  // Managers authorize items directly; everyone else files a pending request.
+  authorizeItems: ['manager'],
+  deleteRetailer: ['manager'],
+  toggleRetailerStatus: ['manager'],
+} satisfies Record<string, Role[]>
+
+export type RoleAction = keyof typeof ACTION_RULES
+
+export function canRoleDo(role: Role | null, action: RoleAction): boolean {
+  if (!role) return false
+  return (ACTION_RULES[action] as readonly Role[]).includes(role)
+}
+
 export function isRouteAllowedForRole(pathname: string, role: Role): boolean {
   // The pallet detail/editor are nested under /retailers/* so they're already covered.
   for (const rule of ROUTE_RULES) {

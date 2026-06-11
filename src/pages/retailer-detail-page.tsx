@@ -21,6 +21,7 @@ import { useDisplayStore } from '../stores/display-store'
 import { useSalespersonStore } from '../stores/salesperson-store'
 import { useSeasonStore } from '../stores/season-store'
 import { useRoleHref } from '../lib/role-href'
+import { canRoleDo } from '../lib/role-routes'
 import { useRoleStore } from '../stores/role-store'
 import { PalletWizard } from '../components/Wizard/PalletWizard'
 import { StartProgramWizard } from '../components/StartProgramWizard'
@@ -857,7 +858,7 @@ export function RetailerDetailPage() {
             <StatusBadge
               status={retailer.status}
               onClick={
-                role === 'manager'
+                canRoleDo(role, 'toggleRetailerStatus')
                   ? () =>
                       updateRetailer(retailer.id, {
                         status: retailer.status === 'active' ? 'inactive' : 'active',
@@ -879,7 +880,7 @@ export function RetailerDetailPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {role === 'manager' && (
+          {canRoleDo(role, 'deleteRetailer') && (
             <button
               onClick={handleDeleteProgram}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-[13px] font-medium text-[#c0392b] hover:bg-red-50 transition-colors"

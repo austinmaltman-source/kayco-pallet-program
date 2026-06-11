@@ -133,7 +133,12 @@ export function migrateProjectPlacements(
     if (placement.position && placement.quaternion) return [placement]
     const transform = computePlacementTransform(placement, context)
     changed = true
-    if (!transform) return []
+    if (!transform) {
+      console.warn(
+        `placementMigration: dropping unresolvable placement "${placement.label}" (${placement.id}) from project "${project.name}"`,
+      )
+      return []
+    }
     return [{ ...placement, ...transform }]
   })
 

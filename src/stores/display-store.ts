@@ -219,7 +219,14 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   pickerSelectedProduct: null,
   history: [],
   historyIndex: -1,
-  lastUsedConfig: JSON.parse(localStorage.getItem('lastUsedConfig') ?? 'null'),
+  lastUsedConfig: (() => {
+    try {
+      return JSON.parse(localStorage.getItem('lastUsedConfig') ?? 'null')
+    } catch {
+      localStorage.removeItem('lastUsedConfig')
+      return null
+    }
+  })(),
   carryPlacementId: null,
   isDragging3D: false,
   heldPlacementId: null,
