@@ -23,6 +23,7 @@ import {
 import { buildTierConfigs } from '../lib/shelfCoordinates'
 import { deriveCaseLayout } from '../lib/caseLayout'
 import { computePlacementTransform } from '../lib/placementMigration'
+import { cancelPendingSettle } from '../components/PalletDisplay/physics/settle'
 
 interface DisplayState {
   projects: DisplayProject[]
@@ -281,6 +282,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   },
 
   deleteProject: (id) => {
+    cancelPendingSettle()
     set((state) => {
       const projects = state.projects.filter((project) => project.id !== id)
       const currentProject =
@@ -311,6 +313,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   selectProject: (id) => {
     const project = get().projects.find((entry) => entry.id === id)
     if (!project) return
+    cancelPendingSettle()
 
     set({
       currentProject: project,
@@ -324,6 +327,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   },
 
   setCurrentProject: (project) => {
+    cancelPendingSettle()
     set({
       currentProject: project,
       projects: replaceProject(get().projects, project),
@@ -1217,6 +1221,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   undo: () => {
     const { history, historyIndex, projects } = get()
     if (historyIndex <= 0) return
+    cancelPendingSettle()
 
     const nextHistoryIndex = historyIndex - 1
     const nextProject = structuredClone(history[nextHistoryIndex])
@@ -1232,6 +1237,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   redo: () => {
     const { history, historyIndex, projects } = get()
     if (historyIndex >= history.length - 1) return
+    cancelPendingSettle()
 
     const nextHistoryIndex = historyIndex + 1
     const nextProject = structuredClone(history[nextHistoryIndex])
