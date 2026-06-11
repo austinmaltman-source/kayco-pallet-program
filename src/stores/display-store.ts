@@ -24,6 +24,7 @@ import { buildTierConfigs } from '../lib/shelfCoordinates'
 import { deriveCaseLayout } from '../lib/caseLayout'
 import { computePlacementTransform } from '../lib/placementMigration'
 import { cancelPendingSettle } from '../components/PalletDisplay/physics/settle'
+import { isAllowedTransition } from '../lib/pallet-status'
 
 interface DisplayState {
   projects: DisplayProject[]
@@ -773,6 +774,11 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
   updateStatus: (status) => {
     const state = get()
     if (!state.currentProject) return
+    if (
+      status === state.currentProject.status ||
+      !isAllowedTransition(state.currentProject.status, status)
+    )
+      return
 
     const nextProject = {
       ...state.currentProject,
@@ -787,6 +793,7 @@ export const useDisplayStore = create<DisplayState>((set, get) => ({
     const state = get()
     const target = state.projects.find((p) => p.id === palletId)
     if (!target) return
+    if (status === target.status || !isAllowedTransition(target.status, status)) return
 
     const nextProject = {
       ...target,

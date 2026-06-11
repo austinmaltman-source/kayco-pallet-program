@@ -283,6 +283,24 @@ describe('display-store', () => {
     expect(heavy.position![1]).toBeLessThan(light.position![1])
   })
 
+  it('enforces forward-only status transitions with a single backward step', () => {
+    const store = useDisplayStore.getState()
+    store.createProject('Status Project', {
+      palletType: 'full',
+      season: 'none',
+      retailerId: 'ret-main',
+    })
+
+    store.updateStatus('built') // forward jumps are fine
+    expect(useDisplayStore.getState().currentProject?.status).toBe('built')
+
+    store.updateStatus('draft') // two+ steps back is rejected
+    expect(useDisplayStore.getState().currentProject?.status).toBe('built')
+
+    store.updateStatus('in_build') // one step back is allowed
+    expect(useDisplayStore.getState().currentProject?.status).toBe('in_build')
+  })
+
   it('returns the currently active retailer for the project', () => {
     useDisplayStore.getState().createProject('Retailer Project', {
       palletType: 'full',

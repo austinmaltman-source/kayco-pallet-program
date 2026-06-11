@@ -5,7 +5,8 @@ import { AssortmentTable } from '../components/Assortment/assortment-table'
 import { CommentsThread } from '../components/Comments/comments-thread'
 import { StatusPill, STATUS_LABELS_BY_ROLE, getStatusLabel } from '../components/Status/status-pill'
 import { DeadlineChip } from '../components/Deadline/deadline-chip'
-import { computeConfirmByDate } from '../lib/deadline'
+import { computeConfirmByDate, formatDate } from '../lib/deadline'
+import { isAllowedTransition, isBackwardTransition } from '../lib/pallet-status'
 import type { PalletStatus } from '../types'
 import { useCatalogStore } from '../stores/catalog-store'
 import { useDisplayStore } from '../stores/display-store'
@@ -164,6 +165,23 @@ export function PalletDetailPage() {
     )
   }
 
+  const palletSeason = pallet.seasonId
+    ? seasons.find((s) => s.id === pallet.seasonId)
+    : undefined
+  const confirmByMs = palletSeason?.holidayDate
+    ? computeConfirmByDate(palletSeason.holidayDate)
+    : undefined
+
+  const confirmPastDeadline = async () => {
+    if (!confirmByMs || Date.now() <= confirmByMs) return true
+    const days = Math.ceil((Date.now() - confirmByMs) / 86_400_000)
+    return confirm({
+      title: 'Confirm-by deadline has passed',
+      description: `This pallet's confirm-by date was ${formatDate(confirmByMs)} — ${days} day${days === 1 ? '' : 's'} ago. Push it to the builder anyway?`,
+      confirmLabel: 'Push anyway',
+    })
+  }
+
   return (
     <div className="px-10 py-10 max-w-[1300px]">
       <button
@@ -298,13 +316,14 @@ export function PalletDetailPage() {
                   </div>
                   {pallet.status === 'draft' && (
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         if (!pallet.shipByDate) {
                           setStatusError(
                             'Set a Ship By date before pushing this pallet to the builder.',
                           )
                           return
                         }
+                        if (!(await confirmPastDeadline())) return
                         setStatusError(null)
                         updateStatus('ready')
                       }}
@@ -335,21 +354,36 @@ export function PalletDetailPage() {
               ) : (
                 <select
                   value={pallet.status}
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const next = e.target.value as PalletStatus
+                    if (next === pallet.status) return
                     if (next !== 'draft' && !pallet.shipByDate) {
                       setStatusError(
                         'Set a Ship By date before moving this pallet out of Draft.',
                       )
                       return
                     }
+                    if (isBackwardTransition(pallet.status, next)) {
+                      const ok = await confirm({
+                        title: `Move back to ${getStatusLabel(next, role ?? 'manager')}?`,
+                        description:
+                          'Moving a pallet backward updates the builder queue and rollups for everyone immediately.',
+                        confirmLabel: 'Move back',
+                      })
+                      if (!ok) return
+                    }
+                    if (pallet.status === 'draft' && !(await confirmPastDeadline())) return
                     setStatusError(null)
                     updateStatus(next)
                   }}
                   className="w-full text-[14px] font-semibold text-[#171717] bg-transparent border-none outline-none cursor-pointer focus:ring-2 focus:ring-[#0a72ef]/30 rounded-md -ml-1 pl-1"
                 >
                   {(['draft', 'ready', 'in_build', 'built'] as PalletStatus[]).map((s) => (
-                    <option key={s} value={s}>
+                    <option
+                      key={s}
+                      value={s}
+                      disabled={s !== pallet.status && !isAllowedTransition(pallet.status, s)}
+                    >
                       {role ? STATUS_LABELS_BY_ROLE[role][s] : s}
                     </option>
                   ))}
