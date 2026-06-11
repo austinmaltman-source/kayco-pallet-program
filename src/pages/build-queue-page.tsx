@@ -17,6 +17,7 @@ import { useRoleHref } from '../lib/role-href'
 import { useRoleStore } from '../stores/role-store'
 import { StatusPill } from '../components/Status/status-pill'
 import { DeadlineChip } from '../components/Deadline/deadline-chip'
+import { CommentCountBadge } from '../components/Comments/comment-count-badge'
 import { computeConfirmByDate } from '../lib/deadline'
 import { buildRollupData } from '../lib/program-rollup'
 import { buildCsv, downloadCsv } from '../lib/csv'
@@ -234,6 +235,9 @@ export function BuildQueuePage() {
                             </div>
                             <p className="text-[10px] text-[#888]">
                               {retailer?.name ?? '—'} · {pallet.palletType} · {cases} cases
+                              <span className="ml-2">
+                                <CommentCountBadge count={pallet.comments?.length} />
+                              </span>
                             </p>
                             {confirmBy && pallet.status !== 'built' && (
                               <div className="mt-2">

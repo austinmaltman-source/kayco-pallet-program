@@ -25,6 +25,7 @@ import { useRoleStore } from '../stores/role-store'
 import { PalletWizard } from '../components/Wizard/PalletWizard'
 import { StartProgramWizard } from '../components/StartProgramWizard'
 import { useConfirm } from '../components/ConfirmDialog'
+import { CommentCountBadge } from '../components/Comments/comment-count-badge'
 import { cascadeDeleteRetailer } from '../lib/cascade-delete'
 import type { WizardPalletConfig } from '../components/Wizard/wizardTypes'
 import type { AuthorizedItem, DisplayProject, Holiday, Retailer } from '../types'
@@ -143,6 +144,7 @@ function PalletCard({ pallet, retailerId }: { pallet: DisplayProject; retailerId
         <span className="tabular-nums">{palletQty} pallet{palletQty === 1 ? '' : 's'}</span>
         <span className="tabular-nums">{itemCount} item{itemCount === 1 ? '' : 's'}</span>
         <span className="tabular-nums">{totalCases} case{totalCases === 1 ? '' : 's'}</span>
+        <CommentCountBadge count={pallet.comments?.length} />
         <span className="ml-auto tabular-nums">{formatDate(pallet.updatedAt)}</span>
       </div>
     </div>

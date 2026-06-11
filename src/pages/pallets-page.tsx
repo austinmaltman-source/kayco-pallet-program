@@ -7,6 +7,7 @@ import { useSeasonStore } from '../stores/season-store'
 import { useRoleStore } from '../stores/role-store'
 import { StatusPill, STATUS_LABELS, getStatusLabel } from '../components/Status/status-pill'
 import { DeadlineChip } from '../components/Deadline/deadline-chip'
+import { CommentCountBadge } from '../components/Comments/comment-count-badge'
 import { computeConfirmByDate } from '../lib/deadline'
 import { useRoleHref } from '../lib/role-href'
 import { getPalletQuantity } from '../lib/assortment-utils'
@@ -191,6 +192,7 @@ export function PalletsPage() {
                           <span>{pallet.assortment.length} SKUs</span>
                           <span>·</span>
                           <span>{cases * quantity} cases</span>
+                          <CommentCountBadge count={pallet.comments?.length} />
                         </div>
                         {confirmBy && pallet.status !== 'built' && (
                           <div className="mt-3">
