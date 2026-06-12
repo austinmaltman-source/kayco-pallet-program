@@ -121,6 +121,7 @@ export const createDataSlice: StateCreator<DisplayState, [], [], DataSlice> = (
       history: [structuredClone(project)],
       historyIndex: 0,
       selectedProductId: null,
+      selectedProductIds: [],
       isPickerOpen: false,
       pickerSelectedProduct: null,
       ...hydrateSelectionState(),
@@ -135,6 +136,7 @@ export const createDataSlice: StateCreator<DisplayState, [], [], DataSlice> = (
       history: [structuredClone(project)],
       historyIndex: 0,
       selectedProductId: null,
+      selectedProductIds: [],
       isPickerOpen: false,
       pickerSelectedProduct: null,
       ...hydrateSelectionState(),
@@ -221,6 +223,7 @@ export const createDataSlice: StateCreator<DisplayState, [], [], DataSlice> = (
       ...commitProjectUpdate(state, nextProject),
       activeFace: type === 'half' ? 'front' : state.activeFace,
       selectedProductId: null,
+      selectedProductIds: [],
       wakeToken: state.wakeToken + 1,
     })
   },

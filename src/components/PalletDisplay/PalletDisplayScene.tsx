@@ -26,6 +26,7 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
   branding,
   placedProducts = [],
   selectedProductId = null,
+  selectedProductIds,
   onProductClick,
   onRotateProduct,
   onDeleteProduct,
@@ -95,6 +96,7 @@ export const PalletDisplayScene: React.FC<PalletDisplayProps> = ({
           palletType={palletType}
           palletDimensions={effectiveDimensions}
           selectedProductId={selectedProductId}
+          selectedProductIds={selectedProductIds}
           onProductClick={onProductClick}
           onRotateProduct={onRotateProduct}
           onDeleteProduct={onDeleteProduct}

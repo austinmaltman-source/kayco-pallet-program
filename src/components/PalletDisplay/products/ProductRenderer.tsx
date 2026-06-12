@@ -13,6 +13,7 @@ interface ProductRendererProps {
   rotation?: [number, number, number]
   availableSpace?: { width: number; height: number; depth: number }
   isSelected?: boolean
+  isPrimary?: boolean
   onClick?: () => void
   onRotate?: () => void
   onDuplicate?: () => void
@@ -26,6 +27,7 @@ export const ProductRenderer: React.FC<ProductRendererProps> = ({
   rotation: baseRotation = [0, 0, 0],
   availableSpace = { width: product.width, height: product.height, depth: product.depth },
   isSelected = false,
+  isPrimary = true,
   onClick,
   onRotate,
   onDuplicate,
@@ -102,6 +104,7 @@ export const ProductRenderer: React.FC<ProductRendererProps> = ({
   return (
     <ProductHoverEffect
       isSelected={isSelected}
+      showActions={isSelected && isPrimary}
       isHovered={hovered}
       productWidth={hoverWidth}
       productHeight={hoverHeight}

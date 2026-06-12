@@ -68,13 +68,20 @@ export interface DataSlice {
 // Transient editor view state: what is selected/shown on the editor screen.
 // None of this is persisted.
 export interface EditorUiSlice {
+  // Primary (last-clicked) selection — drives the single-item action pill and
+  // every existing `=== selectedProductId` highlight check.
   selectedProductId: string | null
+  // Full multi-selection set (always includes the primary). Shift/Cmd-click
+  // toggles membership; group ops (delete/duplicate/nudge) act on this.
+  selectedProductIds: string[]
   activeFace: TrayFace
   cameraPreset: CameraPreset
   isPickerOpen: boolean
   pickerSelectedProduct: Product | null
 
-  selectProduct: (productId: string | null) => void
+  // additive (shift/cmd-click) toggles the id in the set; a plain click on the
+  // sole selection clears it, otherwise it becomes the single selection.
+  selectProduct: (productId: string | null, additive?: boolean) => void
   setActiveFace: (face: TrayFace) => void
   setCameraPreset: (preset: CameraPreset) => void
   openPicker: () => void
@@ -114,6 +121,11 @@ export interface PhysicsSlice {
   duplicatePlacement: (placementId: string) => void
   // Move a free placement by inches (keyboard nudge); clears slot fields.
   nudgePlacement: (placementId: string, delta: [number, number, number]) => void
+  // Batch variants for multi-selection — each lands as ONE history entry so
+  // undo reverses the whole group action, not item by item.
+  removePlacements: (placementIds: string[]) => void
+  duplicatePlacements: (placementIds: string[]) => void
+  nudgePlacements: (placementIds: string[], delta: [number, number, number]) => void
   resetCamera: () => void
   setCarryPlacement: (placementId: string | null) => void
   setDragging3D: (dragging: boolean) => void

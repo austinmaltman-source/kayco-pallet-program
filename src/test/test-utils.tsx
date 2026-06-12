@@ -21,6 +21,7 @@ export function resetAllStores() {
     projects: [],
     currentProject: null,
     selectedProductId: null,
+    selectedProductIds: [],
     activeFace: DEFAULT_SETTINGS.defaultFace,
     cameraPreset: DEFAULT_SETTINGS.defaultCameraPreset,
     isPickerOpen: false,
@@ -33,6 +34,7 @@ export function resetAllStores() {
     heldPlacementId: null,
     offPalletNotice: null,
     wakeToken: 0,
+    cameraResetToken: 0,
   })
 }
 

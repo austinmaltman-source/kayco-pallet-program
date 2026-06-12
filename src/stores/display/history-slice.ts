@@ -25,6 +25,7 @@ export const createHistorySlice: StateCreator<
       projects: replaceProject(projects, nextProject),
       historyIndex: nextHistoryIndex,
       selectedProductId: null,
+      selectedProductIds: [],
     })
   },
 
@@ -41,6 +42,7 @@ export const createHistorySlice: StateCreator<
       projects: replaceProject(projects, nextProject),
       historyIndex: nextHistoryIndex,
       selectedProductId: null,
+      selectedProductIds: [],
     })
   },
 })

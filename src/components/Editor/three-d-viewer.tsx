@@ -12,6 +12,7 @@ import { PALLET_WEIGHT_LIMIT } from '../../lib/constants'
 export function ThreeDViewer() {
   const currentProject = useDisplayStore(s => s.currentProject)
   const selectedProductId = useDisplayStore(s => s.selectedProductId)
+  const selectedProductIds = useDisplayStore(s => s.selectedProductIds)
   const cameraPreset = useDisplayStore(s => s.cameraPreset)
   const selectProduct = useDisplayStore(s => s.selectProduct)
   const rotateProduct = useDisplayStore(s => s.rotateProduct)
@@ -59,7 +60,8 @@ export function ThreeDViewer() {
         branding={currentProject.branding}
         placedProducts={currentProject.placements}
         selectedProductId={selectedProductId}
-        onProductClick={(id) => selectProduct(id === selectedProductId ? null : id)}
+        selectedProductIds={selectedProductIds}
+        onProductClick={(id, additive) => selectProduct(id, additive)}
         onRotateProduct={rotateProduct}
         onDeleteProduct={(id) => { removeProduct(id); selectProduct(null); }}
         cameraPreset={cameraPreset}
@@ -107,7 +109,9 @@ export function ThreeDViewer() {
         )}
         {!carryPlacementId && selectedProductId && (
           <div className="px-3 py-1.5 rounded-md bg-black/70 backdrop-blur text-[11px] font-medium text-white">
-            Arrows nudge &middot; D duplicates &middot; Del removes &middot; C resets camera
+            {selectedProductIds.length > 1
+              ? `${selectedProductIds.length} selected · Arrows nudge · D duplicates · Del removes`
+              : 'Shift-click to multi-select · Arrows nudge · D duplicates · Del removes · C resets camera'}
           </div>
         )}
         <button

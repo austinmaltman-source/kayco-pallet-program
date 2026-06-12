@@ -71,6 +71,8 @@ interface DragManagerApi {
   // True exactly once after a drag ends, so the synthetic click that
   // follows pointer-up can be swallowed instead of toggling selection.
   consumeDragClick: () => boolean
+  // Whether the most recent press held a multi-select modifier (shift/cmd/ctrl).
+  wasAdditiveClick: () => boolean
   isHeld: (id: string) => boolean
 }
 
@@ -103,6 +105,9 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
   const pointerNdc = useRef(new THREE.Vector2())
   const raycaster = useMemo(() => new THREE.Raycaster(), [])
   const shiftDown = useRef(false)
+  // Modifier state captured at the last press, read by the click handler to
+  // decide additive (multi-)selection.
+  const additiveClick = useRef(false)
 
   const { world, rapier } = useRapier()
   // Reused across frames; rapier.Ray is only constructible once rapier loads.
@@ -230,6 +235,7 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
 
     const onPointerDown = (event: PointerEvent) => {
       updateNdc(event)
+      additiveClick.current = event.shiftKey || event.metaKey || event.ctrlKey
       const current = held.current
       if (current && current.mode === 'carry' && event.button === 0) {
         // Click places the carried item.
@@ -288,12 +294,8 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
         (event.key === 'Delete' || event.key === 'Backspace') &&
         !held.current
       ) {
-        const { selectedProductId, removeProduct, selectProduct } =
-          useDisplayStore.getState()
-        if (selectedProductId) {
-          removeProduct(selectedProductId)
-          selectProduct(null)
-        }
+        const { selectedProductIds, removePlacements } = useDisplayStore.getState()
+        if (selectedProductIds.length > 0) removePlacements(selectedProductIds)
         return
       }
 
@@ -303,8 +305,8 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
         !event.metaKey &&
         !event.ctrlKey
       ) {
-        const { selectedProductId, duplicatePlacement } = useDisplayStore.getState()
-        if (selectedProductId) duplicatePlacement(selectedProductId)
+        const { selectedProductIds, duplicatePlacements } = useDisplayStore.getState()
+        if (selectedProductIds.length > 0) duplicatePlacements(selectedProductIds)
         return
       }
 
@@ -313,10 +315,10 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
         return
       }
 
-      // Arrow keys nudge the selected item by an inch (Shift for quarter-inch).
+      // Arrow keys nudge the whole selection by an inch (Shift for quarter-inch).
       if (event.key.startsWith('Arrow') && !held.current) {
-        const { selectedProductId, nudgePlacement } = useDisplayStore.getState()
-        if (!selectedProductId) return
+        const { selectedProductIds, nudgePlacements } = useDisplayStore.getState()
+        if (selectedProductIds.length === 0) return
         event.preventDefault()
         const step = event.shiftKey ? NUDGE_FINE_STEP : NUDGE_STEP
         const delta: [number, number, number] =
@@ -327,7 +329,7 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
               : event.key === 'ArrowUp'
                 ? [0, 0, -step]
                 : [0, 0, step]
-        nudgePlacement(selectedProductId, delta)
+        nudgePlacements(selectedProductIds, delta)
       }
     }
 
@@ -517,6 +519,7 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
         justDragged.current = false
         return was
       },
+      wasAdditiveClick: () => additiveClick.current,
       isHeld: (id) => held.current?.id === id,
     }),
     [setControlsEnabled],

@@ -313,6 +313,57 @@ describe('display-store', () => {
     expect(placement.wall).toBeUndefined()
   })
 
+  it('builds a multi-selection set with additive clicks and group ops', () => {
+    const store = useDisplayStore.getState()
+    store.createProject('Multi Project', {
+      palletType: 'full',
+      season: 'none',
+      retailerId: 'ret-main',
+    })
+
+    const make = (id: string, x: number) => ({
+      id, slotId: '', sourceProductId: 'p', width: 4, height: 8, depth: 3,
+      color: '#000', label: id, sku: id.toUpperCase(),
+      position: [x, 20, 0] as [number, number, number],
+      quaternion: [0, 0, 0, 1] as [number, number, number, number],
+    })
+    useDisplayStore.setState((state) => ({
+      currentProject: state.currentProject && {
+        ...state.currentProject,
+        placements: [make('a', 0), make('b', 10), make('c', 20)],
+      },
+    }))
+
+    // Plain click selects one; shift-click adds; shift-click again toggles off.
+    store.selectProduct('a')
+    store.selectProduct('b', true)
+    expect(useDisplayStore.getState().selectedProductIds).toEqual(['a', 'b'])
+    expect(useDisplayStore.getState().selectedProductId).toBe('b')
+    store.selectProduct('a', true)
+    expect(useDisplayStore.getState().selectedProductIds).toEqual(['b'])
+
+    // Group nudge moves every selected item as one history entry.
+    store.selectProduct('a')
+    store.selectProduct('b', true)
+    const before = useDisplayStore.getState().history.length
+    store.nudgePlacements(['a', 'b'], [5, 0, 0])
+    let placements = useDisplayStore.getState().currentProject!.placements
+    expect(placements.find((p) => p.id === 'a')!.position![0]).toBe(5)
+    expect(placements.find((p) => p.id === 'b')!.position![0]).toBe(15)
+    expect(placements.find((p) => p.id === 'c')!.position![0]).toBe(20)
+    expect(useDisplayStore.getState().history.length).toBe(before + 1)
+
+    // Group duplicate adds one copy per selected item.
+    store.duplicatePlacements(['a', 'b'])
+    expect(useDisplayStore.getState().currentProject!.placements).toHaveLength(5)
+
+    // Group delete removes the selected items and clears them from the set.
+    store.removePlacements(['a', 'b'])
+    placements = useDisplayStore.getState().currentProject!.placements
+    expect(placements.some((p) => p.id === 'a' || p.id === 'b')).toBe(false)
+    expect(useDisplayStore.getState().selectedProductIds).toEqual([])
+  })
+
   it('enforces forward-only status transitions with a single backward step', () => {
     const store = useDisplayStore.getState()
     store.createProject('Status Project', {

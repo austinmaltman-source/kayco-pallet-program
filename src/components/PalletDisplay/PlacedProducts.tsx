@@ -10,7 +10,8 @@ interface PlacedProductsProps {
   palletType?: PalletType
   palletDimensions?: { width: number; depth: number; height: number }
   selectedProductId?: string | null
-  onProductClick?: (productId: string) => void
+  selectedProductIds?: string[]
+  onProductClick?: (productId: string, additive: boolean) => void
   onRotateProduct?: (productId: string) => void
   onDeleteProduct?: (productId: string) => void
 }
@@ -18,11 +19,17 @@ interface PlacedProductsProps {
 export const PlacedProducts: React.FC<PlacedProductsProps> = ({
   products,
   selectedProductId,
+  selectedProductIds,
   onProductClick,
   onRotateProduct,
   onDeleteProduct,
 }) => {
   const catalogProducts = useCatalogStore((state) => state.products)
+  // Membership in the multi-selection set drives the highlight; fall back to
+  // the single primary id when no set is supplied.
+  const selectedSet = new Set(
+    selectedProductIds ?? (selectedProductId ? [selectedProductId] : []),
+  )
 
   // Preload all .glb models
   useEffect(() => {
@@ -68,8 +75,9 @@ export const PlacedProducts: React.FC<PlacedProductsProps> = ({
               }
             }
             products={catalogProducts}
-            isSelected={product.id === selectedProductId}
-            onClick={() => onProductClick?.(product.id)}
+            isSelected={selectedSet.has(product.id)}
+            isPrimary={product.id === selectedProductId}
+            onClick={(additive) => onProductClick?.(product.id, additive)}
             onRotate={() => onRotateProduct?.(product.id)}
             onDelete={() => onDeleteProduct?.(product.id)}
           />

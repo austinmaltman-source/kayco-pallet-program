@@ -5,6 +5,9 @@ import * as THREE from 'three'
 
 interface ProductHoverEffectProps {
   isSelected: boolean
+  // The floating action pill only shows for the primary selection; with a
+  // multi-selection the other items get the highlight but no pill.
+  showActions?: boolean
   isHovered: boolean
   productWidth: number
   productHeight: number
@@ -19,6 +22,7 @@ interface ProductHoverEffectProps {
 
 export const ProductHoverEffect: React.FC<ProductHoverEffectProps> = ({
   isSelected,
+  showActions = true,
   isHovered,
   productWidth,
   productHeight,
@@ -42,8 +46,9 @@ export const ProductHoverEffect: React.FC<ProductHoverEffectProps> = ({
       )
     }
     if (pillRef.current) {
+      const pillScale = isSelected && showActions ? 1 : 0
       pillRef.current.scale.lerp(
-        new THREE.Vector3(targetScale, targetScale, targetScale),
+        new THREE.Vector3(pillScale, pillScale, pillScale),
         delta * 10,
       )
     }

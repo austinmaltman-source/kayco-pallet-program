@@ -15,7 +15,10 @@ interface ItemBodyProps {
   }
   products: Product[]
   isSelected?: boolean
-  onClick?: () => void
+  // The primary (last-clicked) selection shows the floating action pill;
+  // other multi-selected items only get the highlight outline.
+  isPrimary?: boolean
+  onClick?: (additive: boolean) => void
   onRotate?: () => void
   onDelete?: () => void
 }
@@ -31,6 +34,7 @@ export const ItemBody: React.FC<ItemBodyProps> = ({
   placement,
   products,
   isSelected = false,
+  isPrimary = true,
   onClick,
   onRotate,
   onDelete,
@@ -120,7 +124,7 @@ export const ItemBody: React.FC<ItemBodyProps> = ({
   const handleClick = useCallback(() => {
     // Swallow the synthetic click that follows a drag release.
     if (dragManager?.consumeDragClick()) return
-    onClick?.()
+    onClick?.(dragManager?.wasAdditiveClick() ?? false)
   }, [dragManager, onClick])
 
   // Per-item suspense boundary: a loading texture or GLB must blank only
@@ -132,6 +136,7 @@ export const ItemBody: React.FC<ItemBodyProps> = ({
         products={products}
         position={[0, 0, 0]}
         isSelected={isSelected}
+        isPrimary={isPrimary}
         onClick={handleClick}
         onRotate={onRotate}
         onDuplicate={() =>

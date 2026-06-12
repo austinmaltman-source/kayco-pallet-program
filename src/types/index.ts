@@ -100,9 +100,10 @@ export interface PalletDisplayProps {
   // Products
   placedProducts?: PlacedProduct[];
   selectedProductId?: string | null;
+  selectedProductIds?: string[];
 
   // Interaction callbacks
-  onProductClick?: (productId: string) => void;
+  onProductClick?: (productId: string, additive: boolean) => void;
   onRotateProduct?: (productId: string) => void;
   onDeleteProduct?: (productId: string) => void;
 

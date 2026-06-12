@@ -63,6 +63,7 @@ export const createPhysicsSlice: StateCreator<
       isPickerOpen: false,
       pickerSelectedProduct: null,
       selectedProductId: null,
+      selectedProductIds: [],
     })
 
     return placement.id
@@ -167,6 +168,9 @@ export const createPhysicsSlice: StateCreator<
             )
               ? null
               : state.selectedProductId,
+            selectedProductIds: state.selectedProductIds.filter(
+              (id) => !returned.some((p) => p.id === id),
+            ),
             carryPlacementId: returned.some(
               (p) => p.id === state.carryPlacementId,
             )
@@ -321,9 +325,109 @@ export const createPhysicsSlice: StateCreator<
       ...commitProjectUpdate(state, nextProject),
       selectedProductId:
         state.selectedProductId === placementId ? null : state.selectedProductId,
+      selectedProductIds: state.selectedProductIds.filter((id) => id !== placementId),
       carryPlacementId:
         state.carryPlacementId === placementId ? null : state.carryPlacementId,
     })
+  },
+
+  // --- Batch (multi-selection) variants: one history entry per group op ---
+
+  removePlacements: (placementIds) => {
+    const state = get()
+    if (!state.currentProject || placementIds.length === 0) return
+    const ids = new Set(placementIds)
+
+    const placements = state.currentProject.placements.filter(
+      (placement) => !ids.has(placement.id),
+    )
+    if (placements.length === state.currentProject.placements.length) return
+
+    const nextProject = {
+      ...state.currentProject,
+      placements,
+      updatedAt: Date.now(),
+    }
+
+    set({
+      ...commitProjectUpdate(state, nextProject),
+      selectedProductId: ids.has(state.selectedProductId ?? '')
+        ? null
+        : state.selectedProductId,
+      selectedProductIds: state.selectedProductIds.filter((id) => !ids.has(id)),
+      carryPlacementId: ids.has(state.carryPlacementId ?? '')
+        ? null
+        : state.carryPlacementId,
+    })
+  },
+
+  duplicatePlacements: (placementIds) => {
+    const state = get()
+    if (!state.currentProject || placementIds.length === 0) return
+    const ids = new Set(placementIds)
+
+    const copies: PlacedProduct[] = state.currentProject.placements
+      .filter((placement) => ids.has(placement.id) && placement.position)
+      .map((source) => ({
+        ...structuredClone(source),
+        id: crypto.randomUUID(),
+        slotId: '',
+        wall: undefined,
+        tier: undefined,
+        gridCol: undefined,
+        colSpan: undefined,
+        displayMode: undefined,
+        position: [
+          source.position![0],
+          source.position![1] + source.height + 1,
+          source.position![2],
+        ] as [number, number, number],
+      }))
+    if (copies.length === 0) return
+
+    const nextProject = {
+      ...state.currentProject,
+      placements: [...state.currentProject.placements, ...copies],
+      updatedAt: Date.now(),
+    }
+
+    set(commitProjectUpdate(state, nextProject))
+  },
+
+  nudgePlacements: (placementIds, delta) => {
+    const state = get()
+    if (!state.currentProject || placementIds.length === 0) return
+    const ids = new Set(placementIds)
+
+    let changed = false
+    const placements = state.currentProject.placements.map((placement) => {
+      if (!ids.has(placement.id) || !placement.position) return placement
+      changed = true
+      const [x, y, z] = placement.position
+      return {
+        ...placement,
+        position: [x + delta[0], Math.max(0.5, y + delta[1]), z + delta[2]] as [
+          number,
+          number,
+          number,
+        ],
+        slotId: '',
+        wall: undefined,
+        tier: undefined,
+        gridCol: undefined,
+        colSpan: undefined,
+        displayMode: undefined,
+      }
+    })
+    if (!changed) return
+
+    set(
+      commitProjectUpdate(state, {
+        ...state.currentProject,
+        placements,
+        updatedAt: Date.now(),
+      }),
+    )
   },
 
   populateFromAssortment: () => {
