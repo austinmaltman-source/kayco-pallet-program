@@ -106,6 +106,11 @@ export interface PhysicsSlice {
   wakeToken: number
   // Bumped to re-run the current camera preset animation (camera reset).
   cameraResetToken: number
+  // Touch fallback for Shift-drag: when on, a held item moves vertically.
+  verticalDragMode: boolean
+  // Bumped by the on-screen rotate button to spin the held item 90 degrees
+  // (touch fallback for the R key / scroll wheel).
+  heldRotateToken: number
 
   // Spawn a free (physics) placement carried by the cursor until placed.
   spawnProduct: (product: Product) => string | undefined
@@ -127,6 +132,9 @@ export interface PhysicsSlice {
   duplicatePlacements: (placementIds: string[]) => void
   nudgePlacements: (placementIds: string[], delta: [number, number, number]) => void
   resetCamera: () => void
+  setVerticalDragMode: (on: boolean) => void
+  toggleVerticalDragMode: () => void
+  requestHeldRotate: () => void
   setCarryPlacement: (placementId: string | null) => void
   setDragging3D: (dragging: boolean) => void
   setHeldPlacement: (placementId: string | null) => void

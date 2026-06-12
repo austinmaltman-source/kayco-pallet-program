@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { Plus, Undo2, Weight } from 'lucide-react'
+import { ArrowUpDown, Plus, RotateCw, Undo2, Weight } from 'lucide-react'
 import { useDisplayStore } from '../../stores/display-store'
 import { PalletDisplay } from '../PalletDisplay'
 import { PalletNavigator } from './pallet-navigator'
@@ -19,6 +19,10 @@ export function ThreeDViewer() {
   const removeProduct = useDisplayStore(s => s.removeProduct)
   const openPicker = useDisplayStore(s => s.openPicker)
   const carryPlacementId = useDisplayStore(s => s.carryPlacementId)
+  const heldPlacementId = useDisplayStore(s => s.heldPlacementId)
+  const verticalDragMode = useDisplayStore(s => s.verticalDragMode)
+  const requestHeldRotate = useDisplayStore(s => s.requestHeldRotate)
+  const toggleVerticalDragMode = useDisplayStore(s => s.toggleVerticalDragMode)
   const offPalletNotice = useDisplayStore(s => s.offPalletNotice)
   const clearOffPalletNotice = useDisplayStore(s => s.clearOffPalletNotice)
   const show3DHeader = useAppSettingsStore((s) => s.settings.show3DHeader)
@@ -100,11 +104,39 @@ export function ThreeDViewer() {
         </div>
       )}
 
+      {/* Held-item touch controls: on-screen equivalents of R (rotate) and
+          Shift-drag (vertical move), which have no touch gesture. */}
+      {(carryPlacementId || heldPlacementId) && (
+        <div className="absolute bottom-6 right-4 z-20 flex flex-col gap-2">
+          <button
+            onClick={requestHeldRotate}
+            aria-label="Rotate held item"
+            className="inline-flex items-center gap-2 px-3 py-2.5 rounded-md bg-white/95 backdrop-blur shadow-elevated text-[12px] font-medium text-[#171717] hover:bg-white transition-colors"
+          >
+            <RotateCw className="w-4 h-4" />
+            Rotate
+          </button>
+          <button
+            onClick={toggleVerticalDragMode}
+            aria-pressed={verticalDragMode}
+            aria-label="Toggle vertical move"
+            className={`inline-flex items-center gap-2 px-3 py-2.5 rounded-md backdrop-blur shadow-elevated text-[12px] font-medium transition-colors ${
+              verticalDragMode
+                ? 'bg-[#171717] text-white hover:bg-[#333]'
+                : 'bg-white/95 text-[#171717] hover:bg-white'
+            }`}
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            Vertical
+          </button>
+        </div>
+      )}
+
       {/* Add product: spawns an item carried by the cursor */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2">
         {carryPlacementId && (
           <div className="px-3 py-1.5 rounded-md bg-black/70 backdrop-blur text-[11px] font-medium text-white">
-            Click to place &middot; R rotates &middot; Esc cancels
+            Click to place &middot; R or Rotate &middot; Esc cancels
           </div>
         )}
         {!carryPlacementId && selectedProductId && (

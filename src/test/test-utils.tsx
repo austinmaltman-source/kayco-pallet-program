@@ -35,6 +35,8 @@ export function resetAllStores() {
     offPalletNotice: null,
     wakeToken: 0,
     cameraResetToken: 0,
+    verticalDragMode: false,
+    heldRotateToken: 0,
   })
 }
 

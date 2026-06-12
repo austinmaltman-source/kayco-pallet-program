@@ -19,6 +19,8 @@ export const createPhysicsSlice: StateCreator<
   offPalletNotice: null,
   wakeToken: 0,
   cameraResetToken: 0,
+  verticalDragMode: false,
+  heldRotateToken: 0,
 
   spawnProduct: (product) => {
     const state = get()
@@ -255,6 +257,14 @@ export const createPhysicsSlice: StateCreator<
 
   resetCamera: () =>
     set((state) => ({ cameraResetToken: state.cameraResetToken + 1 })),
+
+  setVerticalDragMode: (on) => set({ verticalDragMode: on }),
+
+  toggleVerticalDragMode: () =>
+    set((state) => ({ verticalDragMode: !state.verticalDragMode })),
+
+  requestHeldRotate: () =>
+    set((state) => ({ heldRotateToken: state.heldRotateToken + 1 })),
 
   setCarryPlacement: (placementId) => set({ carryPlacementId: placementId }),
 

@@ -364,6 +364,20 @@ describe('display-store', () => {
     expect(useDisplayStore.getState().selectedProductIds).toEqual([])
   })
 
+  it('toggles vertical drag mode and bumps the held-rotate token', () => {
+    const store = useDisplayStore.getState()
+    expect(useDisplayStore.getState().verticalDragMode).toBe(false)
+
+    store.toggleVerticalDragMode()
+    expect(useDisplayStore.getState().verticalDragMode).toBe(true)
+    store.setVerticalDragMode(false)
+    expect(useDisplayStore.getState().verticalDragMode).toBe(false)
+
+    const before = useDisplayStore.getState().heldRotateToken
+    store.requestHeldRotate()
+    expect(useDisplayStore.getState().heldRotateToken).toBe(before + 1)
+  })
+
   it('enforces forward-only status transitions with a single backward step', () => {
     const store = useDisplayStore.getState()
     store.createProject('Status Project', {

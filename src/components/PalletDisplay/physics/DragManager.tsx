@@ -120,6 +120,7 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
 
   const carryPlacementId = useDisplayStore((s) => s.carryPlacementId)
   const wakeToken = useDisplayStore((s) => s.wakeToken)
+  const heldRotateToken = useDisplayStore((s) => s.heldRotateToken)
 
   // Shelf geometry changed (tier count, pallet type): wake every body so
   // items left hanging in the air fall and re-settle on the new shape.
@@ -151,6 +152,8 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
     const store = useDisplayStore.getState()
     if (store.carryPlacementId === current.id) store.setCarryPlacement(null)
     store.setHeldPlacement(null)
+    // Vertical mode is a per-hold touch toggle; don't carry it to the next item.
+    store.setVerticalDragMode(false)
     held.current = null
     setControlsEnabled(true)
   }, [setControlsEnabled])
@@ -175,6 +178,17 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
     current.orientationIndex = (current.orientationIndex + direction + count) % count
     current.targetQuaternion = PRESET_QUATERNIONS[current.orientationIndex].clone()
   }, [])
+
+  // On-screen rotate button (touch fallback): spin the held item 90 degrees,
+  // activating the hold first if the press has not crossed the drag threshold.
+  useEffect(() => {
+    if (heldRotateToken === 0) return
+    const current = held.current
+    if (!current) return
+    const body = bodies.current.get(current.id)
+    if (body && !current.active) activateHold(current, body)
+    rotateHeld(1)
+  }, [heldRotateToken, activateHold, rotateHeld])
 
   // Pick up a freshly spawned placement (picker carry mode).
   useEffect(() => {
@@ -425,7 +439,10 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
 
     let hasTarget = false
 
-    if (shiftDown.current) {
+    // Shift (desktop) or the on-screen toggle (touch) enables vertical move.
+    const verticalMode = shiftDown.current || useDisplayStore.getState().verticalDragMode
+
+    if (verticalMode) {
       // Vertical mode: keep x/z, slide the item up and down along a
       // camera-facing plane through its current position.
       _normal.set(direction.x, 0, direction.z)
