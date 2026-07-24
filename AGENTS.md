@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 ## Working style
 
@@ -15,8 +15,7 @@ PalletForge plans pallet programs for **Kayco**. Single-tenant, no auth — role
 - **Roles:** `salesman | buyer | builder | manager`. One person can switch.
 - **Pallet status workflow:** `draft → ready → in_build → built` (no shipped).
 - **Confirm-by deadline:** 4 months before the season's `holidayDate`, rounded back to the previous Friday. Use `computeConfirmByDate` from [src/lib/deadline.ts](src/lib/deadline.ts).
-- **Default labor:** Full $77.25, Half $64.37 — globally editable in `app-settings-store` (`defaultLaborCostFull`, `defaultLaborCostHalf`).
-- **Default corrugate:** Full $126, Half $80 — globally editable in `app-settings-store` (`defaultCorrugateCostFull`, `defaultCorrugateCostHalf`). Added to labor as a per-pallet cost in margin math.
+- **Default labor:** Full $75, Half $50 — both globally editable in `app-settings-store` (`defaultLaborCostFull`, `defaultLaborCostHalf`).
 - **Items shown in UI as UPC + Kayco #** (with `Product.sku` as fallback only). Don't surface SKU directly.
 - **Holiday is deprecated.** Season is the unit. Don't add Holiday-tagged UI.
 

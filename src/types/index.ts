@@ -389,6 +389,10 @@ export interface Retailer {
   performance: RetailerPerformance
   displayHistory: DisplayHistoryEntry[]
   tags: string[]
+  // Kayco Sales Intelligence accounts linked to this retailer (a retailer can
+  // map to several ship-to accounts, e.g. Costco's regional DCs). Drives the
+  // customer-scoped sales shown in the program item picker.
+  kaycoAccounts?: { id: string; name: string }[]
 }
 
 export interface PalletWizardConfig {

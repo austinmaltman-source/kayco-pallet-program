@@ -24,6 +24,7 @@ import { useRoleHref } from '../lib/role-href'
 import { useSmartBack } from '../lib/use-smart-back'
 import { useRoleStore } from '../stores/role-store'
 import { PalletWizard } from '../components/Wizard/PalletWizard'
+import { KaycoAccountsPanel } from '../components/Retailers/kayco-accounts-panel'
 import { useConfirm } from '../components/ConfirmDialog'
 import type { WizardPalletConfig } from '../components/Wizard/wizardTypes'
 import type { AuthorizedItem, DisplayProject, Holiday, Retailer } from '../types'
@@ -612,6 +613,20 @@ function ItemsTab({ retailer }: { retailer: Retailer }) {
             )
           })
         )}
+      </div>
+
+      <div className="bg-white shadow-card rounded-lg mt-6">
+        <div className="px-5 py-4 border-b border-[#f0f0f0]">
+          <h3 className="text-[13px] font-semibold text-[#171717]">
+            Kayco sales accounts
+          </h3>
+          <p className="text-[12px] text-[#888] mt-0.5">
+            Per-item sales in the program item picker are scoped to these accounts.
+          </p>
+        </div>
+        <div className="px-5 py-4">
+          <KaycoAccountsPanel retailer={retailer} />
+        </div>
       </div>
 
       <AddAuthorizedItemModal

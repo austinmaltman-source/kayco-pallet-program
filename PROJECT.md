@@ -114,7 +114,28 @@ Source of truth: [src/lib/role-routes.ts](src/lib/role-routes.ts).
 ## Environment
 - `.env.local`
   - `GEMINI_API_KEY` - required for the Gemini-backed AI features
+  - `KAYCO_API_KEY` - bearer key for the Kayco Sales Intelligence API (see below). Never commit it.
 - `DISABLE_HMR=true` in the shell disables Vite HMR (used in AI Studio to avoid agent-edit flicker)
+
+## Kayco sales data integration
+Per-item, per-customer sales shown in the program item picker come from the hosted
+Kayco Sales Intelligence API (Cloudflare Worker; full reference incl. the key:
+`../kayco-data-handoff.md` in the workspace root - that file is NOT in this repo).
+
+- The client always calls **`/api/kayco/*`** - never the upstream URL directly:
+  - Dev: Vite `server.proxy` in [vite.config.ts](vite.config.ts) injects `Authorization` from `.env.local`.
+  - Prod: edge function [api/kayco/[...path].ts](api/kayco/[...path].ts) injects it from the
+    Vercel env var `KAYCO_API_KEY` (set on Production + Preview). The key never reaches the bundle.
+- Client lib: [src/lib/kayco-sales.ts](src/lib/kayco-sales.ts) (fetch + 12h localStorage cache +
+  display-string parsing) and hook [src/hooks/useRetailerItemSales.ts](src/hooks/useRetailerItemSales.ts).
+- Retailer -> customer mapping: `Retailer.kaycoAccounts` (`{id, name}[]`), edited via
+  [`<KaycoAccountsPanel>`](src/components/Retailers/kayco-accounts-panel.tsx) on the retailer
+  Items tab or the "Sales accounts" modal in the program item picker. A retailer can map to
+  several ship-to accounts (e.g. Costco's regional DCs); sales are summed across them.
+- **Data gotchas (verified 2026-07-24):** use `/items/:id/accounts` for per-customer item sales -
+  it reconciles against `/items/:id/accounts/:accountId/transactions`. Do NOT build on `/orders`:
+  its order-line coverage is partial and `balance` is not line revenue. API item id = unpadded
+  Kayco item number (`Product.kaycoItemNumber`).
 
 ## Tests
 - `npm test` runs Vitest once; `npm run test:watch` for watch mode.
