@@ -393,6 +393,11 @@ export interface Retailer {
   // map to several ship-to accounts, e.g. Costco's regional DCs). Drives the
   // customer-scoped sales shown in the program item picker.
   kaycoAccounts?: { id: string; name: string }[]
+  // Case-insensitive account-NAME prefixes that auto-include every matching
+  // ship-to account ("COSTCO" catches all 13 Costco DCs plus future ones).
+  // Explicit kaycoAccounts links are for accounts whose names don't match,
+  // e.g. a distributor DC that services this retailer.
+  kaycoAccountPatterns?: string[]
 }
 
 export interface PalletWizardConfig {

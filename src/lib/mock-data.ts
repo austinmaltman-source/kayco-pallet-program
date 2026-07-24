@@ -437,6 +437,7 @@ export const mockProducts: Product[] = [
 export const mockRetailers: Retailer[] = [
   {
     id: 'ret-1',
+    kaycoAccountPatterns: ['WAL-MART'],
     name: 'Walmart',
     status: 'active',
     tier: 'enterprise',
@@ -476,6 +477,7 @@ export const mockRetailers: Retailer[] = [
   },
   {
     id: 'ret-2',
+    kaycoAccountPatterns: ['COSTCO'],
     name: 'Costco',
     status: 'active',
     tier: 'enterprise',
@@ -511,6 +513,7 @@ export const mockRetailers: Retailer[] = [
   },
   {
     id: 'ret-3',
+    kaycoAccountPatterns: ['SHOPRITE', 'WAKEFERN GENERAL'],
     name: 'ShopRite',
     status: 'active',
     tier: 'premium',
@@ -551,6 +554,7 @@ export const mockRetailers: Retailer[] = [
   },
   {
     id: 'ret-4',
+    kaycoAccountPatterns: ['STOP & SHOP'],
     name: 'Stop & Shop',
     status: 'active',
     tier: 'standard',
@@ -585,6 +589,7 @@ export const mockRetailers: Retailer[] = [
   },
   {
     id: 'ret-5',
+    kaycoAccountPatterns: ['KROGER'],
     name: 'Kroger',
     status: 'active',
     tier: 'premium',

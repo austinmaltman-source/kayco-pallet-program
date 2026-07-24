@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  matchesKaycoAccountPatterns,
   normalizeKaycoItemNumber,
   parseKaycoNumber,
   summarizeItemSales,
@@ -63,5 +64,36 @@ describe('summarizeItemSales', () => {
   it('returns zeros when the customer never bought the item', () => {
     const summary = summarizeItemSales(rows, new Set(['12345']))
     expect(summary).toEqual({ cases: 0, netSales: 0, orders: 0, lastOrder: null })
+  })
+
+  it('includes accounts via chain pattern with no explicit ids', () => {
+    const summary = summarizeItemSales(rows, new Set(), ['COSTCO'])
+    expect(summary.cases).toBe(15168)
+    expect(summary.lastOrder).toBe('2026-07-09')
+  })
+
+  it('combines explicit ids and patterns without double counting', () => {
+    const summary = summarizeItemSales(rows, new Set(['40129']), ['COSTCO'])
+    expect(summary.cases).toBe(15168)
+  })
+})
+
+describe('matchesKaycoAccountPatterns', () => {
+  it('matches case-insensitive name prefixes', () => {
+    expect(matchesKaycoAccountPatterns('COSTCO WHOLESALE / NJ', ['costco'])).toBe(true)
+    expect(matchesKaycoAccountPatterns('KEHE ROMEOVILLE IL DC18', ['KEHE'])).toBe(true)
+  })
+
+  it('does not match mid-name substrings', () => {
+    // "ONE STOP KOSHER" must not be caught by a "STOP" prefix.
+    expect(matchesKaycoAccountPatterns('ONE STOP KOSHER', ['STOP'])).toBe(false)
+    expect(
+      matchesKaycoAccountPatterns('STOP & SHOP #505 AVENUE Y', ['STOP & SHOP']),
+    ).toBe(true)
+  })
+
+  it('ignores empty pattern lists and blank patterns', () => {
+    expect(matchesKaycoAccountPatterns('COSTCO WHOLESALE / NJ', [])).toBe(false)
+    expect(matchesKaycoAccountPatterns('COSTCO WHOLESALE / NJ', ['  '])).toBe(false)
   })
 })

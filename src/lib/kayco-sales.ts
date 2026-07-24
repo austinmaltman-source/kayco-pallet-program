@@ -68,18 +68,35 @@ export function parseKaycoNumber(raw: string | number | undefined | null): numbe
   return base * factor
 }
 
-// Sums the rows belonging to the given account ids. Items the customer never
-// bought simply have no rows -> all zeros.
+// Prefix match against the account name, case-insensitive. Prefix (not
+// substring) so "STOP & SHOP" can't be caught by a pattern like "STOP".
+export function matchesKaycoAccountPatterns(
+  accountName: string,
+  patterns: readonly string[],
+): boolean {
+  if (patterns.length === 0) return false
+  const name = accountName.trim().toUpperCase()
+  return patterns.some((pattern) => {
+    const prefix = pattern.trim().toUpperCase()
+    return prefix.length > 0 && name.startsWith(prefix)
+  })
+}
+
+// Sums the rows belonging to the customer: explicit account-id links plus any
+// account whose name matches a chain pattern. Items the customer never bought
+// simply have no rows -> all zeros.
 export function summarizeItemSales(
   rows: ItemAccountRow[],
   accountIds: ReadonlySet<string>,
+  patterns: readonly string[] = [],
 ): ItemCustomerSales {
   let cases = 0
   let netSales = 0
   let orders = 0
   let lastOrder: string | null = null
   for (const row of rows) {
-    if (!accountIds.has(row.id)) continue
+    if (!accountIds.has(row.id) && !matchesKaycoAccountPatterns(row.name, patterns))
+      continue
     cases += parseKaycoNumber(row.cases)
     netSales += parseKaycoNumber(row.netSales)
     orders += parseKaycoNumber(row.orders)

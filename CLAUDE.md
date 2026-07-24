@@ -32,7 +32,7 @@ PalletForge plans pallet programs for **Kayco**. Single-tenant, no auth — role
   - [`<CommentsThread>`](src/components/Comments/comments-thread.tsx) — role-tagged comments per pallet
 - **CSV exports:** use [`buildCsv` + `downloadCsv`](src/lib/csv.ts). Don't roll your own.
 - **Visual style:** white cards on `#fafafa`, black accent `#171717` for primary buttons, `text-[10px] uppercase tracking-wider` for label captions, `tabular-nums` on numeric cells. Don't redesign without explicit ask.
-- **Kayco sales data:** client code calls `/api/kayco/*` only - the key is injected by the Vite dev proxy ([vite.config.ts](vite.config.ts)) or the prod edge function ([api/kayco/[...path].ts](api/kayco/[...path].ts), Vercel env `KAYCO_API_KEY`). Per-customer item sales come from `/items/:id/accounts` summed over `Retailer.kaycoAccounts` (see [src/lib/kayco-sales.ts](src/lib/kayco-sales.ts)). Never build sales math on `/orders` - partial coverage, and `balance` is not line revenue. Details: PROJECT.md "Kayco sales data integration".
+- **Kayco sales data:** client code calls `/api/kayco/*` only - the key is injected by the Vite dev proxy ([vite.config.ts](vite.config.ts)) or the prod edge function ([api/kayco/[...path].ts](api/kayco/[...path].ts), Vercel env `KAYCO_API_KEY`). Per-customer item sales come from `/items/:id/accounts` summed over `Retailer.kaycoAccountPatterns` (account-name prefixes, e.g. 'COSTCO' = every Costco DC) plus explicit `Retailer.kaycoAccounts` links (see [src/lib/kayco-sales.ts](src/lib/kayco-sales.ts)). Never build sales math on `/orders` - partial coverage, and `balance` is not line revenue. Details: PROJECT.md "Kayco sales data integration".
 
 ## Pallet creation wizard
 

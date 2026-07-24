@@ -14,7 +14,9 @@ export function KaycoAccountsPanel({ retailer }: { retailer: Retailer }) {
   const updateRetailer = useRetailerStore((state) => state.updateRetailer)
   const linked = retailer.kaycoAccounts ?? []
   const linkedIds = new Set(linked.map((account) => account.id))
+  const patterns = retailer.kaycoAccountPatterns ?? []
 
+  const [patternDraft, setPatternDraft] = useState('')
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<KaycoAccountSearchHit[]>([])
   const [searching, setSearching] = useState(false)
@@ -61,16 +63,71 @@ export function KaycoAccountsPanel({ retailer }: { retailer: Retailer }) {
     })
   }
 
+  const addPattern = () => {
+    const next = patternDraft.trim().toUpperCase()
+    if (!next || patterns.some((p) => p.toUpperCase() === next)) {
+      setPatternDraft('')
+      return
+    }
+    updateRetailer(retailer.id, { kaycoAccountPatterns: [...patterns, next] })
+    setPatternDraft('')
+  }
+
+  const removePattern = (pattern: string) => {
+    updateRetailer(retailer.id, {
+      kaycoAccountPatterns: patterns.filter((p) => p !== pattern),
+    })
+  }
+
   return (
     <div className="space-y-4">
+      <div>
+        <p className="text-[10px] font-medium uppercase tracking-wider text-[#999]">
+          Chain match
+        </p>
+        <p className="text-[12px] text-[#888] mt-1">
+          Every account whose name starts with one of these is included
+          automatically - "COSTCO" covers all Costco DCs, current and future.
+        </p>
+        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+          {patterns.map((pattern) => (
+            <span
+              key={pattern}
+              className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-[#f0f0f0] text-[12px] font-medium text-[#171717] font-mono"
+            >
+              {pattern}
+              <button
+                onClick={() => removePattern(pattern)}
+                aria-label={`Remove pattern ${pattern}`}
+                className="text-[#999] hover:text-[#c0392b] transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          <input
+            type="text"
+            value={patternDraft}
+            onChange={(e) => setPatternDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') addPattern()
+            }}
+            onBlur={addPattern}
+            placeholder="Add name prefix…"
+            className="w-[150px] h-7 px-2.5 text-[12px] shadow-border rounded-full bg-white focus:outline-none focus:ring-2 focus:ring-[#0a72ef]/30 focus:shadow-none placeholder:text-[#aaa]"
+          />
+        </div>
+      </div>
+
       <div>
         <p className="text-[10px] font-medium uppercase tracking-wider text-[#999]">
           Linked accounts
         </p>
         {linked.length === 0 ? (
           <p className="text-[12px] text-[#888] mt-2">
-            No Kayco sales accounts linked yet. Search below - item sales for{' '}
-            {retailer.name} stay hidden until at least one account is linked.
+            {patterns.length > 0
+              ? 'No extra accounts linked - the chain match above covers this retailer. Link specific accounts below for volume that ships under a different name (e.g. a distributor DC).'
+              : `No Kayco sales accounts linked yet. Add a chain match above or search below - item sales for ${retailer.name} stay hidden until one is set.`}
           </p>
         ) : (
           <ul className="mt-2 space-y-1.5">

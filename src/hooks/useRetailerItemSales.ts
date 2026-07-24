@@ -14,6 +14,7 @@ const CONCURRENCY = 5
 // fills the map incrementally as batches land.
 export function useRetailerItemSales(
   accountIds: string[],
+  accountPatterns: string[],
   itemNumbers: string[],
 ): {
   sales: Map<string, ItemCustomerSales>
@@ -21,6 +22,10 @@ export function useRetailerItemSales(
   error: string | null
 } {
   const accountKey = useMemo(() => [...accountIds].sort().join('|'), [accountIds])
+  const patternKey = useMemo(
+    () => accountPatterns.map((p) => p.trim()).filter(Boolean).sort().join('|'),
+    [accountPatterns],
+  )
   const itemKey = useMemo(
     () =>
       Array.from(
@@ -37,8 +42,9 @@ export function useRetailerItemSales(
 
   useEffect(() => {
     const accounts = new Set(accountKey ? accountKey.split('|') : [])
+    const patterns = patternKey ? patternKey.split('|') : []
     const items = itemKey ? itemKey.split('|') : []
-    if (accounts.size === 0 || items.length === 0) {
+    if ((accounts.size === 0 && patterns.length === 0) || items.length === 0) {
       setSales(new Map())
       setLoading(false)
       setError(null)
@@ -64,7 +70,7 @@ export function useRetailerItemSales(
           batch.map(async (itemNumber) => {
             try {
               const rows = await fetchItemAccounts(itemNumber)
-              results.set(itemNumber, summarizeItemSales(rows, accounts))
+              results.set(itemNumber, summarizeItemSales(rows, accounts, patterns))
             } catch {
               failures += 1
             }
@@ -87,7 +93,7 @@ export function useRetailerItemSales(
     return () => {
       cancelled = true
     }
-  }, [accountKey, itemKey])
+  }, [accountKey, patternKey, itemKey])
 
   return { sales, loading, error }
 }

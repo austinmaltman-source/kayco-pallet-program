@@ -112,10 +112,22 @@ function mergeRetailers(
       }
     })
 
+    // Adopt seeded Kayco sales-account links whenever the user has none of
+    // their own; any manual config (ids or patterns) wins over the seed.
+    const hasKaycoConfig =
+      (retailer.kaycoAccounts?.length ?? 0) > 0 ||
+      (retailer.kaycoAccountPatterns?.length ?? 0) > 0
+
     return {
       ...retailer,
       status,
       authorizedItems,
+      ...(hasKaycoConfig
+        ? {}
+        : {
+            kaycoAccounts: fallbackRetailer.kaycoAccounts,
+            kaycoAccountPatterns: fallbackRetailer.kaycoAccountPatterns,
+          }),
     }
   })
 

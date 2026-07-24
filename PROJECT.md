@@ -128,10 +128,15 @@ Kayco Sales Intelligence API (Cloudflare Worker; full reference incl. the key:
     Vercel env var `KAYCO_API_KEY` (set on Production + Preview). The key never reaches the bundle.
 - Client lib: [src/lib/kayco-sales.ts](src/lib/kayco-sales.ts) (fetch + 12h localStorage cache +
   display-string parsing) and hook [src/hooks/useRetailerItemSales.ts](src/hooks/useRetailerItemSales.ts).
-- Retailer -> customer mapping: `Retailer.kaycoAccounts` (`{id, name}[]`), edited via
+- Retailer -> customer mapping, two mechanisms (summed together, edited via
   [`<KaycoAccountsPanel>`](src/components/Retailers/kayco-accounts-panel.tsx) on the retailer
-  Items tab or the "Sales accounts" modal in the program item picker. A retailer can map to
-  several ship-to accounts (e.g. Costco's regional DCs); sales are summed across them.
+  Items tab or the "Sales accounts" modal in the program item picker):
+  - `Retailer.kaycoAccountPatterns` - case-insensitive account-NAME prefixes; "COSTCO" auto-
+    includes all 13 Costco DC accounts plus any future ones. Seeded in
+    [src/lib/mock-data.ts](src/lib/mock-data.ts) for Walmart/Costco/ShopRite/Stop & Shop/Kroger
+    and merged into persisted retailers that have no config (see `mergeRetailers` in App.tsx).
+  - `Retailer.kaycoAccounts` (`{id, name}[]`) - explicit account links, for volume that ships
+    under a different name (e.g. Meijer via KeHE distributor DCs).
 - **Data gotchas (verified 2026-07-24):** use `/items/:id/accounts` for per-customer item sales -
   it reconciles against `/items/:id/accounts/:accountId/transactions`. Do NOT build on `/orders`:
   its order-line coverage is partial and `balance` is not line revenue. API item id = unpadded

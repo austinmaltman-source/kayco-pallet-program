@@ -85,7 +85,12 @@ export function ProgramItemPicker({
     () => (retailer.kaycoAccounts ?? []).map((account) => account.id),
     [retailer.kaycoAccounts],
   )
-  const salesEnabled = linkedAccountIds.length > 0
+  const accountPatterns = useMemo(
+    () => retailer.kaycoAccountPatterns ?? [],
+    [retailer.kaycoAccountPatterns],
+  )
+  const linkCount = linkedAccountIds.length + accountPatterns.length
+  const salesEnabled = linkCount > 0
   const itemNumbers = useMemo(
     () => rows.map((row) => row.kaycoItemNumber).filter(Boolean),
     [rows],
@@ -94,7 +99,7 @@ export function ProgramItemPicker({
     sales,
     loading: salesLoading,
     error: salesError,
-  } = useRetailerItemSales(linkedAccountIds, itemNumbers)
+  } = useRetailerItemSales(linkedAccountIds, accountPatterns, itemNumbers)
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -172,7 +177,7 @@ export function ProgramItemPicker({
           <BarChart3 className="w-3.5 h-3.5" />
           Sales accounts
           {salesEnabled && (
-            <span className="text-[#999] tabular-nums">({linkedAccountIds.length})</span>
+            <span className="text-[#999] tabular-nums">({linkCount})</span>
           )}
         </button>
         <div className="ml-auto flex items-center gap-3 text-[11px] text-[#666] tabular-nums">
