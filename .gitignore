@@ -8,3 +8,6 @@ coverage/
 !.env.example
 .claude/settings.local.json
 .vercel
+.dev.vars
+.wrangler/
+worker-configuration.d.ts

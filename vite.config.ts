@@ -21,8 +21,15 @@ export default defineConfig(({mode}) => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       proxy: {
-        // Mirrors api/kayco/[...path].ts (the prod edge function). Key comes
-        // from .env.local (KAYCO_API_KEY) and never reaches the client bundle.
+        // Shared-state backend: run `npx wrangler dev` alongside `npm run dev`
+        // to get the real Worker + local D1. Without it, the client falls back
+        // to localStorage-only (state-sync handles the failed fetch).
+        '/api/state': {
+          target: 'http://localhost:8787',
+          changeOrigin: true,
+        },
+        // Mirrors the Worker's /api/kayco proxy. Key comes from .env.local
+        // (KAYCO_API_KEY) and never reaches the client bundle.
         '/api/kayco': {
           target: 'https://kayco-planning-dashboard.clondinski1234.workers.dev',
           changeOrigin: true,

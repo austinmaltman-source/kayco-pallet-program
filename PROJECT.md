@@ -16,10 +16,16 @@ Not to be confused with the older 3D pallet *display builder* that used to live 
 - **@google/genai** (Gemini) for AI features - key in `.env.local` as `GEMINI_API_KEY`
 - **Vitest + Testing Library** for tests
 - **No auth.** Role picker only (`salesman | buyer | builder | manager`).
-- **No backend / no database.** State persists to `localStorage`.
+- **Shared-state backend on Cloudflare** (Worker + D1). localStorage remains the
+  local cache/offline fallback; see "Shared state backend" below.
 
 ## Hosting
-- **App:** Vercel (config in [vercel.json](vercel.json) - framework `vite`, SPA rewrite to `/`)
+- **Primary: Cloudflare Workers** - `https://palletforge.shop-smarter.workers.dev`.
+  One Worker ([worker/index.ts](worker/index.ts), config [wrangler.jsonc](wrangler.jsonc)) serves the
+  built SPA (assets binding, SPA fallback) plus `/api/state` (shared state on D1) and `/api/kayco`
+  (sales API proxy). Deploy: `npm run cf:deploy`. NOT auto-deployed on push - deploy explicitly.
+- **Legacy: Vercel** (config in [vercel.json](vercel.json)) - still auto-deploys `main`; has the
+  Kayco proxy but NO `/api/state`, so it runs localStorage-only. Retire once Cloudflare is the home.
 
 ## Repo
 - **`origin`** -> `github.com/austinmaltman-source/kayco-pallet-program` - active repo, push here
@@ -112,9 +118,28 @@ Source of truth: [src/lib/role-routes.ts](src/lib/role-routes.ts).
 - **Visual style:** white cards on `#fafafa`, black accent `#171717` for primary buttons, `text-[10px] uppercase tracking-wider` for label captions, `tabular-nums` on numeric cells. Don't redesign without an explicit ask.
 
 ## Environment
-- `.env.local`
+- `.env.local` (vite dev)
   - `GEMINI_API_KEY` - required for the Gemini-backed AI features
   - `KAYCO_API_KEY` - bearer key for the Kayco Sales Intelligence API (see below). Never commit it.
+- `.dev.vars` (wrangler dev) - `KAYCO_API_KEY` again, for the local Worker. Gitignored.
+- Cloudflare secrets: `KAYCO_API_KEY` (set via `wrangler secret put`).
+
+## Shared state backend
+The app's data (products, retailers, seasons, salespeople, inventory, pallets, app settings)
+syncs through the Worker to **D1** (`palletforge`, table `app_state`: one JSON blob per store
+key, last write wins). Client half: [src/lib/state-sync.ts](src/lib/state-sync.ts) + the hydration
+wiring in [src/App.tsx](src/App.tsx).
+
+- Startup: hydrate from `GET /api/state` (3.5s timeout), falling back to localStorage. Every
+  store write mirrors to localStorage + a debounced `PUT /api/state/:key`.
+- First-run import: keys missing on the server are seeded from the first browser that connects.
+  An empty server value never beats non-empty local data (footgun guard in `readShared`).
+- Tab refocus pulls server changes made elsewhere (`selectApplicableEntries` + apply).
+- If `/api/state` is unreachable (vite dev without `npx wrangler dev`, Vercel, offline) the app
+  silently runs localStorage-only, exactly like the pre-backend version.
+- Local dev full stack: `npm run dev` + `npx wrangler dev` (vite proxies `/api/state` to :8787).
+- D1 migrations live in [migrations/](migrations/); apply with
+  `npx wrangler d1 migrations apply palletforge --local|--remote`.
 - `DISABLE_HMR=true` in the shell disables Vite HMR (used in AI Studio to avoid agent-edit flicker)
 
 ## Kayco sales data integration

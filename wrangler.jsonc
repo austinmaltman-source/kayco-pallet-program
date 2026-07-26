@@ -1,0 +1,29 @@
+// Cloudflare Workers config: one Worker serves the built Vite app (static
+// assets, SPA fallback) and handles /api/* (state sync on D1 + Kayco sales
+// API proxy). Deploy: npm run build && npx wrangler deploy
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "palletforge",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-07-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "palletforge",
+      "database_id": "1606eebf-d248-47a5-8368-e7c62d43dc39",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+  // Secrets (wrangler secret put): KAYCO_API_KEY
+}

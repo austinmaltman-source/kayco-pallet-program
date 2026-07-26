@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { DisplayProject, InventoryLocation, InventorySnapshot, Product, Retailer, Salesperson, Season } from './types'
 import { RoleAppLayout } from './components/layout/role-app-layout'
 import { LegacyFlatRedirect } from './components/layout/legacy-flat-redirect'
@@ -28,7 +28,7 @@ import { useRetailerStore } from './stores/retailer-store'
 import { useSeasonStore } from './stores/season-store'
 import { useSalespersonStore } from './stores/salesperson-store'
 import { useInventoryStore } from './stores/inventory-store'
-import { useAppSettingsStore } from './stores/app-settings-store'
+import { useAppSettingsStore, APP_SETTINGS_STORAGE_KEY } from './stores/app-settings-store'
 import { mockRetailers, mockSalespeople } from './lib/mock-data'
 import { loadInventoryInfo } from './lib/inventory-info-loader'
 import { mergeInventoryInfoIntoProducts } from './lib/inventory-info-import'
@@ -37,6 +37,13 @@ import {
   pruneOrphanedAssortmentAndPlacements,
   pruneOrphanedAuthorizedItems,
 } from './lib/cascade-delete'
+import {
+  fetchServerState,
+  markSynced,
+  schedulePush,
+  selectApplicableEntries,
+  type SyncedKey,
+} from './lib/state-sync'
 
 const PROJECT_STORAGE_KEY = 'palletforge-project'
 const PALLETS_STORAGE_KEY = 'palletforge-pallets'
@@ -149,166 +156,295 @@ function mergeRetailers(
   return mergedRetailers
 }
 
-export default function App() {
-  useEffect(() => {
-    const catalogProducts = mergeCatalogProducts(
-      loadPersistedState(CATALOG_STORAGE_KEY),
-      []
-    )
-    const retailers = mergeRetailers(
-      loadPersistedState(RETAILER_STORAGE_KEY),
-      mockRetailers
-    )
-
-    useCatalogStore
-      .getState()
-      .setProducts(catalogProducts)
-
-    loadInventoryInfo().then((inventoryInfo) => {
-      if (inventoryInfo.length === 0) return
-      const catalogState = useCatalogStore.getState()
-      const result = mergeInventoryInfoIntoProducts(
-        catalogState.products,
-        inventoryInfo,
-      )
-      if (result.products.length > 0) {
-        catalogState.setProducts(result.products)
-      }
-
-      // One-time orphan cleanup: drop assortment entries + placements that
-      // reference productIds no longer in the catalog (e.g. legacy mock
-      // prod-N entries from before we removed the seed). Gated by a
-      // version key so each user pays the cost exactly once.
-      const ranVersion = localStorage.getItem(MIGRATION_KEY)
-      if (ranVersion !== CURRENT_MIGRATION_VERSION) {
-        const validIds = new Set(
-          useCatalogStore.getState().products.map((product) => product.id),
-        )
-
-        const retailerState = useRetailerStore.getState()
-        const { next: cleanedRetailers, dropped: authDropped } =
-          pruneOrphanedAuthorizedItems(retailerState.retailers, validIds)
-        if (authDropped > 0) {
-          retailerState.setRetailers(cleanedRetailers)
-        }
-
+// Applies a server snapshot into the stores (used on focus-refresh so edits
+// made on another device show up without a reload). markSynced first so the
+// store subscriptions don't push the same payload straight back.
+function applyServerEntries(entries: Map<SyncedKey, string>) {
+  for (const [key, value] of entries) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      continue
+    }
+    markSynced(key, value)
+    switch (key) {
+      case CATALOG_STORAGE_KEY:
+        useCatalogStore.getState().setProducts(parsed as Product[])
+        break
+      case RETAILER_STORAGE_KEY:
+        useRetailerStore.getState().setRetailers(parsed as Retailer[])
+        break
+      case SEASONS_STORAGE_KEY:
+        useSeasonStore.getState().setSeasons(parsed as Season[])
+        break
+      case SALESPEOPLE_STORAGE_KEY:
+        useSalespersonStore.getState().setSalespeople(parsed as Salesperson[])
+        break
+      case INVENTORY_STORAGE_KEY:
+        useInventoryStore
+          .getState()
+          .hydrate(parsed as Record<InventoryLocation, InventorySnapshot | null>)
+        break
+      case PALLETS_STORAGE_KEY: {
         const displayState = useDisplayStore.getState()
-        const { next, assortmentDropped, placementsDropped } =
-          pruneOrphanedAssortmentAndPlacements(displayState.projects, validIds)
-        if (assortmentDropped > 0 || placementsDropped > 0) {
-          displayState.setProjects(next)
-          const currentId = displayState.currentProject?.id
-          if (currentId) {
-            const updated = next.find((p) => p.id === currentId)
-            if (updated) displayState.setCurrentProject(updated)
+        const currentId = displayState.currentProject?.id
+        const projects = parsed as DisplayProject[]
+        displayState.setProjects(projects)
+        if (currentId) {
+          const stillThere = projects.find((project) => project.id === currentId)
+          if (stillThere) useDisplayStore.getState().setCurrentProject(stillThere)
+        }
+        break
+      }
+      case APP_SETTINGS_STORAGE_KEY:
+        useAppSettingsStore.getState().updateSettings(parsed as Record<string, never>)
+        break
+    }
+  }
+}
+
+export default function App() {
+  const [hydrated, setHydrated] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    const unsubscribers: Array<() => void> = []
+
+    const hydrate = async () => {
+      // Shared backend first; falls back to this browser's localStorage when
+      // unreachable (dev without wrangler, offline, or the old Vercel host).
+      const server = await fetchServerState()
+      if (cancelled) return
+
+      const readShared = <T,>(key: SyncedKey): T | null => {
+        const entry = server?.get(key)
+        const local = loadPersistedState<T>(key)
+        if (entry) {
+          try {
+            const parsed = JSON.parse(entry.value) as T
+            // Guard against the empty-first-seed footgun: if a fresh browser
+            // seeded the server with nothing while this browser holds real
+            // data, keep the local data and push it up instead.
+            const serverEmpty = Array.isArray(parsed)
+              ? parsed.length === 0
+              : parsed && typeof parsed === 'object'
+                ? Object.values(parsed).every((v) => v == null)
+                : false
+            const localNonEmpty = Array.isArray(local)
+              ? local.length > 0
+              : local != null
+            if (serverEmpty && localNonEmpty) {
+              schedulePush(key, JSON.stringify(local))
+              return local
+            }
+            markSynced(key, entry.value)
+            return parsed
+          } catch {
+            // fall through to the local copy
           }
         }
+        return local
+      }
 
-        if (authDropped > 0 || assortmentDropped > 0 || placementsDropped > 0) {
-          console.info(
-            `[migration] orphan cleanup pruned ${authDropped} authorized items, ${assortmentDropped} assortment entries, and ${placementsDropped} placements`,
-          )
-        }
+      // Settings before anything else - labor/corrugate defaults below read them.
+      const settingsEntry = server?.get(APP_SETTINGS_STORAGE_KEY)
+      if (settingsEntry) {
         try {
-          localStorage.setItem(MIGRATION_KEY, CURRENT_MIGRATION_VERSION)
+          useAppSettingsStore
+            .getState()
+            .updateSettings(JSON.parse(settingsEntry.value))
+          markSynced(APP_SETTINGS_STORAGE_KEY, settingsEntry.value)
         } catch {
-          // best effort
+          // keep local settings
         }
       }
-    })
 
-    useRetailerStore
-      .getState()
-      .setRetailers(retailers)
-
-    const persistedSeasons = loadPersistedState<Season[]>(SEASONS_STORAGE_KEY) ?? []
-    useSeasonStore.getState().setSeasons(
-      persistedSeasons.map((season) => ({
-        ...season,
-        archived: season.archived ?? false,
-      })),
-    )
-
-    // Fall back to the demo team (same pattern as retailers) so the salesman
-    // workspace is usable in a fresh browser instead of dead-ending on
-    // "no salespeople yet".
-    const persistedSalespeople =
-      loadPersistedState<Salesperson[]>(SALESPEOPLE_STORAGE_KEY) ?? mockSalespeople
-    useSalespersonStore.getState().setSalespeople(persistedSalespeople)
-
-    const persistedInventory = loadPersistedState<
-      Record<InventoryLocation, InventorySnapshot | null>
-    >(INVENTORY_STORAGE_KEY) ?? { hook: null, goshen: null }
-    useInventoryStore.getState().hydrate(persistedInventory)
-
-    const persistedProjects = loadPersistedState<DisplayProject[]>(PALLETS_STORAGE_KEY)
-    const legacyProject = loadPersistedState<DisplayProject>(PROJECT_STORAGE_KEY)
-    const MOCK_PALLET_IDS = new Set(['proj-1', 'proj-2', 'proj-3'])
-    const rawProjects = persistedProjects ?? (legacyProject ? [legacyProject] : [])
-    const appSettings = useAppSettingsStore.getState().settings
-    const getRetailerForProject = (retailerId: string) =>
-      useRetailerStore.getState().getRetailer(retailerId)
-    const projects = rawProjects
-      .filter((project) => !MOCK_PALLET_IDS.has(project.id))
-      .map((project) => ({
-        ...project,
-        assortment: project.assortment ?? [],
-        seasonId: project.seasonId ?? null,
-        buildLocation: project.buildLocation ?? null,
-        laborCost:
-          project.laborCost ??
-          (project.palletType === 'half'
-            ? appSettings.defaultLaborCostHalf
-            : appSettings.defaultLaborCostFull),
-        corrugateCost:
-          project.corrugateCost ??
-          (project.palletType === 'half'
-            ? appSettings.defaultCorrugateCostHalf
-            : appSettings.defaultCorrugateCostFull),
-        status: project.status ?? 'draft',
-      }))
-      // Physics sandbox migration: give every slot-based placement a world
-      // transform so it can spawn as a rigid body where it always rendered.
-      .map((project) =>
-        migrateProjectPlacements(project, getRetailerForProject(project.retailerId)),
+      const catalogProducts = mergeCatalogProducts(
+        readShared(CATALOG_STORAGE_KEY),
+        []
       )
-    const activePalletId = localStorage.getItem(ACTIVE_PALLET_STORAGE_KEY)
-    const activeProject =
-      projects.find((project) => project.id === activePalletId) ??
-      (legacyProject ? projects.find((project) => project.id === legacyProject.id) : undefined) ??
-      projects[0]
+      const retailers = mergeRetailers(
+        readShared(RETAILER_STORAGE_KEY),
+        mockRetailers
+      )
 
-    useDisplayStore.getState().setProjects(projects)
-    if (activeProject) {
-      useDisplayStore.getState().setCurrentProject(activeProject)
+      useCatalogStore
+        .getState()
+        .setProducts(catalogProducts)
+
+      void loadInventoryInfo().then((inventoryInfo) => {
+        if (inventoryInfo.length === 0) return
+        const catalogState = useCatalogStore.getState()
+        const result = mergeInventoryInfoIntoProducts(
+          catalogState.products,
+          inventoryInfo,
+        )
+        if (result.products.length > 0) {
+          catalogState.setProducts(result.products)
+        }
+
+        // One-time orphan cleanup: drop assortment entries + placements that
+        // reference productIds no longer in the catalog (e.g. legacy mock
+        // prod-N entries from before we removed the seed). Gated by a
+        // version key so each user pays the cost exactly once.
+        const ranVersion = localStorage.getItem(MIGRATION_KEY)
+        if (ranVersion !== CURRENT_MIGRATION_VERSION) {
+          const validIds = new Set(
+            useCatalogStore.getState().products.map((product) => product.id),
+          )
+
+          const retailerState = useRetailerStore.getState()
+          const { next: cleanedRetailers, dropped: authDropped } =
+            pruneOrphanedAuthorizedItems(retailerState.retailers, validIds)
+          if (authDropped > 0) {
+            retailerState.setRetailers(cleanedRetailers)
+          }
+
+          const displayState = useDisplayStore.getState()
+          const { next, assortmentDropped, placementsDropped } =
+            pruneOrphanedAssortmentAndPlacements(displayState.projects, validIds)
+          if (assortmentDropped > 0 || placementsDropped > 0) {
+            displayState.setProjects(next)
+            const currentId = displayState.currentProject?.id
+            if (currentId) {
+              const updated = next.find((p) => p.id === currentId)
+              if (updated) displayState.setCurrentProject(updated)
+            }
+          }
+
+          if (authDropped > 0 || assortmentDropped > 0 || placementsDropped > 0) {
+            console.info(
+              `[migration] orphan cleanup pruned ${authDropped} authorized items, ${assortmentDropped} assortment entries, and ${placementsDropped} placements`,
+            )
+          }
+          try {
+            localStorage.setItem(MIGRATION_KEY, CURRENT_MIGRATION_VERSION)
+          } catch {
+            // best effort
+          }
+        }
+      })
+
+      useRetailerStore
+        .getState()
+        .setRetailers(retailers)
+
+      const persistedSeasons = readShared<Season[]>(SEASONS_STORAGE_KEY) ?? []
+      useSeasonStore.getState().setSeasons(
+        persistedSeasons.map((season) => ({
+          ...season,
+          archived: season.archived ?? false,
+        })),
+      )
+
+      // Fall back to the demo team (same pattern as retailers) so the salesman
+      // workspace is usable in a fresh browser instead of dead-ending on
+      // "no salespeople yet".
+      const persistedSalespeople =
+        readShared<Salesperson[]>(SALESPEOPLE_STORAGE_KEY) ?? mockSalespeople
+      useSalespersonStore.getState().setSalespeople(persistedSalespeople)
+
+      const persistedInventory = readShared<
+        Record<InventoryLocation, InventorySnapshot | null>
+      >(INVENTORY_STORAGE_KEY) ?? { hook: null, goshen: null }
+      useInventoryStore.getState().hydrate(persistedInventory)
+
+      const persistedProjects = readShared<DisplayProject[]>(PALLETS_STORAGE_KEY)
+      const legacyProject = loadPersistedState<DisplayProject>(PROJECT_STORAGE_KEY)
+      const MOCK_PALLET_IDS = new Set(['proj-1', 'proj-2', 'proj-3'])
+      const rawProjects = persistedProjects ?? (legacyProject ? [legacyProject] : [])
+      const appSettings = useAppSettingsStore.getState().settings
+      const getRetailerForProject = (retailerId: string) =>
+        useRetailerStore.getState().getRetailer(retailerId)
+      const projects = rawProjects
+        .filter((project) => !MOCK_PALLET_IDS.has(project.id))
+        .map((project) => ({
+          ...project,
+          assortment: project.assortment ?? [],
+          seasonId: project.seasonId ?? null,
+          buildLocation: project.buildLocation ?? null,
+          laborCost:
+            project.laborCost ??
+            (project.palletType === 'half'
+              ? appSettings.defaultLaborCostHalf
+              : appSettings.defaultLaborCostFull),
+          corrugateCost:
+            project.corrugateCost ??
+            (project.palletType === 'half'
+              ? appSettings.defaultCorrugateCostHalf
+              : appSettings.defaultCorrugateCostFull),
+          status: project.status ?? 'draft',
+        }))
+        // Physics sandbox migration: give every slot-based placement a world
+        // transform so it can spawn as a rigid body where it always rendered.
+        .map((project) =>
+          migrateProjectPlacements(project, getRetailerForProject(project.retailerId)),
+        )
+      const activePalletId = localStorage.getItem(ACTIVE_PALLET_STORAGE_KEY)
+      const activeProject =
+        projects.find((project) => project.id === activePalletId) ??
+        (legacyProject ? projects.find((project) => project.id === legacyProject.id) : undefined) ??
+        projects[0]
+
+      useDisplayStore.getState().setProjects(projects)
+      if (activeProject) {
+        useDisplayStore.getState().setCurrentProject(activeProject)
+      }
+
+      // First-run import: whatever this browser hydrated that the server
+      // doesn't have yet becomes the shared starting point.
+      const seedIfMissing = (key: SyncedKey, json: string) => {
+        if (!server?.has(key)) schedulePush(key, json)
+      }
+      seedIfMissing(CATALOG_STORAGE_KEY, JSON.stringify(useCatalogStore.getState().products))
+      seedIfMissing(RETAILER_STORAGE_KEY, JSON.stringify(useRetailerStore.getState().retailers))
+      seedIfMissing(SEASONS_STORAGE_KEY, JSON.stringify(useSeasonStore.getState().seasons))
+      seedIfMissing(SALESPEOPLE_STORAGE_KEY, JSON.stringify(useSalespersonStore.getState().salespeople))
+      seedIfMissing(INVENTORY_STORAGE_KEY, JSON.stringify(useInventoryStore.getState().snapshots))
+      seedIfMissing(PALLETS_STORAGE_KEY, JSON.stringify(useDisplayStore.getState().projects))
+      seedIfMissing(APP_SETTINGS_STORAGE_KEY, JSON.stringify(useAppSettingsStore.getState().settings))
+
+      unsubscribers.push(
+        useCatalogStore.subscribe((state) => {
+          const json = JSON.stringify(state.products)
+          localStorage.setItem(CATALOG_STORAGE_KEY, json)
+          schedulePush(CATALOG_STORAGE_KEY, json)
+        }),
+        useRetailerStore.subscribe((state) => {
+          const json = JSON.stringify(state.retailers)
+          localStorage.setItem(RETAILER_STORAGE_KEY, json)
+          schedulePush(RETAILER_STORAGE_KEY, json)
+        }),
+        useSeasonStore.subscribe((state) => {
+          const json = JSON.stringify(state.seasons)
+          localStorage.setItem(SEASONS_STORAGE_KEY, json)
+          schedulePush(SEASONS_STORAGE_KEY, json)
+        }),
+        useSalespersonStore.subscribe((state) => {
+          const json = JSON.stringify(state.salespeople)
+          localStorage.setItem(SALESPEOPLE_STORAGE_KEY, json)
+          schedulePush(SALESPEOPLE_STORAGE_KEY, json)
+        }),
+        useInventoryStore.subscribe((state) => {
+          const json = JSON.stringify(state.snapshots)
+          localStorage.setItem(INVENTORY_STORAGE_KEY, json)
+          schedulePush(INVENTORY_STORAGE_KEY, json)
+        }),
+        // app-settings-store persists itself to localStorage; mirror to server.
+        useAppSettingsStore.subscribe((state) => {
+          schedulePush(APP_SETTINGS_STORAGE_KEY, JSON.stringify(state.settings))
+        }),
+      )
+
+      setHydrated(true)
     }
 
-    const unsubscribeCatalog = useCatalogStore.subscribe((state) => {
-      localStorage.setItem(CATALOG_STORAGE_KEY, JSON.stringify(state.products))
-    })
-
-    const unsubscribeRetailers = useRetailerStore.subscribe((state) => {
-      localStorage.setItem(RETAILER_STORAGE_KEY, JSON.stringify(state.retailers))
-    })
-
-    const unsubscribeSeasons = useSeasonStore.subscribe((state) => {
-      localStorage.setItem(SEASONS_STORAGE_KEY, JSON.stringify(state.seasons))
-    })
-
-    const unsubscribeSalespeople = useSalespersonStore.subscribe((state) => {
-      localStorage.setItem(SALESPEOPLE_STORAGE_KEY, JSON.stringify(state.salespeople))
-    })
-
-    const unsubscribeInventory = useInventoryStore.subscribe((state) => {
-      localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(state.snapshots))
-    })
+    void hydrate()
 
     return () => {
-      unsubscribeCatalog()
-      unsubscribeRetailers()
-      unsubscribeSeasons()
-      unsubscribeSalespeople()
-      unsubscribeInventory()
+      cancelled = true
+      unsubscribers.forEach((unsubscribe) => unsubscribe())
     }
   }, [])
 
@@ -316,7 +452,9 @@ export default function App() {
     const unsubscribeProject = useDisplayStore.subscribe((state) => {
       if (!useAppSettingsStore.getState().settings.autoSaveProject) return
 
-      localStorage.setItem(PALLETS_STORAGE_KEY, JSON.stringify(state.projects))
+      const json = JSON.stringify(state.projects)
+      localStorage.setItem(PALLETS_STORAGE_KEY, json)
+      schedulePush(PALLETS_STORAGE_KEY, json)
       if (state.currentProject) {
         localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(state.currentProject))
         localStorage.setItem(ACTIVE_PALLET_STORAGE_KEY, state.currentProject.id)
@@ -329,6 +467,27 @@ export default function App() {
 
     return () => unsubscribeProject()
   }, [])
+
+  // Pull changes other people made while this tab was in the background.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return
+      void fetchServerState().then((entries) => {
+        if (!entries) return
+        applyServerEntries(selectApplicableEntries(entries))
+      })
+    }
+    document.addEventListener('visibilitychange', refresh)
+    return () => document.removeEventListener('visibilitychange', refresh)
+  }, [])
+
+  if (!hydrated) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#fafafa]">
+        <p className="text-[12px] uppercase tracking-wider text-[#999]">Loading…</p>
+      </div>
+    )
+  }
 
   return (
     <BrowserRouter>

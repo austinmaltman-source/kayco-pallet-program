@@ -22,5 +22,8 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  // worker/ compiles under its own tsconfig (workers runtime types clash with
+  // the DOM lib used by the app). `npm run lint` checks both.
+  "exclude": ["node_modules", "dist", "worker", "worker-configuration.d.ts"]
 }
