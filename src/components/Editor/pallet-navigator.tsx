@@ -25,7 +25,6 @@ interface PalletNavigatorProps {
 export function PalletNavigator({ className }: PalletNavigatorProps) {
   const activeFace = useDisplayStore(s => s.activeFace)
   const setActiveFace = useDisplayStore(s => s.setActiveFace)
-  const viewMode = useDisplayStore(s => s.viewMode)
   const setCameraPreset = useDisplayStore(s => s.setCameraPreset)
   const palletType = useDisplayStore(s => s.currentProject?.palletType ?? 'full')
 
@@ -38,11 +37,9 @@ export function PalletNavigator({ className }: PalletNavigatorProps) {
       if (isHalf && face !== 'front') return
       setActiveFace(face)
       setRotY(ROTATION_FOR_FACE[face])
-      if (viewMode === '3d') {
-        setCameraPreset(CAMERA_FOR_FACE[face])
-      }
+      setCameraPreset(CAMERA_FOR_FACE[face])
     },
-    [viewMode, setActiveFace, setCameraPreset, isHalf]
+    [setActiveFace, setCameraPreset, isHalf]
   )
 
   const cubeSize = 52

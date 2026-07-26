@@ -4,17 +4,16 @@ import { useNavigate } from 'react-router-dom'
 import type { Product } from '../../types'
 import { BRAND_COLORS } from '../../lib/mock-data'
 import { formatWeight } from '../../lib/number-format'
-import { useCatalogStore } from '../../stores/catalog-store'
 import { useRoleHref } from '../../lib/role-href'
 
 interface ProductRowProps {
   product: Product
+  onDelete: (product: Product) => void
 }
 
-export function ProductRow({ product }: ProductRowProps) {
+export function ProductRow({ product, onDelete }: ProductRowProps) {
   const navigate = useNavigate()
   const roleHref = useRoleHref()
-  const deleteProduct = useCatalogStore((s) => s.deleteProduct)
   const [showMenu, setShowMenu] = useState(false)
 
   const brandColor = BRAND_COLORS[product.brand]
@@ -96,8 +95,8 @@ export function ProductRow({ product }: ProductRowProps) {
                   className="w-full text-left px-3 py-2 text-[12px] font-medium text-red-600 hover:bg-red-50 flex items-center gap-2"
                   onClick={(e) => {
                     e.stopPropagation()
-                    deleteProduct(product.id)
                     setShowMenu(false)
+                    onDelete(product)
                   }}
                 >
                   <Trash2 className="w-3 h-3" />

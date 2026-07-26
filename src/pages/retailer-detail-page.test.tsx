@@ -1,25 +1,41 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { RetailerDetailPage } from './retailer-detail-page'
 import { useCatalogStore } from '../stores/catalog-store'
+import { useDisplayStore } from '../stores/display-store'
 import { useRetailerStore } from '../stores/retailer-store'
 import { useRoleStore } from '../stores/role-store'
-import { makeProduct, makeRetailer } from '../test/test-utils'
+import { makeProduct, makeProject, makeRetailer } from '../test/test-utils'
 
 vi.mock('../components/Wizard/PalletWizard', () => ({
   PalletWizard: () => null,
 }))
 
-vi.mock('../components/StartProgramWizard', () => ({
-  StartProgramWizard: () => null,
-}))
-
 describe('RetailerDetailPage', () => {
-  it('supports adding, discontinuing, and removing retailer items', async () => {
+  it('shows an Everyday program card for salesmen when a pallet has no season', async () => {
+    useRoleStore.getState().setRole('salesman')
+    useRetailerStore.getState().setRetailers([
+      makeRetailer({ id: 'ret-1', name: 'Retail Partner' }),
+    ])
+    useDisplayStore.getState().setProjects([
+      makeProject({ id: 'proj-none', retailerId: 'ret-1', season: 'none', seasonId: null }),
+    ])
+
+    render(
+      <MemoryRouter initialEntries={['/salesman/retailers/ret-1']}>
+        <Routes>
+          <Route path="/:role/retailers/:id" element={<RetailerDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText('Everyday')).toBeInTheDocument()
+  })
+
+  it('supports adding, updating, and removing retailer items', async () => {
     const user = userEvent.setup()
-    useRoleStore.getState().setRole('manager')
 
     useCatalogStore.getState().setProducts([
       makeProduct({
@@ -40,9 +56,9 @@ describe('RetailerDetailPage', () => {
     ])
 
     render(
-      <MemoryRouter initialEntries={['/manager/retailers/ret-1']}>
+      <MemoryRouter initialEntries={['/retailers/ret-1']}>
         <Routes>
-          <Route path="/:role/retailers/:id" element={<RetailerDetailPage />} />
+          <Route path="/retailers/:id" element={<RetailerDetailPage />} />
         </Routes>
       </MemoryRouter>,
     )
@@ -54,16 +70,12 @@ describe('RetailerDetailPage', () => {
       screen.getByPlaceholderText('Search by name, SKU, brand, or category...'),
       'Add Me',
     )
-    const productRow = screen.getByText('Add Me Product').closest('div[class*="flex-1"]')?.parentElement
-    expect(productRow).not.toBeNull()
-    await user.click(within(productRow as HTMLElement).getByRole('button', { name: /^Add$/i }))
+    await user.click(screen.getByRole('button', { name: /^Add$/i }))
 
+    // New items land as authorized; status changes via action buttons.
     await waitFor(() => {
       expect(screen.getByText('Add Me Product')).toBeInTheDocument()
     })
-
-    // Items are added with status='authorized'. The status flow is now a
-    // "Discontinue" button instead of a per-item status <select>.
     expect(
       useRetailerStore
         .getState()
@@ -73,14 +85,12 @@ describe('RetailerDetailPage', () => {
 
     await user.click(screen.getByRole('button', { name: /Discontinue/i }))
 
-    await waitFor(() => {
-      expect(
-        useRetailerStore
-          .getState()
-          .getRetailer('ret-1')
-          ?.authorizedItems.find((item) => item.productId === 'prod-add')?.status,
-      ).toBe('discontinued')
-    })
+    expect(
+      useRetailerStore
+        .getState()
+        .getRetailer('ret-1')
+        ?.authorizedItems.find((item) => item.productId === 'prod-add')?.status,
+    ).toBe('discontinued')
 
     await user.click(screen.getByLabelText('Remove Add Me Product'))
 

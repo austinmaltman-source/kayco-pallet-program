@@ -19,8 +19,7 @@ const brands: { key: Brand; label: string }[] = [
 export function ProductPickerModal() {
   const isOpen = useDisplayStore(s => s.isPickerOpen)
   const closePicker = useDisplayStore(s => s.closePicker)
-  const selectedSlotId = useDisplayStore(s => s.selectedSlotId)
-  const placeProduct = useDisplayStore(s => s.placeProduct)
+  const spawnProduct = useDisplayStore(s => s.spawnProduct)
   const pickerSelectedProduct = useDisplayStore(s => s.pickerSelectedProduct)
   const setPickerProduct = useDisplayStore(s => s.setPickerProduct)
 
@@ -46,8 +45,6 @@ export function ProductPickerModal() {
   }, [retailer])
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  const [placementError, setPlacementError] = useState<string | null>(null)
-  const [placementSuggestions, setPlacementSuggestions] = useState<string[]>([])
 
   const resetFilters = () => {
     setSearchQuery('')
@@ -58,32 +55,18 @@ export function ProductPickerModal() {
     closePicker()
     setSelectedProduct(null)
     setPickerProduct(null)
-    setPlacementError(null)
-    setPlacementSuggestions([])
     resetFilters()
   }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') handleClose()
-      if (e.key === 'Enter' && selectedProduct && selectedSlotId) {
-        const result = placeProduct(selectedProduct, selectedSlotId)
-        if (result?.valid) {
-          setSelectedProduct(null)
-          setPickerProduct(null)
-          setPlacementError(null)
-          setPlacementSuggestions([])
-        } else if (result) {
-          setPlacementError(result.errors[0]?.reason ?? 'This product does not fit in the selected position.')
-          setPlacementSuggestions(result.suggestions.map((suggestion) => suggestion.message))
-        }
-      }
     }
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown)
       return () => document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, closePicker, selectedProduct, selectedSlotId, placeProduct, setPickerProduct])
+  }, [isOpen, closePicker])
 
   useEffect(() => {
     if (isOpen) {
@@ -130,26 +113,11 @@ export function ProductPickerModal() {
 
   if (!isOpen) return null
 
-  const handlePlace = () => {
-    if (selectedProduct && selectedSlotId) {
-      const result = placeProduct(selectedProduct, selectedSlotId)
-      if (result?.valid) {
-        setSelectedProduct(null)
-        setPickerProduct(null)
-        setPlacementError(null)
-        setPlacementSuggestions([])
-        resetFilters()
-      } else if (result) {
-        setPlacementError(result.errors[0]?.reason ?? 'This product does not fit in the selected position.')
-        setPlacementSuggestions(result.suggestions.map((suggestion) => suggestion.message))
-      }
-    }
-  }
-
+  // Spawn the item carried by the cursor; the user drops it wherever it
+  // should live and gravity settles it.
   const handleStartPlacement = () => {
     if (!selectedProduct) return
-    setPickerProduct(selectedProduct)
-    closePicker()
+    spawnProduct(selectedProduct)
     setSelectedProduct(null)
     resetFilters()
   }
@@ -226,8 +194,6 @@ export function ProductPickerModal() {
                   const nextSelection = isSelected ? null : product
                   setSelectedProduct(nextSelection)
                   setPickerProduct(nextSelection)
-                  setPlacementError(null)
-                  setPlacementSuggestions([])
                 }}
                 className={`flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-all ${
                   isSelected
@@ -256,7 +222,12 @@ export function ProductPickerModal() {
                             .join(' · ')
                         : product.sku}
                     </div>
-                    {!product.caseConfig && (
+                    {!product.caseConfig && (product.unitsPerCase ?? 0) > 1 && (
+                      <span className="text-[10px] font-medium text-[#666] bg-[#f5f5f5] px-1.5 py-0.5 rounded">
+                        {product.unitsPerCase}/case
+                      </span>
+                    )}
+                    {!product.caseConfig && (product.unitsPerCase ?? 0) <= 1 && (
                       <span className="text-[10px] font-medium text-[#4f46e5] bg-[#eef2ff] px-1.5 py-0.5 rounded">
                         Case
                       </span>
@@ -306,14 +277,6 @@ export function ProductPickerModal() {
             {selectedProduct && (
               <span className="text-[12px] font-medium text-[#171717]">{selectedProduct.name}</span>
             )}
-            {placementError && (
-              <span className="text-[11px] text-[#B91C1C] max-w-[300px]">{placementError}</span>
-            )}
-            {placementSuggestions.length > 0 && (
-              <span className="text-[10px] text-[#666] max-w-[320px]">
-                Try: {placementSuggestions.slice(0, 2).join(' • ')}
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-2">
             <button onClick={handleClose}
@@ -321,7 +284,7 @@ export function ProductPickerModal() {
               Cancel
             </button>
             <button
-              onClick={selectedSlotId ? handlePlace : handleStartPlacement}
+              onClick={handleStartPlacement}
               disabled={!selectedProduct}
               className={`px-6 py-2 text-[12px] font-medium rounded-md transition-all ${
                 selectedProduct
@@ -329,7 +292,7 @@ export function ProductPickerModal() {
                   : 'bg-[#f5f5f5] text-[#ccc] cursor-not-allowed'
               }`}
             >
-              {selectedSlotId ? 'Place Product' : 'Choose Slot'}
+              Add to Pallet
             </button>
           </div>
         </footer>

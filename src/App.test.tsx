@@ -8,11 +8,6 @@ import {useRetailerStore} from './stores/retailer-store'
 import {mockRetailers} from './lib/mock-data'
 import {makeProduct, makeProject, makeRetailer} from './test/test-utils'
 
-vi.mock('./components/layout/app-layout', async () => {
-  const {Outlet} = await import('react-router-dom')
-  return {AppLayout: () => <Outlet />}
-})
-
 vi.mock('./pages/editor-page', () => ({
   EditorPage: () => <div>Editor Page</div>,
 }))
@@ -46,21 +41,9 @@ vi.mock('./pages/settings-page', () => ({
 }))
 
 describe('App', () => {
-  it('hydrates persisted catalog, retailers, and projects from localStorage', async () => {
+  it('hydrates persisted data while merging in mock retailers and authorizations', async () => {
     const persistedProducts = [
       makeProduct({id: 'prod-persisted', name: 'Persisted Product'}),
-      makeProduct({
-        id: 'prod-8',
-        name: 'Tea Biscuits',
-        sku: 'KED-TBSC-1',
-        brand: 'kedem',
-        brandColor: '#991B1B',
-        category: 'Snacks',
-        width: 6,
-        height: 3,
-        depth: 2,
-        weight: 0.5,
-      }),
     ]
     const persistedRetailers = [makeRetailer({id: 'ret-persisted', name: 'Persisted Retailer'})]
     const persistedProject = makeProject({
@@ -77,35 +60,34 @@ describe('App', () => {
     render(<App />)
 
     await waitFor(() => {
+      // The product seed was removed: the catalog hydrates from persistence
+      // only (the inventory feed is absent in tests, so nothing merges in).
       const catalogProducts = useCatalogStore.getState().products
-      expect(catalogProducts.some((product) => product.id === 'prod-persisted')).toBe(true)
-      expect(catalogProducts.some((product) => product.id === 'prod-8')).toBe(true)
-      expect(useRetailerStore.getState().retailers).toEqual([
-        ...persistedRetailers,
-        ...mockRetailers,
-      ])
-      // Hydration applies defaults (laborCost, status, etc.) that don't exist
-      // on the raw persisted record, so deep-equality is too strict here.
-      const projects = useDisplayStore.getState().projects
-      expect(projects).toHaveLength(1)
-      expect(projects[0]).toMatchObject({
-        id: persistedProject.id,
-        name: persistedProject.name,
-        retailerId: persistedProject.retailerId,
-        palletType: persistedProject.palletType,
-        tierCount: persistedProject.tierCount,
+      expect(catalogProducts.map((product) => product.id)).toEqual(['prod-persisted'])
+
+      const retailerIds = useRetailerStore.getState().retailers.map((retailer) => retailer.id)
+      expect(retailerIds[0]).toBe('ret-persisted')
+      mockRetailers.forEach((retailer) => expect(retailerIds).toContain(retailer.id))
+
+      expect(useDisplayStore.getState().projects).toHaveLength(1)
+      expect(useDisplayStore.getState().projects[0]).toMatchObject({
+        id: 'proj-persisted',
+        name: 'Persisted Project',
+        retailerId: 'ret-persisted',
       })
-      expect(useDisplayStore.getState().currentProject?.id).toBe(persistedProject.id)
+      expect(useDisplayStore.getState().currentProject?.id).toBe('proj-persisted')
     })
   })
 
-  it('clears corrupt persisted catalog data on startup', async () => {
+  it('clears corrupt persisted catalog data', async () => {
     localStorage.setItem('palletforge-products', '{bad json')
 
     render(<App />)
 
     await waitFor(() => {
-      expect(localStorage.getItem('palletforge-products')).not.toBe('{bad json')
+      expect(localStorage.getItem('palletforge-products')).toBeNull()
+      // No product seed: the catalog stays empty until the inventory feed loads.
+      expect(useCatalogStore.getState().products).toEqual([])
     })
   })
 

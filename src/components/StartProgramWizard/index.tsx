@@ -10,6 +10,7 @@ import {
   useSeasonStore,
 } from '../../stores/season-store'
 import { useRoleHref } from '../../lib/role-href'
+import { canRoleDo } from '../../lib/role-routes'
 import { SpinningPallet } from './SpinningPallet'
 import type { Holiday, PalletType, Retailer, Season } from '../../types'
 
@@ -104,7 +105,7 @@ export function StartProgramWizard({
   const createSeason = useSeasonStore((state) => state.createSeason)
   const createProject = useDisplayStore((state) => state.createProject)
   const role = useRoleStore((state) => state.role)
-  const canCreateSeason = role === 'manager'
+  const canCreateSeason = canRoleDo(role, 'createSeason')
 
   const allowedRetailers = useMemo(() => {
     let list = retailers.filter((r) => r.status !== 'inactive')

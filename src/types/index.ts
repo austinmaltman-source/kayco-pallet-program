@@ -34,110 +34,10 @@ export interface PalletConfig {
   maxWeight?: number
 }
 
+// Case orientation vocabulary used by Product.allowedOrientations and the
+// product-variants derivation. (The physics editor tracks live orientation
+// per placement via ORIENTATION_PRESETS indices instead.)
 export type Orientation3D = 'upright' | 'on-side' | 'on-end' | 'inverted'
-
-export interface OrientationRule {
-  orientation: Orientation3D
-  rotationDeg: 0 | 90 | 180 | 270
-}
-
-export interface StackRule {
-  stackable: boolean
-  fragile: boolean
-  crushable: boolean
-  maxStackLoadLb?: number
-  nestingPercent?: number
-}
-
-export type RetailerPreset = 'costco' | 'sams' | 'walmart' | 'bjs'
-
-export interface PalletSpec {
-  id: 'gma-48x40' | 'half-48x20' | 'quarter-24x20' | 'custom'
-  label: string
-  widthIn: number
-  depthIn: number
-  baseHeightIn: number
-  maxLoadLb: number
-  maxHeightIn: number
-  noOverhang: boolean
-  underhangMaxIn: number
-  primaryFaceIn: 40 | 48
-  retailerPreset?: RetailerPreset
-}
-
-export type PalletWarning =
-  | { kind: 'overweight'; tier?: number; lb: number; maxLb: number }
-  | { kind: 'overhang'; placementId: string; overhangIn: number }
-  | { kind: 'overheight'; usedIn: number; maxIn: number }
-  | { kind: 'crush'; placementId: string; loadAboveLb: number; maxLoadLb: number }
-  | { kind: 'unsupported'; placementId: string; supportPct: number }
-  | { kind: 'fragile-under-heavy'; placementId: string }
-  | { kind: 'orientation-disallowed'; placementId: string; orientation: Orientation3D }
-
-export interface PalletKPIs {
-  cubeUtilizationPct: number
-  weightUtilizationPct: number
-  footprintUtilizationPct: number
-  totalCases: number
-  totalUnits: number
-  totalWeightLb: number
-  heightUsedIn: number
-  warnings: PalletWarning[]
-}
-
-export interface PlacementSuggestion {
-  type:
-    | 'alternative-position'
-    | 'alternative-tier'
-    | 'alternative-wall'
-    | 'rotate'
-    | 'reduce-quantity'
-  message: string
-  wall?: WallFace
-  tier?: number
-  gridCol?: number
-  displayMode?: 'face-out' | 'spine-out'
-  maxQuantity?: number
-  priority: number
-}
-
-export interface FullValidationResult {
-  valid: boolean
-  errors: Array<{ rule: string; reason: string }>
-  warnings: Array<{ rule: string; reason: string }>
-  suggestions: PlacementSuggestion[]
-}
-
-export interface GhostProduct {
-  slotId: string;          // "tierId-slotIndex"
-  width: number;           // product case width in inches
-  height: number;          // product case height
-  depth: number;           // product case depth
-  color: string;           // brand color hex
-  label?: string;          // product name to show on the box
-  isValid: boolean;        // green if valid, red if invalid
-  worldPosition?: [number, number, number]
-  rotation?: [number, number, number]
-  errorReason?: string
-  suggestions?: PlacementSuggestion[]
-  suggestionMarkers?: Array<{
-    position: [number, number, number]
-    message: string
-  }>
-}
-
-export interface DraggedCaseProduct {
-  productId: string
-  placementId?: string
-  source?: 'tray' | 'scene'
-  startClient?: { x: number; y: number }
-  startPosition?: { x: number; y: number; z: number }
-  width: number
-  height: number
-  depth: number
-  color: string
-  label: string
-}
 
 export type PackagingType = 'box' | 'bottle' | 'jar' | 'bag' | 'tin' | 'pouch'
 
@@ -157,7 +57,12 @@ export interface CaseConfig {
 export interface PlacedProduct {
   id: string;              // unique placement ID
   sourceProductId?: string; // original catalog product ID
-  slotId: string;          // "tierId-slotIndex"
+  slotId: string;          // "tierId-slotIndex" (legacy slot model; kept until retirement)
+  // Physics sandbox transform - source of truth for where the item sits.
+  // position is the bottom-center anchor in world inches (matches the render
+  // convention: products build upward from their anchor).
+  position?: [number, number, number];
+  quaternion?: [number, number, number, number];
   width: number;           // case dimensions
   height: number;
   depth: number;
@@ -170,10 +75,6 @@ export interface PlacedProduct {
   packaging?: PackagingType; // packaging type for scaling strategy
   caseConfig?: CaseConfig;
   orientation?: number;    // index into ORIENTATION_PRESETS (0-5)
-  position?: { x: number; y: number; z: number }
-  rotationDeg?: 0 | 90 | 180 | 270
-  orientation3D?: Orientation3D
-  caseStackHeight?: number
   wall?: WallFace
   tier?: number
   gridCol?: number
@@ -203,31 +104,13 @@ export interface PalletDisplayProps {
 
   // Products
   placedProducts?: PlacedProduct[];
-  ghostProduct?: GhostProduct | null;
-  draggedCaseProduct?: DraggedCaseProduct | null;
   selectedProductId?: string | null;
+  selectedProductIds?: string[];
 
   // Interaction callbacks
-  onSlotClick?: (tierId: number, slotIndex: number, position: [number, number, number]) => void;
-  onSlotHover?: (tierId: number, slotIndex: number, position: [number, number, number]) => void;
-  onSlotHoverEnd?: () => void;
-  onProductClick?: (productId: string) => void;
+  onProductClick?: (productId: string, additive: boolean) => void;
   onRotateProduct?: (productId: string) => void;
   onDeleteProduct?: (productId: string) => void;
-  onProductDragStart?: (
-    productId: string,
-    pointer: { clientX: number; clientY: number },
-  ) => void;
-  onFreeformDrop?: (position: { x: number; y: number; z: number }) => void;
-  onFreeformDragCancel?: () => void;
-  settleFreeformDrop?: (
-    position: { x: number; y: number; z: number },
-  ) => { x: number; y: number; z: number };
-  validateFreeformDrop?: (
-    position: { x: number; y: number; z: number },
-  ) => FullValidationResult | undefined;
-  hiddenProductId?: string | null;
-
   // Camera
   autoRotate?: boolean; // default false
   initialCameraPosition?: [number, number, number];
@@ -235,7 +118,6 @@ export interface PalletDisplayProps {
   onCameraPresetChange?: (preset: CameraPreset) => void;
 
   // Display
-  showSlotGrid?: boolean; // default true
   showHeader?: boolean; // default true
   environment?: DisplayEnvironment; // default 'retail'
 }
@@ -458,12 +340,10 @@ export interface DisplayProject {
   comments?: PalletComment[]
   tierCount: number
   palletType: PalletType
-  palletSpec?: PalletSpec
   lipColor: string
   branding: DisplayBranding
   placements: PlacedProduct[]
   assortment: AssortmentEntry[]
-  packingRules?: import('../lib/rules/types').Rule[]
   // Items the salesman has picked for this pallet. Persists across sessions
   // even when cases = 0. Undefined on legacy projects — fall back to deriving
   // selection from `assortment` entries.
@@ -483,16 +363,4 @@ export interface Season {
   archived: boolean
   createdAt: number
   holidayDate?: number
-}
-
-export interface SlotGridItem {
-  slotId: string
-  tierId: number
-  slotIndex: number
-  face: TrayFace
-  row: number
-  col: number
-  position: [number, number, number]
-  width: number
-  depth: number
 }

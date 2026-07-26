@@ -29,9 +29,14 @@ import { useSeasonStore } from './stores/season-store'
 import { useSalespersonStore } from './stores/salesperson-store'
 import { useInventoryStore } from './stores/inventory-store'
 import { useAppSettingsStore } from './stores/app-settings-store'
-import { mockRetailers } from './lib/mock-data'
+import { mockRetailers, mockSalespeople } from './lib/mock-data'
 import { loadInventoryInfo } from './lib/inventory-info-loader'
 import { mergeInventoryInfoIntoProducts } from './lib/inventory-info-import'
+import { migrateProjectPlacements } from './lib/placementMigration'
+import {
+  pruneOrphanedAssortmentAndPlacements,
+  pruneOrphanedAuthorizedItems,
+} from './lib/cascade-delete'
 
 const PROJECT_STORAGE_KEY = 'palletforge-project'
 const PALLETS_STORAGE_KEY = 'palletforge-pallets'
@@ -144,61 +149,6 @@ function mergeRetailers(
   return mergedRetailers
 }
 
-function pruneOrphanedAuthorizedItems(
-  retailers: Retailer[],
-  validProductIds: Set<string>,
-): { next: Retailer[]; dropped: number } {
-  let dropped = 0
-  const next = retailers.map((retailer) => {
-    const filtered = retailer.authorizedItems.filter((item) => {
-      const ok = validProductIds.has(item.productId)
-      if (!ok) dropped += 1
-      return ok
-    })
-    if (filtered.length === retailer.authorizedItems.length) return retailer
-    return { ...retailer, authorizedItems: filtered }
-  })
-  return { next, dropped }
-}
-
-function pruneOrphanedAssortmentAndPlacements(
-  projects: DisplayProject[],
-  validProductIds: Set<string>,
-): { next: DisplayProject[]; assortmentDropped: number; placementsDropped: number } {
-  let assortmentDropped = 0
-  let placementsDropped = 0
-
-  const next = projects.map((project) => {
-    const nextAssortment = project.assortment.filter((entry) => {
-      const ok = validProductIds.has(entry.productId)
-      if (!ok) assortmentDropped += 1
-      return ok
-    })
-    const nextPlacements = project.placements.filter((placement) => {
-      if (!placement.sourceProductId) return true
-      const ok = validProductIds.has(placement.sourceProductId)
-      if (!ok) placementsDropped += 1
-      return ok
-    })
-
-    if (
-      nextAssortment.length === project.assortment.length &&
-      nextPlacements.length === project.placements.length
-    ) {
-      return project
-    }
-
-    return {
-      ...project,
-      assortment: nextAssortment,
-      placements: nextPlacements,
-      updatedAt: Date.now(),
-    }
-  })
-
-  return { next, assortmentDropped, placementsDropped }
-}
-
 export default function App() {
   useEffect(() => {
     const catalogProducts = mergeCatalogProducts(
@@ -279,8 +229,11 @@ export default function App() {
       })),
     )
 
+    // Fall back to the demo team (same pattern as retailers) so the salesman
+    // workspace is usable in a fresh browser instead of dead-ending on
+    // "no salespeople yet".
     const persistedSalespeople =
-      loadPersistedState<Salesperson[]>(SALESPEOPLE_STORAGE_KEY) ?? []
+      loadPersistedState<Salesperson[]>(SALESPEOPLE_STORAGE_KEY) ?? mockSalespeople
     useSalespersonStore.getState().setSalespeople(persistedSalespeople)
 
     const persistedInventory = loadPersistedState<
@@ -293,6 +246,8 @@ export default function App() {
     const MOCK_PALLET_IDS = new Set(['proj-1', 'proj-2', 'proj-3'])
     const rawProjects = persistedProjects ?? (legacyProject ? [legacyProject] : [])
     const appSettings = useAppSettingsStore.getState().settings
+    const getRetailerForProject = (retailerId: string) =>
+      useRetailerStore.getState().getRetailer(retailerId)
     const projects = rawProjects
       .filter((project) => !MOCK_PALLET_IDS.has(project.id))
       .map((project) => ({
@@ -312,6 +267,11 @@ export default function App() {
             : appSettings.defaultCorrugateCostFull),
         status: project.status ?? 'draft',
       }))
+      // Physics sandbox migration: give every slot-based placement a world
+      // transform so it can spawn as a rigid body where it always rendered.
+      .map((project) =>
+        migrateProjectPlacements(project, getRetailerForProject(project.retailerId)),
+      )
     const activePalletId = localStorage.getItem(ACTIVE_PALLET_STORAGE_KEY)
     const activeProject =
       projects.find((project) => project.id === activePalletId) ??

@@ -95,6 +95,39 @@ export function calculateCaseWeight(
   return unitWeight * itemCount + cardboardWeight
 }
 
+// Weight of a placed item. Unlike resolveProductWeight this works off the
+// placement's own caseConfig (which may be synthesized from unitsPerCase at
+// spawn time, so the source catalog product does not carry it).
+export function resolvePlacementWeight(
+  placement: {
+    sourceProductId?: string
+    caseConfig?: Product['caseConfig']
+    width: number
+    height: number
+    depth: number
+  },
+  allProducts: Product[],
+): number {
+  if (placement.caseConfig) {
+    const unitProduct = allProducts.find(
+      (candidate) => candidate.id === placement.caseConfig?.unitProductId,
+    )
+    if (unitProduct && unitProduct.weight > 0) {
+      return calculateCaseWeight(unitProduct.weight, placement.caseConfig.layout, {
+        width: placement.width,
+        height: placement.height,
+        depth: placement.depth,
+        source: 'manual',
+      })
+    }
+  }
+
+  const source = placement.sourceProductId
+    ? allProducts.find((candidate) => candidate.id === placement.sourceProductId)
+    : undefined
+  return source ? resolveProductWeight(source, allProducts) : 0
+}
+
 export function resolveProductWeight(product: Product, allProducts: Product[]): number {
   if (!product.caseConfig) {
     return product.weight

@@ -5,6 +5,7 @@ import { useCatalogStore } from '../../stores/catalog-store'
 import { useDisplayStore } from '../../stores/display-store'
 import { useRetailerStore } from '../../stores/retailer-store'
 import { useRoleStore } from '../../stores/role-store'
+import { canRoleDo } from '../../lib/role-routes'
 import {
   buildAssortmentRows,
   computeAssortmentTotals,
@@ -27,7 +28,7 @@ export function AssortmentTable({ project, retailer }: AssortmentTableProps) {
   )
   const addAuthorizedItem = useRetailerStore((state) => state.addAuthorizedItem)
   const role = useRoleStore((state) => state.role)
-  const isManager = role === 'manager'
+  const canAuthorize = canRoleDo(role, 'authorizeItems')
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [activeTab, setActiveTab] = useState<'authorized' | 'pending'>('authorized')
 
@@ -103,7 +104,7 @@ export function AssortmentTable({ project, retailer }: AssortmentTableProps) {
       productName: product.name,
       sku: product.sku,
       brand: product.brand,
-      status: isManager ? 'authorized' : 'pending',
+      status: canAuthorize ? 'authorized' : 'pending',
       authorizedDate: new Date().toISOString().slice(0, 10),
     }
     addAuthorizedItem(retailer.id, item)
@@ -308,7 +309,7 @@ export function AssortmentTable({ project, retailer }: AssortmentTableProps) {
                     colSpan={9}
                     className="px-6 pt-5 pb-2 text-[10px] uppercase tracking-wider text-[#999]"
                   >
-                    From catalog · {isManager ? 'click to authorize' : 'click to request'}
+                    From catalog · {canAuthorize ? 'click to authorize' : 'click to request'}
                   </td>
                 </tr>
                 {catalogMatches.map((product) => {
@@ -346,7 +347,7 @@ export function AssortmentTable({ project, retailer }: AssortmentTableProps) {
                         className="inline-flex items-center gap-1 px-3 py-1 rounded-md text-[11px] font-medium bg-[#171717] text-white hover:bg-[#333] transition-colors"
                       >
                         <Plus className="w-3 h-3" />
-                        {isManager ? 'Add' : 'Request'}
+                        {canAuthorize ? 'Add' : 'Request'}
                       </button>
                     </td>
                     <td className="px-4 py-3 text-[12px] text-[#bbb] text-right">—</td>

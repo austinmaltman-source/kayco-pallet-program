@@ -21,6 +21,7 @@ import { useRetailerStore } from '../stores/retailer-store'
 import { useRoleHref } from '../lib/role-href'
 import { useSmartBack } from '../lib/use-smart-back'
 import { useConfirm } from '../components/ConfirmDialog'
+import { cascadeDeleteProduct, describeProductReferences } from '../lib/cascade-delete'
 
 const BRANDS: Brand[] = ['tuscanini', 'kedem', 'gefen', 'liebers', 'haddar', 'osem']
 const HOLIDAYS: Holiday[] = ['rosh-hashanah', 'pesach', 'sukkos', 'none']
@@ -69,7 +70,6 @@ export function ProductDetailPage() {
   const product = useCatalogStore((s) => s.getProduct(id ?? ''))
   const products = useCatalogStore((s) => s.products)
   const updateProduct = useCatalogStore((s) => s.updateProduct)
-  const deleteProduct = useCatalogStore((s) => s.deleteProduct)
   const retailers = useRetailerStore((s) => s.retailers)
 
   const [activeTab, setActiveTab] = useState<Tab>('overview')
@@ -236,12 +236,12 @@ export function ProductDetailPage() {
   const handleDelete = async () => {
     const ok = await confirm({
       title: `Delete "${product.name}" from the catalog?`,
-      description: 'This product will be removed from the master catalog.',
+      description: describeProductReferences(product.id),
       confirmLabel: 'Delete product',
       destructive: true,
     })
     if (!ok) return
-    deleteProduct(product.id)
+    cascadeDeleteProduct(product.id)
     navigate(roleHref('/catalog'))
   }
 

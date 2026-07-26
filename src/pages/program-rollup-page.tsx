@@ -126,14 +126,6 @@ export function ProgramRollupPage() {
     [seasonPallets],
   )
 
-  if (!retailer || !retailerId) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <p className="text-[13px] text-[#888]">Retailer not found</p>
-      </div>
-    )
-  }
-
   const seasonLabel =
     seasonRecord?.name ??
     (seasonParam && seasonParam in HOLIDAY_LABELS
@@ -202,6 +194,17 @@ export function ProgramRollupPage() {
     // pick (we don't want to yank the user back to Items after they enter cases).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seasonPallets.length === 0, halfPallet?.id, fullPallet?.id])
+
+  // Guard AFTER every hook: the retailer store hydrates a tick after first
+  // render on a hard page load, and an early return above any hook crashes
+  // React with a hook-order error the moment the data arrives.
+  if (!retailer || !retailerId) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <p className="text-[13px] text-[#888]">Retailer not found</p>
+      </div>
+    )
+  }
 
   const handleToggleSelected = (
     palletId: string,
@@ -444,7 +447,6 @@ export function ProgramRollupPage() {
   }
 
   const isReadOnly = role === 'builder'
-  const isSalesman = role === 'salesman'
 
   return (
     <div className="px-8 py-6 max-w-[1500px] mx-auto">
@@ -494,7 +496,9 @@ export function ProgramRollupPage() {
                       Add full pallet
                     </MenuItem>
                   )}
-                  {!isSalesman && halfPallet && (
+                  {/* Salesmen build the pallets, so they get the detail +
+                      3D editor path too - same as every other role. */}
+                  {halfPallet && (
                     <MenuItem
                       onClick={() =>
                         navigate(
@@ -507,7 +511,7 @@ export function ProgramRollupPage() {
                       Open half pallet detail
                     </MenuItem>
                   )}
-                  {!isSalesman && fullPallet && (
+                  {fullPallet && (
                     <MenuItem
                       onClick={() =>
                         navigate(

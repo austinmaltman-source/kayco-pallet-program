@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Boxes,
@@ -21,11 +21,14 @@ import { useDisplayStore } from '../stores/display-store'
 import { useSalespersonStore } from '../stores/salesperson-store'
 import { useSeasonStore } from '../stores/season-store'
 import { useRoleHref } from '../lib/role-href'
-import { useSmartBack } from '../lib/use-smart-back'
+import { canRoleDo } from '../lib/role-routes'
 import { useRoleStore } from '../stores/role-store'
 import { PalletWizard } from '../components/Wizard/PalletWizard'
+import { StartProgramWizard } from '../components/StartProgramWizard'
 import { KaycoAccountsPanel } from '../components/Retailers/kayco-accounts-panel'
 import { useConfirm } from '../components/ConfirmDialog'
+import { CommentCountBadge } from '../components/Comments/comment-count-badge'
+import { cascadeDeleteRetailer } from '../lib/cascade-delete'
 import type { WizardPalletConfig } from '../components/Wizard/wizardTypes'
 import type { AuthorizedItem, DisplayProject, Holiday, Retailer } from '../types'
 
@@ -143,6 +146,7 @@ function PalletCard({ pallet, retailerId }: { pallet: DisplayProject; retailerId
         <span className="tabular-nums">{palletQty} pallet{palletQty === 1 ? '' : 's'}</span>
         <span className="tabular-nums">{itemCount} item{itemCount === 1 ? '' : 's'}</span>
         <span className="tabular-nums">{totalCases} case{totalCases === 1 ? '' : 's'}</span>
+        <CommentCountBadge count={pallet.comments?.length} />
         <span className="ml-auto tabular-nums">{formatDate(pallet.updatedAt)}</span>
       </div>
     </div>
@@ -715,14 +719,7 @@ export function RetailerDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const roleHref = useRoleHref()
-  const smartBack = useSmartBack()
   const role = useRoleStore((state) => state.role)
-  // Salesman home merges retailers + programs + items into one screen, so
-  // there's no value in a separate retailer detail for that role.
-  if (role === 'salesman') {
-    return <Navigate to="/salesman" replace />
-  }
-  const deleteRetailer = useRetailerStore((state) => state.deleteRetailer)
   const updateRetailer = useRetailerStore((state) => state.updateRetailer)
   const retailer = useRetailerStore((state) => state.getRetailer(id ?? ''))
   const salespeople = useSalespersonStore((state) => state.salespeople)
@@ -735,6 +732,7 @@ export function RetailerDetailPage() {
   )
   const [activeTab, setActiveTab] = useState<Tab>('pallets')
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [startProgramOpen, setStartProgramOpen] = useState(false)
   const createProject = useDisplayStore((state) => state.createProject)
   // Programs are identified by seasonId (each Season is one program); legacy
   // pallets without a seasonId fall back to their Holiday family.
@@ -756,10 +754,48 @@ export function RetailerDetailPage() {
             label: formatHoliday(pallet.season),
           })
         }
+      } else if (!byKey.has('none')) {
+        // Pallets without a season still belong to a program - the same
+        // "Everyday" group the salesman home links to via /program/none.
+        byKey.set('none', { key: 'none', label: 'Everyday' })
       }
     }
     return Array.from(byKey.values())
   }, [pallets, seasons])
+
+  const programCards = useMemo(() => {
+    return seasonOptions.map((option) => {
+      const palletsInProgram = pallets.filter((p) =>
+        p.seasonId ? p.seasonId === option.key : p.season === option.key,
+      )
+      let totalCases = 0
+      let halfUnits = 0
+      let fullUnits = 0
+      const pickedSet = new Set<string>()
+      let lastUpdated = 0
+      for (const p of palletsInProgram) {
+        const qty = p.quantity ?? 1
+        if (p.palletType === 'half') halfUnits += qty
+        if (p.palletType === 'full') fullUnits += qty
+        for (const entry of p.assortment) {
+          totalCases += entry.cases * qty
+          pickedSet.add(entry.productId)
+        }
+        p.selectedProductIds?.forEach((id) => pickedSet.add(id))
+        if (p.updatedAt > lastUpdated) lastUpdated = p.updatedAt
+      }
+      return {
+        key: option.key,
+        label: option.label,
+        itemCount: pickedSet.size,
+        totalCases,
+        palletUnits: halfUnits + fullUnits,
+        halfUnits,
+        fullUnits,
+        lastUpdated,
+      }
+    })
+  }, [seasonOptions, pallets])
 
   const handleDeleteProgram = async () => {
     if (!retailer) return
@@ -767,13 +803,13 @@ export function RetailerDetailPage() {
       title: `Delete "${retailer.name}"?`,
       description:
         pallets.length > 0
-          ? `This program and ${pallets.length} pallet${pallets.length === 1 ? '' : 's'} under it will be removed. This cannot be undone.`
+          ? `This program and ${pallets.length} pallet${pallets.length === 1 ? '' : 's'} under it will be removed, and salespeople will be unassigned from it. This cannot be undone.`
           : 'This cannot be undone.',
       confirmLabel: 'Delete program',
       destructive: true,
     })
     if (!ok) return
-    deleteRetailer(retailer.id)
+    cascadeDeleteRetailer(retailer.id)
     navigate(roleHref('/retailers'), { replace: true })
   }
 
@@ -826,11 +862,11 @@ export function RetailerDetailPage() {
     <div className="px-10 py-10 max-w-[1400px]">
       {/* Breadcrumb */}
       <button
-        onClick={() => smartBack(roleHref('/retailers'))}
+        onClick={() => navigate(roleHref('/retailers'))}
         className="flex items-center gap-1.5 text-[#999] hover:text-[#171717] text-[12px] font-medium mb-6 transition-colors"
       >
         <ArrowLeft className="w-3.5 h-3.5" />
-        Back
+        Programs
       </button>
 
       {/* Header */}
@@ -843,7 +879,7 @@ export function RetailerDetailPage() {
             <StatusBadge
               status={retailer.status}
               onClick={
-                role === 'manager'
+                canRoleDo(role, 'toggleRetailerStatus')
                   ? () =>
                       updateRetailer(retailer.id, {
                         status: retailer.status === 'active' ? 'inactive' : 'active',
@@ -865,7 +901,7 @@ export function RetailerDetailPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {role === 'manager' && (
+          {canRoleDo(role, 'deleteRetailer') && (
             <button
               onClick={handleDeleteProgram}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-[13px] font-medium text-[#c0392b] hover:bg-red-50 transition-colors"
@@ -874,13 +910,30 @@ export function RetailerDetailPage() {
               Delete
             </button>
           )}
-          <button
-            onClick={() => setWizardOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#171717] text-white text-[13px] font-medium hover:bg-[#333] transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            New Pallet
-          </button>
+          {(() => {
+            const blockedForSalesman =
+              role === 'salesman' && retailer.status === 'inactive'
+            const useStartProgram = role === 'salesman'
+            return (
+              <button
+                onClick={() =>
+                  useStartProgram
+                    ? setStartProgramOpen(true)
+                    : setWizardOpen(true)
+                }
+                disabled={blockedForSalesman}
+                title={
+                  blockedForSalesman
+                    ? 'This program is inactive — ask your manager to reactivate it before building.'
+                    : undefined
+                }
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#171717] text-white text-[13px] font-medium hover:bg-[#333] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                {useStartProgram ? 'Start a program' : 'New Pallet'}
+              </button>
+            )
+          })()}
         </div>
       </div>
 
@@ -894,6 +947,8 @@ export function RetailerDetailPage() {
       {/* Tabs */}
       <div className="flex items-center gap-0 mb-6" style={{ boxShadow: '0 1px 0 0 rgba(0,0,0,0.06)' }}>
         {TABS.map((tab) => {
+          const label =
+            tab.value === 'pallets' && role === 'salesman' ? 'Programs' : tab.label
           return (
             <button
               key={tab.value}
@@ -902,7 +957,7 @@ export function RetailerDetailPage() {
                 activeTab === tab.value ? 'text-[#171717]' : 'text-[#999] hover:text-[#555]'
               }`}
             >
-              {tab.label}
+              {label}
               {activeTab === tab.value && (
                 <span className="absolute bottom-0 left-4 right-4 h-[2px] bg-[#171717] rounded-full" />
               )}
@@ -919,15 +974,62 @@ export function RetailerDetailPage() {
               <Boxes className="w-7 h-7 text-[#ccc] mx-auto mb-3" />
               <p className="text-[14px] font-medium text-[#171717]">No pallets yet</p>
               <p className="text-[12px] text-[#888] mt-1 mb-5">
-                Create the first pallet for {retailer.name}
+                {role === 'salesman'
+                  ? `Pitch a season program to ${retailer.name}, then start it here.`
+                  : `Create the first pallet for ${retailer.name}`}
               </p>
               <button
-                onClick={() => setWizardOpen(true)}
+                onClick={() =>
+                  role === 'salesman'
+                    ? setStartProgramOpen(true)
+                    : setWizardOpen(true)
+                }
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-[#171717] text-white text-[12px] font-medium hover:bg-[#333] transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
-                New Pallet
+                {role === 'salesman' ? 'Start a program' : 'New Pallet'}
               </button>
+            </div>
+          ) : role === 'salesman' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {programCards.map((card) => (
+                <Link
+                  key={card.key}
+                  to={roleHref(`/retailers/${id}/program/${card.key}`)}
+                  className="group bg-white shadow-card rounded-xl px-5 py-4 hover:shadow-elevated transition-all flex items-center justify-between gap-4"
+                >
+                  <div className="min-w-0">
+                    <h3 className="text-[15px] font-semibold text-[#171717] truncate">
+                      {card.label}
+                    </h3>
+                    <p className="text-[12px] text-[#888] mt-1 tabular-nums">
+                      <span className="font-medium text-[#171717]">{card.itemCount}</span>
+                      {' items · '}
+                      <span className="font-medium text-[#171717]">{card.totalCases}</span>
+                      {' cases · '}
+                      <span className="font-medium text-[#171717]">{card.palletUnits}</span>
+                      {' pallets'}
+                    </p>
+                    <div className="flex items-center gap-3 mt-2 text-[11px]">
+                      {card.halfUnits > 0 && (
+                        <span className="inline-flex items-center gap-1 text-emerald-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          <span className="font-semibold tabular-nums">{card.halfUnits}</span>
+                          Half
+                        </span>
+                      )}
+                      {card.fullUnits > 0 && (
+                        <span className="inline-flex items-center gap-1 text-blue-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                          <span className="font-semibold tabular-nums">{card.fullUnits}</span>
+                          Full
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[#bbb] group-hover:text-[#555] transition-colors shrink-0" />
+                </Link>
+              ))}
             </div>
           ) : (
             <>
@@ -961,6 +1063,11 @@ export function RetailerDetailPage() {
         open={wizardOpen}
         onClose={() => setWizardOpen(false)}
         onComplete={handleWizardComplete}
+      />
+      <StartProgramWizard
+        open={startProgramOpen}
+        onClose={() => setStartProgramOpen(false)}
+        pinnedRetailerId={retailer.id}
       />
       {confirmDialog}
     </div>

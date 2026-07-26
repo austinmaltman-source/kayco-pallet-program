@@ -12,6 +12,7 @@ import { useRoleStore } from '../stores/role-store'
 import { RetailerCard } from '../components/Retailers/retailer-card'
 import { RetailerForm } from '../components/Retailers/retailer-form'
 import { useConfirm } from '../components/ConfirmDialog'
+import { cascadeDeleteRetailer, countRetailerPallets } from '../lib/cascade-delete'
 import type { Retailer, RetailerStatus } from '../types'
 
 const STATUS_FILTERS: { value: RetailerStatus | 'all'; label: string }[] = [
@@ -23,14 +24,9 @@ const STATUS_FILTERS: { value: RetailerStatus | 'all'; label: string }[] = [
 type SortKey = 'pallets' | 'name' | 'items'
 
 export function RetailersPage() {
-  const { retailers, addRetailer, updateRetailer, deleteRetailer } = useRetailerStore()
+  const { retailers, addRetailer, updateRetailer } = useRetailerStore()
   const projects = useDisplayStore((state) => state.projects)
   const role = useRoleStore((state) => state.role)
-  // The salesman home already lists every assigned retailer with their
-  // programs underneath, so this directory view is redundant for that role.
-  if (role === 'salesman') {
-    return <Navigate to="/salesman" replace />
-  }
   const activeSalesperson = null
   const navigate = useNavigate()
   const { confirm, dialog: confirmDialog } = useConfirm()
@@ -101,14 +97,18 @@ export function RetailersPage() {
   async function handleDelete(id: string) {
     const retailer = retailers.find((r) => r.id === id)
     if (!retailer) return
+    const palletCount = countRetailerPallets(id)
     const ok = await confirm({
       title: `Delete "${retailer.name}"?`,
-      description: 'This program and any pallets created under it will be removed. This cannot be undone.',
+      description:
+        palletCount > 0
+          ? `This program and its ${palletCount} pallet${palletCount === 1 ? '' : 's'} will be removed, and salespeople will be unassigned from it. This cannot be undone.`
+          : 'This program will be removed and salespeople will be unassigned from it. This cannot be undone.',
       confirmLabel: 'Delete program',
       destructive: true,
     })
     if (!ok) return
-    deleteRetailer(id)
+    cascadeDeleteRetailer(id)
   }
 
   function handleSave(data: Omit<Retailer, 'id'> & { id?: string }) {
@@ -129,6 +129,13 @@ export function RetailersPage() {
 
   function handleCardClick(id: string) {
     navigate(`/${role}/retailers/${id}`)
+  }
+
+  // The salesman home already lists every assigned retailer with their
+  // programs underneath, so this directory view is redundant for that role.
+  // Must stay below every hook call so the hook order never changes.
+  if (role === 'salesman') {
+    return <Navigate to="/salesman" replace />
   }
 
   const isSalesman = false

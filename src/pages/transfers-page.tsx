@@ -4,8 +4,8 @@ import { useDisplayStore } from '../stores/display-store'
 import { compareSeasonsByHolidayDate, useSeasonStore } from '../stores/season-store'
 import { useCatalogStore } from '../stores/catalog-store'
 import { useInventoryStore } from '../stores/inventory-store'
-import { buildRollupData } from '../lib/program-rollup'
 import { buildCsv, downloadCsv } from '../lib/csv'
+import { remainingPalletsToBuild } from '../lib/build-progress'
 import type { InventoryLocation } from '../types'
 
 const LOCATION_LABEL: Record<InventoryLocation, string> = {
@@ -60,7 +60,10 @@ export function TransfersPage() {
     )
   }, [projects, seasonId])
 
-  // Demand by location, keyed by Kayco item number
+  // Demand by location, keyed by Kayco item number. Cases on an assortment
+  // entry are per-pallet, so multiply by the pallets still left to build:
+  // requested quantity minus build-log progress (a half-built run only needs
+  // inventory for the remaining pallets).
   const demandByLocation = useMemo(() => {
     const map: Record<InventoryLocation | 'third-party' | 'unassigned', Map<string, number>> = {
       hook: new Map(),
@@ -71,11 +74,13 @@ export function TransfersPage() {
     const productById = new Map(products.map((p) => [p.id, p]))
     for (const pallet of seasonPallets) {
       const loc: keyof typeof map = pallet.buildLocation ?? 'unassigned'
+      const remaining = remainingPalletsToBuild(pallet)
+      if (remaining === 0) continue
       for (const entry of pallet.assortment) {
         if (entry.cases <= 0) continue
         const product = productById.get(entry.productId)
         const key = product?.kaycoItemNumber ?? entry.productId
-        map[loc].set(key, (map[loc].get(key) ?? 0) + entry.cases)
+        map[loc].set(key, (map[loc].get(key) ?? 0) + entry.cases * remaining)
       }
     }
     return map
@@ -346,7 +351,8 @@ export function TransfersPage() {
             <div>
               <h3 className="text-[15px] font-semibold text-[#171717]">Transfer plan</h3>
               <p className="text-[11px] text-[#888] mt-1">
-                Computed from pallet build location and on-hand snapshots.
+                Computed from pallet build location and on-hand snapshots. Demand counts
+                only pallets still left to build (requested quantity minus build-log progress).
               </p>
             </div>
             <button

@@ -6,6 +6,7 @@ import { useRetailerStore } from '../../stores/retailer-store'
 import { compareSeasonsByHolidayDate, useSeasonStore } from '../../stores/season-store'
 import { StatusPill } from '../../components/Status/status-pill'
 import { DeadlineChip } from '../../components/Deadline/deadline-chip'
+import { CommentCountBadge } from '../../components/Comments/comment-count-badge'
 import { computeConfirmByDate } from '../../lib/deadline'
 import type { BuildLocation, DisplayProject, PalletStatus } from '../../types'
 
@@ -242,6 +243,9 @@ function PalletQueueCard({
             </p>
             <p className="text-[12px] text-[#888] mt-1">
               {retailerName} · {pallet.palletType} · {pallet.assortment.length} SKUs · {cases} cases
+              <span className="ml-2">
+                <CommentCountBadge count={pallet.comments?.length} />
+              </span>
             </p>
           </Link>
           {totalBuilt > 0 && (

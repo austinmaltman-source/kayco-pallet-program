@@ -45,7 +45,6 @@ export function SpinningPallet({ palletType }: SpinningPalletProps) {
             palletDimensions={{ width, depth, height: 6 }}
             tierCount={4}
             autoRotate
-            showSlotGrid={false}
             showHeader={false}
             environment="clean"
           />
