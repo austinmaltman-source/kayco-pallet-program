@@ -7,9 +7,6 @@
   "main": "worker/index.ts",
   "compatibility_date": "2026-07-25",
   "compatibility_flags": ["nodejs_compat"],
-  "routes": [
-    { "pattern": "pallets.kaycocostcotracker.org", "custom_domain": true }
-  ],
   // No workers.dev URL - the app lives only on the custom domain.
   "workers_dev": false,
   "assets": {
