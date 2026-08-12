@@ -468,7 +468,8 @@ export default function App() {
     return () => unsubscribeProject()
   }, [])
 
-  // Pull changes other people made while this tab was in the background.
+  // Pull changes other people made: on tab refocus and on a slow poll while
+  // visible. selectApplicableEntries skips keys with unpushed local edits.
   useEffect(() => {
     const refresh = () => {
       if (document.visibilityState !== 'visible') return
@@ -477,8 +478,12 @@ export default function App() {
         applyServerEntries(selectApplicableEntries(entries))
       })
     }
+    const interval = setInterval(refresh, 60_000)
     document.addEventListener('visibilitychange', refresh)
-    return () => document.removeEventListener('visibilitychange', refresh)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', refresh)
+    }
   }, [])
 
   if (!hydrated) {

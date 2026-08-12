@@ -18,6 +18,7 @@ import {
   Users,
 } from 'lucide-react'
 import { TopToolbar } from '../Toolbar/top-toolbar'
+import { SyncStatusChip } from '../SyncStatus/sync-status-chip'
 
 interface NavItem {
   to: string
@@ -122,6 +123,7 @@ export function ManagerLayout({ children }: { children: ReactNode }) {
           className="pt-4 mt-3 px-1 space-y-0.5"
           style={{ boxShadow: '0 -1px 0 0 rgba(255,255,255,0.06)' }}
         >
+          <SyncStatusChip />
           <button
             onClick={() => navigate('/')}
             className="flex items-center gap-3 px-3 py-2 rounded-md text-[#666] hover:text-[#ccc] hover:bg-white/[0.04] transition-colors duration-150 w-full"

@@ -72,10 +72,14 @@ async function handleState(request: Request, env: Env, key?: string): Promise<Re
     if (body.value.length > MAX_VALUE_BYTES) {
       return json({ error: 'Payload too large' }, 413)
     }
-    try {
-      JSON.parse(body.value)
-    } catch {
-      return json({ error: 'value must be valid JSON' }, 400)
+    // Large payloads arrive gzipped+base64 with a "gz:" prefix (see
+    // deflateValue in src/lib/state-sync.ts); plain values must be JSON.
+    if (!body.value.startsWith('gz:')) {
+      try {
+        JSON.parse(body.value)
+      } catch {
+        return json({ error: 'value must be valid JSON' }, 400)
+      }
     }
     const updatedAt = Date.now()
     await env.DB.prepare(

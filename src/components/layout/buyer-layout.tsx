@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { LogOut, ShoppingCart } from 'lucide-react'
+import { SyncStatusChip } from '../SyncStatus/sync-status-chip'
 
 const TABS = [
   { to: '/buyer', label: 'Demand', end: true },
@@ -48,6 +49,7 @@ export function BuyerLayout({ children }: { children: ReactNode }) {
             ))}
           </nav>
 
+          <SyncStatusChip variant="bar" />
           <button
             onClick={() => navigate('/')}
             className="text-[12px] text-[#888] hover:text-[#171717] flex items-center gap-1.5 px-2 py-1 transition-colors"

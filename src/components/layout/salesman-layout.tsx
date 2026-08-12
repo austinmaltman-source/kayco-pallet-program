@@ -5,6 +5,7 @@ import { useRoleStore } from '../../stores/role-store'
 import { useSalespersonStore } from '../../stores/salesperson-store'
 import { useSmartBack } from '../../lib/use-smart-back'
 import { TopToolbar } from '../Toolbar/top-toolbar'
+import { SyncStatusChip } from '../SyncStatus/sync-status-chip'
 
 const TABS: { to: string; label: string; end: boolean }[] = []
 
@@ -130,6 +131,7 @@ export function SalesmanLayout({ children }: { children: ReactNode }) {
               </div>
             )}
 
+            <SyncStatusChip variant="bar" />
             <button
               onClick={() => navigate('/')}
               className="text-[12px] text-[#888] hover:text-[#171717] flex items-center gap-1.5 px-2 py-1 transition-colors"

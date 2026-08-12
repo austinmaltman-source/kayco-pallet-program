@@ -26,6 +26,57 @@ export interface ServerEntry {
 }
 
 const PUSH_DEBOUNCE_MS = 1200
+// Payloads above this are gzipped before PUT (the full catalog is ~3MB of
+// JSON, well over D1's 2MB row cap; it compresses to a few hundred KB).
+const COMPRESS_THRESHOLD = 50_000
+const GZ_PREFIX = 'gz:'
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  const CHUNK = 0x8000
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+  }
+  return btoa(binary)
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+
+async function pipeBytes(
+  bytes: Uint8Array,
+  transform: { readable: ReadableStream<Uint8Array>; writable: WritableStream<Uint8Array> },
+): Promise<Uint8Array> {
+  const writer = transform.writable.getWriter()
+  const writing = (async () => {
+    await writer.write(bytes)
+    await writer.close()
+  })()
+  const buffer = await new Response(transform.readable).arrayBuffer()
+  await writing
+  return new Uint8Array(buffer)
+}
+
+export async function deflateValue(value: string): Promise<string> {
+  const compressed = await pipeBytes(
+    new TextEncoder().encode(value),
+    new CompressionStream('gzip'),
+  )
+  return GZ_PREFIX + bytesToBase64(compressed)
+}
+
+export async function inflateValue(value: string): Promise<string> {
+  if (!value.startsWith(GZ_PREFIX)) return value
+  const plain = await pipeBytes(
+    base64ToBytes(value.slice(GZ_PREFIX.length)),
+    new DecompressionStream('gzip'),
+  )
+  return new TextDecoder().decode(plain)
+}
 
 let serverOnline = false
 // Last payload per key that is known to match the server (either applied
@@ -36,6 +87,33 @@ const pendingValues = new Map<string, string>()
 
 export function isServerOnline(): boolean {
   return serverOnline
+}
+
+// --- Sync status (for the UI indicator) ---------------------------------
+
+export type SyncStatus = 'synced' | 'syncing' | 'offline'
+
+const statusListeners = new Set<() => void>()
+
+function notifyStatus() {
+  for (const listener of statusListeners) listener()
+}
+
+export function getSyncStatus(): SyncStatus {
+  if (!serverOnline) return 'offline'
+  return pendingValues.size > 0 || pushTimers.size > 0 ? 'syncing' : 'synced'
+}
+
+export function subscribeSyncStatus(listener: () => void): () => void {
+  statusListeners.add(listener)
+  return () => statusListeners.delete(listener)
+}
+
+// True while a local write for `key` is still waiting to reach the server.
+// Poll-applies skip such keys so a slow push is never stomped by stale
+// server data.
+export function hasPendingPush(key: string): boolean {
+  return pendingValues.has(key) || pushTimers.has(key)
 }
 
 // Record that `value` for `key` matches the server without pushing (used when
@@ -59,13 +137,17 @@ export async function fetchServerState(
       throw new Error('Malformed /api/state response')
     }
     serverOnline = true
+    notifyStatus()
     const entries = new Map<string, ServerEntry>()
     for (const [key, entry] of Object.entries(body.data)) {
-      if (entry && typeof entry.value === 'string') entries.set(key, entry)
+      if (!entry || typeof entry.value !== 'string') continue
+      // Callers always see plain JSON; compression is a transport detail.
+      entries.set(key, { ...entry, value: await inflateValue(entry.value) })
     }
     return entries
   } catch {
     serverOnline = false
+    notifyStatus()
     return null
   }
 }
@@ -75,18 +157,33 @@ async function pushNow(key: SyncedKey): Promise<void> {
   if (value === undefined) return
   pendingValues.delete(key)
   try {
+    const wire =
+      value.length > COMPRESS_THRESHOLD ? await deflateValue(value) : value
     const res = await fetch(`/api/state/${key}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value }),
+      body: JSON.stringify({ value: wire }),
     })
-    if (!res.ok) throw new Error(`PUT ${key} ${res.status}`)
-    lastSynced.set(key, value)
+    if (res.ok) {
+      lastSynced.set(key, value)
+      notifyStatus()
+      return
+    }
+    if (res.status >= 400 && res.status < 500) {
+      // The server is reachable but rejected this payload (too large,
+      // unknown key). Retrying the same bytes would fail forever - drop it
+      // and surface in the console; the localStorage copy is still safe.
+      console.error(`[state-sync] PUT ${key} rejected: ${res.status}`)
+      notifyStatus()
+      return
+    }
+    throw new Error(`PUT ${key} ${res.status}`)
   } catch {
-    // Keep the value queued so the next write (or flush) retries; the
-    // localStorage copy is already safe.
+    // Network/server failure: keep the value queued so the next write (or
+    // reconnect) retries; the localStorage copy is already safe.
     if (!pendingValues.has(key)) pendingValues.set(key, value)
     serverOnline = false
+    notifyStatus()
   }
 }
 
@@ -105,6 +202,7 @@ export function schedulePush(key: SyncedKey, value: string): void {
       void pushNow(key)
     }, PUSH_DEBOUNCE_MS),
   )
+  notifyStatus()
 }
 
 // Decide which keys from a server snapshot should be applied locally: the
@@ -117,6 +215,8 @@ export function selectApplicableEntries(
     const entry = entries.get(key)
     if (!entry) continue
     if (lastSynced.get(key) === entry.value) continue
+    // Never let stale server data overwrite a local edit still in flight.
+    if (hasPendingPush(key)) continue
     result.set(key, entry.value)
   }
   return result

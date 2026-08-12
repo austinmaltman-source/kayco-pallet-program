@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { HardHat, LogOut } from 'lucide-react'
+import { SyncStatusChip } from '../SyncStatus/sync-status-chip'
 
 const TABS = [
   { to: '/builder', label: 'Queue', end: true },
@@ -47,6 +48,7 @@ export function BuilderLayout({ children }: { children: ReactNode }) {
             ))}
           </nav>
 
+          <SyncStatusChip variant="bar" dark />
           <button
             onClick={() => navigate('/')}
             className="text-[12px] text-white/50 hover:text-white flex items-center gap-1.5 px-2 py-1 transition-colors"

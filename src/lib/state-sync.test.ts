@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   __resetStateSyncForTests,
+  deflateValue,
   fetchServerState,
+  inflateValue,
   markSynced,
   schedulePush,
   selectApplicableEntries,
@@ -70,6 +72,30 @@ describe('state-sync', () => {
     expect(
       fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT'),
     ).toHaveLength(1)
+  })
+
+  it('deflate/inflate round-trips large payloads', async () => {
+    const big = JSON.stringify(
+      Array.from({ length: 2000 }, (_, i) => ({ id: `prod-${i}`, name: `Item ${i}` })),
+    )
+    const wire = await deflateValue(big)
+    expect(wire.startsWith('gz:')).toBe(true)
+    expect(wire.length).toBeLessThan(big.length / 5)
+    expect(await inflateValue(wire)).toBe(big)
+    // Uncompressed values pass through untouched.
+    expect(await inflateValue('[1,2]')).toBe('[1,2]')
+  })
+
+  it('fetchServerState inflates compressed entries transparently', async () => {
+    const wire = await deflateValue('["shared"]')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        okJson({ data: { 'palletforge-products': { value: wire, updatedAt: 9 } } }),
+      ),
+    )
+    const entries = await fetchServerState()
+    expect(entries?.get('palletforge-products')?.value).toBe('["shared"]')
   })
 
   it('selectApplicableEntries returns only changed known keys', () => {
