@@ -20,7 +20,8 @@ Not to be confused with the older 3D pallet *display builder* that used to live 
   local cache/offline fallback; see "Shared state backend" below.
 
 ## Hosting
-- **Primary: Cloudflare Workers** - `https://palletforge.shop-smarter.workers.dev`.
+- **Primary: Cloudflare Workers** - `https://pallets.kaycocostcotracker.org`
+  (custom domain on the kaycocostcotracker.org zone; workers.dev URL disabled).
   One Worker ([worker/index.ts](worker/index.ts), config [wrangler.jsonc](wrangler.jsonc)) serves the
   built SPA (assets binding, SPA fallback) plus `/api/state` (shared state on D1) and `/api/kayco`
   (sales API proxy). Deploy: `npm run cf:deploy`. NOT auto-deployed on push - deploy explicitly.
