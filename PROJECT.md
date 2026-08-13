@@ -20,9 +20,9 @@ Not to be confused with the older 3D pallet *display builder* that used to live 
   local cache/offline fallback; see "Shared state backend" below.
 
 ## Hosting
-- **Primary: Cloudflare Workers** - standalone custom domain PENDING (Austin is
-  registering one; workers.dev URL disabled, no other project's domain used).
-  Until it's attached the Worker has no public address.
+- **Primary: Cloudflare Workers** - `https://palletforge.altman-works.workers.dev`
+  (the account's neutral workers.dev subdomain; renamed from shop-smarter 2026-08-13.
+  A custom domain can be layered on later if wanted.)
   One Worker ([worker/index.ts](worker/index.ts), config [wrangler.jsonc](wrangler.jsonc)) serves the
   built SPA (assets binding, SPA fallback) plus `/api/state` (shared state on D1) and `/api/kayco`
   (sales API proxy). Deploy: `npm run cf:deploy`. NOT auto-deployed on push - deploy explicitly.

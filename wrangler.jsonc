@@ -7,8 +7,9 @@
   "main": "worker/index.ts",
   "compatibility_date": "2026-07-25",
   "compatibility_flags": ["nodejs_compat"],
-  // No workers.dev URL - the app lives only on the custom domain.
-  "workers_dev": false,
+  // Served on the account's neutral workers.dev subdomain:
+  // https://palletforge.altman-works.workers.dev
+  "workers_dev": true,
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
