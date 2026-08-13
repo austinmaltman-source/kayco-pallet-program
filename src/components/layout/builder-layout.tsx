@@ -20,7 +20,7 @@ export function BuilderLayout({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-3">
             <Link to="/" className="flex items-center gap-2.5">
               <span className="text-[16px] font-semibold tracking-display text-white">
-                PalletForge
+                Kayco Pallet Programs
               </span>
               <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
                 <HardHat className="w-3 h-3" />

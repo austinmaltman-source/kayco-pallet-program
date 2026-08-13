@@ -21,7 +21,7 @@ export function BuyerLayout({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-3">
             <Link to="/" className="flex items-center gap-2">
               <span className="text-[15px] font-semibold tracking-display text-[#171717]">
-                PalletForge
+                Kayco Pallet Programs
               </span>
               <span className="text-[10px] uppercase tracking-wider text-teal-700 px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center gap-1">
                 <ShoppingCart className="w-3 h-3" />

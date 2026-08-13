@@ -130,11 +130,9 @@ export default {
       if (url.pathname.startsWith('/api/kayco/')) {
         return await handleKaycoProxy(request, env, url.pathname.slice('/api/kayco'.length))
       }
-      if (url.pathname.startsWith('/api/')) {
-        return json({ error: 'Not found' }, 404)
-      }
-      // run_worker_first only routes /api/* here, but fall through safely.
-      return await env.ASSETS.fetch(request)
+      // Pure API worker - the frontend lives on Pages (palletforge.pages.dev)
+      // and proxies /api/* here via its service binding.
+      return json({ error: 'Not found' }, 404)
     } catch (error) {
       console.error(
         JSON.stringify({

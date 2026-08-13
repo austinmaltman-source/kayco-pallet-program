@@ -87,7 +87,7 @@ export function ManagerLayout({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen bg-[#fafafa] text-[#171717]">
       <aside className="w-[240px] h-screen fixed left-0 top-0 bg-[#0e0e0e] flex flex-col py-5 px-3 z-50">
         <Link to="/" className="mb-6 px-3 block">
-          <h1 className="text-[15px] font-semibold text-white tracking-display">PalletForge</h1>
+          <h1 className="text-[15px] font-semibold text-white tracking-display">Kayco Pallet Programs</h1>
           <p className="text-[10px] text-[#666] mt-1 flex items-center gap-1">
             <Compass className="w-3 h-3 text-[#888]" />
             Manager workspace

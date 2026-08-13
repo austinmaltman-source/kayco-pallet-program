@@ -1,7 +1,7 @@
-# Kayco Pallet Program (PalletForge)
+# Kayco Pallet Programs
 
 ## Overview
-PalletForge is a single-tenant pallet program management app for **Kayco**. Salesmen, buyers, builders, and managers use it to plan, build, and track holiday pallet programs for retailers - from picking items and authorized assortments to setting deadlines, queuing builds, and rolling up demand.
+Kayco Pallet Programs (repo: kayco-pallet-program) is a single-tenant pallet program management app for **Kayco**. Salesmen, buyers, builders, and managers use it to plan, build, and track holiday pallet programs for retailers - from picking items and authorized assortments to setting deadlines, queuing builds, and rolling up demand.
 
 Not to be confused with the older 3D pallet *display builder* that used to live in this folder. That work is gone. This is the operational tool around running the program.
 
@@ -20,12 +20,13 @@ Not to be confused with the older 3D pallet *display builder* that used to live 
   local cache/offline fallback; see "Shared state backend" below.
 
 ## Hosting
-- **Primary: Cloudflare Workers** - `https://palletforge.altman-works.workers.dev`
-  (the account's neutral workers.dev subdomain; renamed from shop-smarter 2026-08-13.
-  A custom domain can be layered on later if wanted.)
-  One Worker ([worker/index.ts](worker/index.ts), config [wrangler.jsonc](wrangler.jsonc)) serves the
-  built SPA (assets binding, SPA fallback) plus `/api/state` (shared state on D1) and `/api/kayco`
-  (sales API proxy). Deploy: `npm run cf:deploy`. NOT auto-deployed on push - deploy explicitly.
+- **Frontend: Cloudflare Pages** - `https://kayco-pallet-programs.pages.dev` (the URL to share).
+  Built Vite SPA + [pages/_worker.js](pages/_worker.js) router; `/api/*` is forwarded to the
+  backend Worker through the Pages project's `API` service binding. Deploy: `npm run cf:deploy`.
+- **Backend: Cloudflare Worker** `kayco-pallet-programs-api` ([worker/index.ts](worker/index.ts),
+  [wrangler.jsonc](wrangler.jsonc)) - `/api/state` on D1 `kayco-pallet-programs` + `/api/kayco`
+  proxy (secret `KAYCO_API_KEY`). Debug URL: `https://kayco-pallet-programs-api.altman-works.workers.dev`.
+  Deploy: `npm run cf:deploy:api`. Neither deploy is automatic on push - deploy explicitly.
 - **Legacy: Vercel** (config in [vercel.json](vercel.json)) - still auto-deploys `main`; has the
   Kayco proxy but NO `/api/state`, so it runs localStorage-only. Retire once Cloudflare is the home.
 
@@ -140,8 +141,11 @@ wiring in [src/App.tsx](src/App.tsx).
 - If `/api/state` is unreachable (vite dev without `npx wrangler dev`, Vercel, offline) the app
   silently runs localStorage-only, exactly like the pre-backend version.
 - Local dev full stack: `npm run dev` + `npx wrangler dev` (vite proxies `/api/state` to :8787).
+- **Backup / migrate:** the role launcher footer has Export backup / Restore backup (JSON of all
+  synced localStorage keys; restore also overwrites the shared server). Use it to move data
+  between origins (e.g. old Vercel URL -> pages.dev) or as insurance.
 - D1 migrations live in [migrations/](migrations/); apply with
-  `npx wrangler d1 migrations apply palletforge --local|--remote`.
+  `npx wrangler d1 migrations apply kayco-pallet-programs --local|--remote`.
 - `DISABLE_HMR=true` in the shell disables Vite HMR (used in AI Studio to avoid agent-edit flicker)
 
 ## Kayco sales data integration

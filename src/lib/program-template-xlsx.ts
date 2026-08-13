@@ -37,7 +37,7 @@ export async function buildProgramTemplateWorkbook({
   pickedProductIds,
 }: BuildArgs): Promise<Blob> {
   const wb = new ExcelJS.Workbook()
-  wb.creator = 'PalletForge'
+  wb.creator = 'Kayco Pallet Programs'
   wb.created = new Date()
   const ws = wb.addWorksheet(seasonLabel.slice(0, 31))
 
@@ -112,7 +112,7 @@ export async function buildProgramTemplateWorkbook({
     { row: 1, text: 'HOW TO USE THIS TEMPLATE', header: true },
     { row: 2, text: '• Fill in cases in the green columns' },
     { row: 3, text: '• Add items: right-click a row → Insert' },
-    { row: 4, text: '• Save & re-upload to PalletForge when done' },
+    { row: 4, text: '• Save & re-upload to Kayco Pallet Programs when done' },
   ]
   for (const tip of tips) {
     const cell = ws.getRow(tip.row).getCell(TIPS_COL)

@@ -10,7 +10,7 @@
 
 ## Domain quick reference
 
-PalletForge plans pallet programs for **Kayco**. Single-tenant, no auth — role picker only.
+**Kayco Pallet Programs** (frontend `kayco-pallet-programs.pages.dev`, backend Worker `kayco-pallet-programs-api`) plans pallet programs for Kayco. Single-tenant, no auth — role picker only.
 Data is shared via the Cloudflare Worker backend (`/api/state` on D1, last-write-wins per store key);
 localStorage is the cache/offline fallback. See PROJECT.md "Shared state backend".
 

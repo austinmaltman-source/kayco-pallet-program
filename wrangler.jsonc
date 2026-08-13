@@ -1,26 +1,21 @@
-// Cloudflare Workers config: one Worker serves the built Vite app (static
-// assets, SPA fallback) and handles /api/* (state sync on D1 + Kayco sales
-// API proxy). Deploy: npm run build && npx wrangler deploy
+// Backend Worker for Kayco Pallet Programs: /api/state (shared state on D1)
+// + /api/kayco (sales API proxy). The frontend is the `kayco-pallet-programs`
+// Cloudflare Pages project. Deploy: npm run cf:deploy:api
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "palletforge",
+  "name": "kayco-pallet-programs-api",
   "main": "worker/index.ts",
   "compatibility_date": "2026-07-25",
   "compatibility_flags": ["nodejs_compat"],
-  // Served on the account's neutral workers.dev subdomain:
-  // https://palletforge.altman-works.workers.dev
+  // Backend only (the Pages frontend reaches this Worker through its `API`
+  // service binding). The workers.dev URL is
+  // kept for direct API debugging: https://kayco-pallet-programs-api.altman-works.workers.dev
   "workers_dev": true,
-  "assets": {
-    "directory": "./dist",
-    "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
-  },
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "palletforge",
-      "database_id": "1606eebf-d248-47a5-8368-e7c62d43dc39",
+      "database_name": "kayco-pallet-programs",
+      "database_id": "aa68977c-2731-4fa4-aa83-b2d3a3f9abf3",
       "migrations_dir": "migrations"
     }
   ],

@@ -205,6 +205,21 @@ export function schedulePush(key: SyncedKey, value: string): void {
   notifyStatus()
 }
 
+// Immediate, non-debounced push (used by backup import so the imported data
+// definitively overwrites the server before the app reloads). Throws on
+// failure so the caller can surface it.
+export async function pushKeyNow(key: SyncedKey, value: string): Promise<void> {
+  const wire = value.length > COMPRESS_THRESHOLD ? await deflateValue(value) : value
+  const res = await fetch(`/api/state/${key}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value: wire }),
+  })
+  if (!res.ok) throw new Error(`PUT ${key} failed (${res.status})`)
+  lastSynced.set(key, value)
+  notifyStatus()
+}
+
 // Decide which keys from a server snapshot should be applied locally: the
 // payload must differ from what we already know matches the server.
 export function selectApplicableEntries(

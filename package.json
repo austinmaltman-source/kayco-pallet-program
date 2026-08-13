@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "kayco-pallet-programs",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,8 +11,9 @@
     "lint": "tsc --noEmit && tsc -p worker --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "cf:dev": "wrangler dev",
-    "cf:deploy": "npm run build && wrangler deploy"
+    "cf:deploy": "npm run build && cp pages/_worker.js dist/_worker.js && wrangler pages deploy dist --project-name kayco-pallet-programs --branch main",
+    "cf:deploy:api": "wrangler deploy",
+    "cf:dev": "wrangler dev"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

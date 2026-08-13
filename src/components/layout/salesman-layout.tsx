@@ -54,7 +54,7 @@ export function SalesmanLayout({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-3">
             <Link to="/" className="flex items-center gap-2">
               <span className="text-[15px] font-semibold tracking-display text-[#171717]">
-                PalletForge
+                Kayco Pallet Programs
               </span>
               <span className="text-[10px] uppercase tracking-wider text-[#888] px-2 py-0.5 rounded-full bg-[#f3f3f3] flex items-center gap-1">
                 <Briefcase className="w-3 h-3" />
