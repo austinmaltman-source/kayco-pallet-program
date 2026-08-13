@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { BarChart3, Search, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, BarChart3, Search, X } from 'lucide-react'
 import type { DisplayProject, Product, Retailer } from '../../types'
 import { useRetailerItemSales } from '../../hooks/useRetailerItemSales'
 import {
@@ -7,8 +7,38 @@ import {
   formatSalesDate,
   formatSalesDollars,
   normalizeKaycoItemNumber,
+  type ItemCustomerSales,
 } from '../../lib/kayco-sales'
 import { KaycoAccountsModal } from '../Retailers/kayco-accounts-panel'
+
+type SortColumn =
+  | 'name'
+  | 'brand'
+  | 'upc'
+  | 'kayco'
+  | 'retailer'
+  | 'pack'
+  | 'cases'
+  | 'netSales'
+  | 'lastOrder'
+
+interface SortState {
+  column: SortColumn
+  dir: 'asc' | 'desc'
+}
+
+// Numeric-ish columns read highest-first on the first click; text columns A-Z.
+const DEFAULT_DIR: Record<SortColumn, 'asc' | 'desc'> = {
+  name: 'asc',
+  brand: 'asc',
+  upc: 'asc',
+  kayco: 'asc',
+  retailer: 'asc',
+  pack: 'desc',
+  cases: 'desc',
+  netSales: 'desc',
+  lastOrder: 'desc',
+}
 
 interface ProgramItemPickerProps {
   halfPallet: DisplayProject | null
@@ -17,6 +47,49 @@ interface ProgramItemPickerProps {
   products: Product[]
   readOnly?: boolean
   onToggle: (palletId: string, productId: string, selected: boolean) => void
+}
+
+function SortHeader({
+  label,
+  column,
+  sort,
+  onSort,
+  align = 'left',
+  wide,
+  title,
+}: {
+  label: string
+  column: SortColumn
+  sort: SortState | null
+  onSort: (column: SortColumn) => void
+  align?: 'left' | 'right'
+  wide?: boolean
+  title?: string
+}) {
+  const active = sort?.column === column
+  const Arrow = active && sort.dir === 'asc' ? ArrowUp : ArrowDown
+  return (
+    <th
+      aria-sort={
+        active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined
+      }
+      className="p-0 bg-white border-b border-[#f0f0f0]"
+    >
+      <button
+        onClick={() => onSort(column)}
+        title={title ?? `Sort by ${label.toLowerCase()}`}
+        className={`w-full flex items-center gap-1 ${
+          align === 'right' ? 'justify-end' : 'justify-start'
+        } ${wide ? 'px-6' : 'px-3'} py-3 text-[10px] font-medium uppercase tracking-wider transition-colors ${
+          active ? 'text-[#171717]' : 'text-[#999] hover:text-[#555]'
+        }`}
+      >
+        {align === 'right' && active && <Arrow className="w-3 h-3 shrink-0" />}
+        <span className="whitespace-nowrap">{label}</span>
+        {align === 'left' && active && <Arrow className="w-3 h-3 shrink-0" />}
+      </button>
+    </th>
+  )
 }
 
 function getSelectedSet(pallet: DisplayProject | null): Set<string> {
@@ -35,8 +108,16 @@ export function ProgramItemPicker({
 }: ProgramItemPickerProps) {
   const [search, setSearch] = useState('')
   const [selectedOnly, setSelectedOnly] = useState(false)
-  const [sortBySales, setSortBySales] = useState(false)
+  const [sort, setSort] = useState<SortState | null>(null)
   const [accountsModalOpen, setAccountsModalOpen] = useState(false)
+
+  const toggleSort = (column: SortColumn) => {
+    setSort((prev) =>
+      prev?.column === column
+        ? { column, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { column, dir: DEFAULT_DIR[column] },
+    )
+  }
 
   const productMap = useMemo(
     () => new Map(products.map((p) => [p.id, p])),
@@ -119,11 +200,45 @@ export function ProgramItemPicker({
   }, [rows, search, selectedOnly, halfSelected, fullSelected])
 
   const visibleRows = useMemo(() => {
-    if (!salesEnabled || !sortBySales) return filteredRows
-    const casesFor = (row: { kaycoItemNumber: string }) =>
-      sales.get(normalizeKaycoItemNumber(row.kaycoItemNumber))?.cases ?? -1
-    return [...filteredRows].sort((a, b) => casesFor(b) - casesFor(a))
-  }, [filteredRows, salesEnabled, sortBySales, sales])
+    if (!sort) return filteredRows
+    const salesFor = (row: { kaycoItemNumber: string }): ItemCustomerSales | undefined =>
+      sales.get(normalizeKaycoItemNumber(row.kaycoItemNumber))
+    type Row = (typeof filteredRows)[number]
+    // Missing values sort last regardless of direction.
+    const MISSING = Symbol('missing')
+    const valueFor = (row: Row): string | number | typeof MISSING => {
+      switch (sort.column) {
+        case 'name':
+          return row.name.toLowerCase()
+        case 'brand':
+          return row.brand.toLowerCase() || MISSING
+        case 'upc':
+          return row.upc || MISSING
+        case 'kayco':
+          return row.kaycoItemNumber || MISSING
+        case 'retailer':
+          return row.retailerItemNumber || MISSING
+        case 'pack':
+          return row.unitsPerCase ?? MISSING
+        case 'cases':
+          return salesFor(row)?.cases ?? MISSING
+        case 'netSales':
+          return salesFor(row)?.netSales ?? MISSING
+        case 'lastOrder':
+          return salesFor(row)?.lastOrder ?? MISSING
+      }
+    }
+    const flip = sort.dir === 'asc' ? 1 : -1
+    return [...filteredRows].sort((a, b) => {
+      const av = valueFor(a)
+      const bv = valueFor(b)
+      if (av === MISSING && bv === MISSING) return 0
+      if (av === MISSING) return 1
+      if (bv === MISSING) return -1
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * flip
+      return String(av).localeCompare(String(bv)) * flip
+    })
+  }, [filteredRows, sort, sales])
 
   const halfCount = halfSelected.size
   const fullCount = fullSelected.size
@@ -159,17 +274,6 @@ export function ProgramItemPicker({
           />
           Selected only
         </label>
-        {salesEnabled && (
-          <label className="inline-flex items-center gap-1.5 text-[12px] text-[#555] cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={sortBySales}
-              onChange={(e) => setSortBySales(e.target.checked)}
-              className="accent-[#171717]"
-            />
-            Top sellers first
-          </label>
-        )}
         <button
           onClick={() => setAccountsModalOpen(true)}
           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-[#555] shadow-border hover:bg-[#fafafa] transition-colors"
@@ -218,41 +322,37 @@ export function ProgramItemPicker({
           <table className="w-full border-separate border-spacing-0">
             <thead className="sticky top-0 z-10 bg-white">
               <tr>
-                <th className="text-left text-[10px] font-medium uppercase tracking-wider text-[#999] px-6 py-3 bg-white border-b border-[#f0f0f0]">
-                  Product
-                </th>
-                <th className="text-left text-[10px] font-medium uppercase tracking-wider text-[#999] px-3 py-3 bg-white border-b border-[#f0f0f0]">
-                  Brand
-                </th>
-                <th className="text-left text-[10px] font-medium uppercase tracking-wider text-[#999] px-3 py-3 bg-white border-b border-[#f0f0f0]">
-                  UPC
-                </th>
-                <th className="text-left text-[10px] font-medium uppercase tracking-wider text-[#999] px-3 py-3 bg-white border-b border-[#f0f0f0]">
-                  Kayco #
-                </th>
-                <th className="text-left text-[10px] font-medium uppercase tracking-wider text-[#999] px-3 py-3 bg-white border-b border-[#f0f0f0]">
-                  Retailer #
-                </th>
-                <th className="text-right text-[10px] font-medium uppercase tracking-wider text-[#999] px-3 py-3 bg-white border-b border-[#f0f0f0]">
-                  Pack
-                </th>
+                <SortHeader label="Product" column="name" sort={sort} onSort={toggleSort} wide />
+                <SortHeader label="Brand" column="brand" sort={sort} onSort={toggleSort} />
+                <SortHeader label="UPC" column="upc" sort={sort} onSort={toggleSort} />
+                <SortHeader label="Kayco #" column="kayco" sort={sort} onSort={toggleSort} />
+                <SortHeader label="Retailer #" column="retailer" sort={sort} onSort={toggleSort} />
+                <SortHeader label="Pack" column="pack" sort={sort} onSort={toggleSort} align="right" />
                 {salesEnabled && (
                   <>
-                    <th
-                      className="text-right text-[10px] font-medium uppercase tracking-wider text-[#999] px-3 py-3 bg-white border-b border-[#f0f0f0]"
-                      title={`Cases shipped to ${retailer.name}'s linked Kayco accounts`}
-                    >
-                      Cases sold
-                    </th>
-                    <th
-                      className="text-right text-[10px] font-medium uppercase tracking-wider text-[#999] px-3 py-3 bg-white border-b border-[#f0f0f0]"
-                      title={`Net sales to ${retailer.name}'s linked Kayco accounts`}
-                    >
-                      Net sales
-                    </th>
-                    <th className="text-right text-[10px] font-medium uppercase tracking-wider text-[#999] px-3 py-3 bg-white border-b border-[#f0f0f0]">
-                      Last order
-                    </th>
+                    <SortHeader
+                      label="Cases sold"
+                      column="cases"
+                      sort={sort}
+                      onSort={toggleSort}
+                      align="right"
+                      title={`Cases shipped to ${retailer.name}'s linked Kayco accounts - click to sort`}
+                    />
+                    <SortHeader
+                      label="Net sales"
+                      column="netSales"
+                      sort={sort}
+                      onSort={toggleSort}
+                      align="right"
+                      title={`Net sales to ${retailer.name}'s linked Kayco accounts - click to sort`}
+                    />
+                    <SortHeader
+                      label="Last order"
+                      column="lastOrder"
+                      sort={sort}
+                      onSort={toggleSort}
+                      align="right"
+                    />
                   </>
                 )}
                 {halfPallet && (
