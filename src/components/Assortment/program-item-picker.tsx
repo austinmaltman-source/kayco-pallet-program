@@ -112,7 +112,7 @@ export function ProgramItemPicker({
   const [selectedOnly, setSelectedOnly] = useState(false)
   const [sort, setSort] = useState<SortState | null>(null)
   const [accountsModalOpen, setAccountsModalOpen] = useState(false)
-  const [salesWindow, setSalesWindow] = useState<SalesWindow>({ kind: 'all' })
+  const [salesWindow, setSalesWindow] = useState<SalesWindow>({ kind: 'r12' })
 
   const toggleSort = (column: SortColumn) => {
     setSort((prev) =>
@@ -318,7 +318,6 @@ export function ProgramItemPicker({
                 title="Period for the Cases sold / Net sales columns"
                 className="h-9 px-2 text-[13px] text-[#171717] shadow-border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-[#0a72ef]/30"
               >
-                <option value="all">All time</option>
                 <option value="r12">Rolling 12 months</option>
                 <option value="ytd">Year to date</option>
                 <option value="custom">Custom…</option>
@@ -382,9 +381,10 @@ export function ProgramItemPicker({
         </div>
       </div>
 
-      {salesEnabled && salesWindow.kind !== 'all' && !windowReady && (
+      {salesEnabled && !windowReady && (
         <p className="text-[12px] text-amber-700">
-          Sales history hasn't finished syncing yet - showing all-time figures.
+          Sales history hasn't finished syncing yet - showing all-time figures
+          for now.
         </p>
       )}
 
