@@ -94,6 +94,127 @@ async function handleState(request: Request, env: Env, key?: string): Promise<Re
   return json({ error: 'Method not allowed' }, 405)
 }
 
+// --- Windowed sales (sales_monthly, fed by the Azure sync workflow) --------
+
+interface IngestBody {
+  month?: unknown
+  rows?: unknown
+  syncedAt?: unknown
+}
+
+// POST /api/sales/ingest  (Authorization: Bearer INGEST_TOKEN)
+// { month: "YYYY-MM", rows: [[itemKey, customerKey, customerName, cases, netCents], ...] }
+// Replaces the month on first chunk (append=true skips the delete), so the
+// sync can send a month in several chunks. { syncedAt } alone stamps sync_meta.
+async function handleSalesIngest(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
+  const auth = request.headers.get('Authorization') ?? ''
+  if (!env.INGEST_TOKEN || auth !== `Bearer ${env.INGEST_TOKEN}`) {
+    return json({ error: 'Unauthorized' }, 401)
+  }
+  const body = (await request.json().catch(() => null)) as IngestBody | null
+  if (!body) return json({ error: 'Invalid JSON body' }, 400)
+
+  if (typeof body.syncedAt === 'string' && body.rows === undefined) {
+    await env.DB.prepare(
+      `INSERT INTO sync_meta (key, value) VALUES ('sales_monthly:last_sync', ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    )
+      .bind(body.syncedAt)
+      .run()
+    return json({ data: { ok: true } })
+  }
+
+  const month = typeof body.month === 'string' ? body.month : ''
+  if (!/^\d{4}-\d{2}$/.test(month)) return json({ error: 'month must be YYYY-MM' }, 400)
+  if (!Array.isArray(body.rows)) return json({ error: 'rows must be an array' }, 400)
+  const append = new URL(request.url).searchParams.get('append') === '1'
+
+  const statements = []
+  if (!append) {
+    statements.push(env.DB.prepare('DELETE FROM sales_monthly WHERE month = ?').bind(month))
+  }
+  const insert = env.DB.prepare(
+    `INSERT INTO sales_monthly (item_key, customer_key, customer_name, month, cases, net_cents)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(item_key, customer_key, month) DO UPDATE
+       SET cases = excluded.cases, net_cents = excluded.net_cents, customer_name = excluded.customer_name`,
+  )
+  for (const row of body.rows) {
+    if (!Array.isArray(row) || row.length < 5) return json({ error: 'bad row shape' }, 400)
+    const [itemKey, customerKey, customerName, cases, netCents] = row
+    statements.push(
+      insert.bind(
+        String(itemKey),
+        String(customerKey),
+        String(customerName ?? ''),
+        month,
+        Number(cases) || 0,
+        Math.round(Number(netCents) || 0),
+      ),
+    )
+  }
+  await env.DB.batch(statements)
+  return json({ data: { month, inserted: body.rows.length, append } })
+}
+
+// GET /api/sales/summary?from=YYYY-MM&to=YYYY-MM&ids=a,b&patterns=P1|P2
+// Sums cases/net per item over the month window for the customer set
+// (explicit account ids plus case-insensitive name prefixes).
+async function handleSalesSummary(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405)
+  const params = new URL(request.url).searchParams
+  const from = params.get('from') ?? ''
+  const to = params.get('to') ?? ''
+  if (!/^\d{4}-\d{2}$/.test(from) || !/^\d{4}-\d{2}$/.test(to)) {
+    return json({ error: 'from/to must be YYYY-MM' }, 400)
+  }
+  const ids = (params.get('ids') ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+  const patterns = (params.get('patterns') ?? '')
+    .split('|')
+    .map((s) => s.trim().toUpperCase())
+    .filter(Boolean)
+  if (ids.length === 0 && patterns.length === 0) {
+    return json({ error: 'ids or patterns required' }, 400)
+  }
+
+  const meta = await env.DB.prepare(
+    `SELECT value FROM sync_meta WHERE key = 'sales_monthly:last_sync'`,
+  ).first<{ value: string }>()
+  if (!meta) return json({ data: { ready: false, items: [] } })
+
+  const where: string[] = []
+  const binds: unknown[] = [from, to]
+  if (ids.length > 0) {
+    where.push(`customer_key IN (${ids.map(() => '?').join(',')})`)
+    binds.push(...ids)
+  }
+  for (const pattern of patterns) {
+    // Escape LIKE wildcards in the prefix itself.
+    where.push(`UPPER(customer_name) LIKE ? ESCAPE '\\'`)
+    binds.push(pattern.replace(/([%_\\])/g, '\\$1') + '%')
+  }
+  const { results } = await env.DB.prepare(
+    `SELECT item_key, SUM(cases) AS cases, SUM(net_cents) AS net_cents
+     FROM sales_monthly
+     WHERE month >= ? AND month <= ? AND (${where.join(' OR ')})
+     GROUP BY item_key`,
+  )
+    .bind(...binds)
+    .all<{ item_key: string; cases: number; net_cents: number }>()
+  return json({
+    data: {
+      ready: true,
+      syncedAt: meta.value,
+      items: results.map((r) => ({
+        itemKey: r.item_key,
+        cases: r.cases,
+        netCents: r.net_cents,
+      })),
+    },
+  })
+}
+
 async function handleKaycoProxy(request: Request, env: Env, path: string): Promise<Response> {
   if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405)
   if (!env.KAYCO_API_KEY) return json({ error: 'KAYCO_API_KEY is not configured' }, 500)
@@ -126,6 +247,12 @@ export default {
       const stateMatch = url.pathname.match(/^\/api\/state\/([\w.-]+)$/)
       if (stateMatch) {
         return await handleState(request, env, stateMatch[1])
+      }
+      if (url.pathname === '/api/sales/ingest') {
+        return await handleSalesIngest(request, env)
+      }
+      if (url.pathname === '/api/sales/summary') {
+        return await handleSalesSummary(request, env)
       }
       if (url.pathname.startsWith('/api/kayco/')) {
         return await handleKaycoProxy(request, env, url.pathname.slice('/api/kayco'.length))

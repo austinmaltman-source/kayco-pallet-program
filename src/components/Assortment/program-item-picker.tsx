@@ -10,6 +10,8 @@ import {
   type ItemCustomerSales,
 } from '../../lib/kayco-sales'
 import { KaycoAccountsModal } from '../Retailers/kayco-accounts-panel'
+import { useWindowedItemSales } from '../../hooks/useWindowedItemSales'
+import { windowLabel, type SalesWindow } from '../../lib/sales-window'
 
 type SortColumn =
   | 'name'
@@ -110,6 +112,7 @@ export function ProgramItemPicker({
   const [selectedOnly, setSelectedOnly] = useState(false)
   const [sort, setSort] = useState<SortState | null>(null)
   const [accountsModalOpen, setAccountsModalOpen] = useState(false)
+  const [salesWindow, setSalesWindow] = useState<SalesWindow>({ kind: 'all' })
 
   const toggleSort = (column: SortColumn) => {
     setSort((prev) =>
@@ -182,6 +185,27 @@ export function ProgramItemPicker({
     error: salesError,
   } = useRetailerItemSales(linkedAccountIds, accountPatterns, itemNumbers)
 
+  // Windowed (rolling 12 / YTD / custom) figures come from the synced monthly
+  // history; "All time" uses the live per-item totals above. Last order stays
+  // all-time either way.
+  const { windowed, windowReady, windowLoading } = useWindowedItemSales(
+    linkedAccountIds,
+    accountPatterns,
+    salesEnabled ? salesWindow : { kind: 'all' },
+  )
+  const windowActive = salesWindow.kind !== 'all' && windowReady
+  // Effective figures for display + sorting.
+  const figuresFor = (kaycoItemNumber: string) => {
+    const key = normalizeKaycoItemNumber(kaycoItemNumber)
+    if (!key) return undefined
+    if (windowActive) {
+      const w = windowed?.get(key)
+      return { cases: w?.cases ?? 0, netSales: w?.netSales ?? 0 }
+    }
+    const s = sales.get(key)
+    return s ? { cases: s.cases, netSales: s.netSales } : undefined
+  }
+
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase()
     return rows.filter((row) => {
@@ -221,9 +245,9 @@ export function ProgramItemPicker({
         case 'pack':
           return row.unitsPerCase ?? MISSING
         case 'cases':
-          return salesFor(row)?.cases ?? MISSING
+          return figuresFor(row.kaycoItemNumber)?.cases ?? MISSING
         case 'netSales':
-          return salesFor(row)?.netSales ?? MISSING
+          return figuresFor(row.kaycoItemNumber)?.netSales ?? MISSING
         case 'lastOrder':
           return salesFor(row)?.lastOrder ?? MISSING
       }
@@ -238,53 +262,113 @@ export function ProgramItemPicker({
       if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * flip
       return String(av).localeCompare(String(bv)) * flip
     })
-  }, [filteredRows, sort, sales])
+    // figuresFor is stable per render inputs below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredRows, sort, sales, windowed, windowActive])
 
   const halfCount = halfSelected.size
   const fullCount = fullSelected.size
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[260px] max-w-[480px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#999]" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${rows.length} items by name, Kayco #, UPC, brand…`}
-            className="w-full pl-9 pr-9 h-9 text-[13px] shadow-border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-[#0a72ef]/30 focus:shadow-none placeholder:text-[#aaa]"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-[#bbb] hover:text-[#666]"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+      {/* Filter bar: labeled Search + Range (walmart-dashboard style). */}
+      <div className="bg-white shadow-card rounded-xl px-5 py-4 flex flex-wrap items-end gap-x-6 gap-y-3">
+        <div className="flex-1 min-w-[260px] max-w-[520px]">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-[#999] mb-1.5">
+            Search
+          </p>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#999]" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`${rows.length} items - name, Kayco #, UPC, brand…`}
+              className="w-full pl-9 pr-9 h-9 text-[13px] shadow-border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-[#0a72ef]/30 focus:shadow-none placeholder:text-[#aaa]"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#bbb] hover:text-[#666]"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
-        <label className="inline-flex items-center gap-1.5 text-[12px] text-[#555] cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={selectedOnly}
-            onChange={(e) => setSelectedOnly(e.target.checked)}
-            className="accent-[#171717]"
-          />
-          Selected only
-        </label>
-        <button
-          onClick={() => setAccountsModalOpen(true)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-[#555] shadow-border hover:bg-[#fafafa] transition-colors"
-        >
-          <BarChart3 className="w-3.5 h-3.5" />
-          Sales accounts
-          {salesEnabled && (
-            <span className="text-[#999] tabular-nums">({linkCount})</span>
-          )}
-        </button>
-        <div className="ml-auto flex items-center gap-3 text-[11px] text-[#666] tabular-nums">
+        {salesEnabled && (
+          <div>
+            <p className="text-[10px] font-medium uppercase tracking-wider text-[#999] mb-1.5">
+              Range
+            </p>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={salesWindow.kind}
+                onChange={(e) => {
+                  const kind = e.target.value as SalesWindow['kind']
+                  if (kind === 'custom') {
+                    const now = new Date()
+                    const current = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+                    setSalesWindow({ kind: 'custom', from: `${now.getFullYear()}-01`, to: current })
+                  } else {
+                    setSalesWindow({ kind } as SalesWindow)
+                  }
+                }}
+                title="Period for the Cases sold / Net sales columns"
+                className="h-9 px-2 text-[13px] text-[#171717] shadow-border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-[#0a72ef]/30"
+              >
+                <option value="all">All time</option>
+                <option value="r12">Rolling 12 months</option>
+                <option value="ytd">Year to date</option>
+                <option value="custom">Custom…</option>
+              </select>
+              {salesWindow.kind === 'custom' && (
+                <>
+                  <input
+                    type="month"
+                    value={salesWindow.from}
+                    onChange={(e) =>
+                      setSalesWindow({ ...salesWindow, from: e.target.value })
+                    }
+                    className="h-9 px-1.5 text-[12px] shadow-border rounded-md bg-white text-[#555]"
+                  />
+                  <span className="text-[11px] text-[#999]">to</span>
+                  <input
+                    type="month"
+                    value={salesWindow.to}
+                    onChange={(e) =>
+                      setSalesWindow({ ...salesWindow, to: e.target.value })
+                    }
+                    className="h-9 px-1.5 text-[12px] shadow-border rounded-md bg-white text-[#555]"
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        )}
+        <div className="flex items-center gap-3 h-9">
+          <label className="inline-flex items-center gap-1.5 text-[12px] text-[#555] cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={selectedOnly}
+              onChange={(e) => setSelectedOnly(e.target.checked)}
+              className="accent-[#171717]"
+            />
+            Selected only
+          </label>
+          <button
+            onClick={() => setAccountsModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-[#555] shadow-border hover:bg-[#fafafa] transition-colors"
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            Sales accounts
+            {salesEnabled && (
+              <span className="text-[#999] tabular-nums">({linkCount})</span>
+            )}
+          </button>
+        </div>
+        <div className="ml-auto flex items-center gap-3 h-9 text-[11px] text-[#666] tabular-nums">
           {halfPallet && (
             <span>
               Half: <span className="font-semibold text-emerald-700">{halfCount}</span>
@@ -297,6 +381,12 @@ export function ProgramItemPicker({
           )}
         </div>
       </div>
+
+      {salesEnabled && salesWindow.kind !== 'all' && !windowReady && (
+        <p className="text-[12px] text-amber-700">
+          Sales history hasn't finished syncing yet - showing all-time figures.
+        </p>
+      )}
 
       {!salesEnabled && (
         <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-[#f5f7fa] text-[12px] text-[#555]">
@@ -396,6 +486,12 @@ export function ProgramItemPicker({
                     !itemSales &&
                     salesLoading &&
                     Boolean(row.kaycoItemNumber)
+                  const figures = salesEnabled
+                    ? figuresFor(row.kaycoItemNumber)
+                    : undefined
+                  const figuresPending = windowActive
+                    ? windowLoading
+                    : salesPending
                   const bothOn =
                     (!halfPallet || onHalf) && (!fullPallet || onFull)
                   const rowSelected = onHalf || onFull
@@ -441,17 +537,17 @@ export function ProgramItemPicker({
                       {salesEnabled && (
                         <>
                           <td className="px-3 py-2.5 text-[11px] text-[#171717] text-right tabular-nums font-medium">
-                            {salesPending ? (
+                            {figuresPending ? (
                               <span className="text-[#ccc]">…</span>
                             ) : (
-                              formatSalesCases(itemSales?.cases ?? 0)
+                              formatSalesCases(figures?.cases ?? 0)
                             )}
                           </td>
                           <td className="px-3 py-2.5 text-[11px] text-[#666] text-right tabular-nums">
-                            {salesPending ? (
+                            {figuresPending ? (
                               <span className="text-[#ccc]">…</span>
                             ) : (
-                              formatSalesDollars(itemSales?.netSales ?? 0)
+                              formatSalesDollars(figures?.netSales ?? 0)
                             )}
                           </td>
                           <td className="px-3 py-2.5 text-[11px] text-[#888] text-right tabular-nums whitespace-nowrap">

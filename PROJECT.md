@@ -168,6 +168,14 @@ Kayco Sales Intelligence API (Cloudflare Worker; full reference incl. the key:
     and merged into persisted retailers that have no config (see `mergeRetailers` in App.tsx).
   - `Retailer.kaycoAccounts` (`{id, name}[]`) - explicit account links, for volume that ships
     under a different name (e.g. Meijer via KeHE distributor DCs).
+- **Windowed sales (Range selector):** monthly per-item/per-customer history lives in D1
+  `sales_monthly`, synced nightly from the Azure KAYCO_PLANNING warehouse by the
+  `Pallet sales monthly sync` workflow in the **costco-tracker-kayco** repo (Azure firewall +
+  service-principal secrets only exist there; ingest guarded by `INGEST_TOKEN` worker secret =
+  `PALLET_INGEST_TOKEN` GH secret). Worker endpoints: `POST /api/sales/ingest`,
+  `GET /api/sales/summary?from&to&ids&patterns`. Azure schema note (renamed June 2026):
+  cases = `SalesQuantity`, net = `SalesGrossAmount - SalesDiscount - SalesRebate`.
+  "All time" still uses the live per-item dashboard API.
 - **Data gotchas (verified 2026-07-24):** use `/items/:id/accounts` for per-customer item sales -
   it reconciles against `/items/:id/accounts/:accountId/transactions`. Do NOT build on `/orders`:
   its order-line coverage is partial and `balance` is not line revenue. API item id = unpadded
