@@ -14,6 +14,7 @@ import { useConfirm } from '../components/ConfirmDialog'
 import { parseCsv } from '../lib/csv'
 import {
   buildProgramTemplateWorkbook,
+  densifyRows,
   downloadXlsx,
 } from '../lib/program-template-xlsx'
 import * as XLSX from 'xlsx'
@@ -302,11 +303,7 @@ export function ProgramRollupPage() {
           raw: true,
           blankrows: false,
         })
-        rows = sheetRows.map((row) =>
-          (row as unknown[]).map((cell) =>
-            cell === null || cell === undefined ? '' : String(cell),
-          ),
-        )
+        rows = densifyRows(sheetRows as unknown[][])
       } else {
         const text = await file.text()
         rows = parseCsv(text)

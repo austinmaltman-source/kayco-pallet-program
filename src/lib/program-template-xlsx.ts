@@ -344,3 +344,16 @@ function columnLetter(col: number): string {
   }
   return result
 }
+
+// SheetJS `sheet_to_json(..., { header: 1 })` returns SPARSE arrays - empty
+// cells become holes, and holes crash `findIndex` callbacks that assume
+// strings (Array.prototype.findIndex visits holes; `.map` skips them). Every
+// consumer of sheet rows must densify first. Bug: silent import crash
+// 2026-08-18.
+export function densifyRows(sheetRows: unknown[][]): string[][] {
+  return sheetRows.map((row) =>
+    Array.from(row, (cell) =>
+      cell === null || cell === undefined ? '' : String(cell),
+    ),
+  )
+}
