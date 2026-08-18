@@ -9,7 +9,8 @@ import {
   normalizeKaycoItemNumber,
   type ItemCustomerSales,
 } from '../../lib/kayco-sales'
-import { KaycoAccountsModal } from '../Retailers/kayco-accounts-panel'
+import { Link } from 'react-router-dom'
+import { useRoleHref } from '../../lib/role-href'
 import { useWindowedItemSales } from '../../hooks/useWindowedItemSales'
 import { windowLabel, type SalesWindow } from '../../lib/sales-window'
 
@@ -108,10 +109,10 @@ export function ProgramItemPicker({
   readOnly,
   onToggle,
 }: ProgramItemPickerProps) {
+  const roleHref = useRoleHref()
   const [search, setSearch] = useState('')
   const [selectedOnly, setSelectedOnly] = useState(false)
   const [sort, setSort] = useState<SortState | null>(null)
-  const [accountsModalOpen, setAccountsModalOpen] = useState(false)
   const [salesWindow, setSalesWindow] = useState<SalesWindow>({ kind: 'r12' })
 
   const toggleSort = (column: SortColumn) => {
@@ -356,16 +357,6 @@ export function ProgramItemPicker({
             />
             Selected only
           </label>
-          <button
-            onClick={() => setAccountsModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-[#555] shadow-border hover:bg-[#fafafa] transition-colors"
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            Sales accounts
-            {salesEnabled && (
-              <span className="text-[#999] tabular-nums">({linkCount})</span>
-            )}
-          </button>
         </div>
         <div className="ml-auto flex items-center gap-3 h-9 text-[11px] text-[#666] tabular-nums">
           {halfPallet && (
@@ -395,12 +386,12 @@ export function ProgramItemPicker({
             Link {retailer.name} to its Kayco sales account(s) to see what this
             customer already buys.
           </span>
-          <button
-            onClick={() => setAccountsModalOpen(true)}
+          <Link
+            to={roleHref(`/retailers/${retailer.id}`)}
             className="ml-auto shrink-0 text-[12px] font-medium text-[#0a72ef] hover:underline"
           >
-            Link accounts
-          </button>
+            Set up on the retailer page
+          </Link>
         </div>
       )}
       {salesError && (
@@ -594,11 +585,6 @@ export function ProgramItemPicker({
         </div>
       </div>
 
-      <KaycoAccountsModal
-        retailer={retailer}
-        open={accountsModalOpen}
-        onClose={() => setAccountsModalOpen(false)}
-      />
     </div>
   )
 }
