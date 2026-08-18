@@ -169,6 +169,10 @@ export interface Product {
   depth: number
   weight: number
   unitsPerCase?: number
+  // Sleeves / inner packs per case (same concept, two names). When set,
+  // program quantities for this item are ENTERED in whole sleeves and stored
+  // as fractional cases (see src/lib/subunits.ts).
+  sleevesPerCase?: number
   imageUrl?: string
   modelUrl?: string
   packaging?: PackagingType

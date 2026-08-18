@@ -1,4 +1,5 @@
 import { ChangeEvent, useEffect, useMemo, useState } from 'react'
+import { casesToSleeves, formatCasesExact, sleevesToCases } from '../../lib/subunits'
 import { formatQty } from '../../lib/number-format'
 import { Minus, Plus, Search, X } from 'lucide-react'
 import type { DisplayProject, Product, Retailer } from '../../types'
@@ -22,6 +23,7 @@ interface MatrixRow {
   kaycoItemNumber: string
   brand: string
   unitsPerCase: number | null
+  sleevesPerCase: number | null
   onHalf: boolean
   onFull: boolean
   halfCases: number
@@ -43,22 +45,43 @@ function CellInput({
   onCommit,
   disabled,
   tone,
+  sleevesPerCase,
 }: {
   cases: number
   onCommit: (value: number) => void
   disabled?: boolean
   tone: 'half' | 'full'
+  // When set, the input works in WHOLE SLEEVES (stored as fractional cases).
+  sleevesPerCase?: number | null
 }) {
-  const [draft, setDraft] = useState(() => casesToDraft(cases))
+  const sleeveMode = typeof sleevesPerCase === 'number' && sleevesPerCase > 1
+  const toDraft = (value: number) =>
+    sleeveMode
+      ? value > 0
+        ? String(casesToSleeves(value, sleevesPerCase))
+        : ''
+      : casesToDraft(value)
+  const [draft, setDraft] = useState(() => toDraft(cases))
 
   useEffect(() => {
     const parsed = parseFloat(draft)
-    const current = isNaN(parsed) ? 0 : parsed
-    if (current !== cases) setDraft(casesToDraft(cases))
+    const current = isNaN(parsed)
+      ? 0
+      : sleeveMode
+        ? sleevesToCases(parsed, sleevesPerCase)
+        : parsed
+    if (current !== cases) setDraft(toDraft(cases))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cases])
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
+    if (sleeveMode) {
+      const val = event.target.value.replace(/\D/g, '')
+      setDraft(val)
+      const sleeves = parseInt(val, 10)
+      onCommit(isNaN(sleeves) ? 0 : sleevesToCases(sleeves, sleevesPerCase))
+      return
+    }
     let val = event.target.value.replace(/[^\d.]/g, '')
     const firstDot = val.indexOf('.')
     if (firstDot !== -1) {
@@ -72,7 +95,7 @@ function CellInput({
   }
 
   function handleBlur() {
-    setDraft(casesToDraft(cases))
+    setDraft(toDraft(cases))
   }
 
   const filled = cases > 0
@@ -90,8 +113,12 @@ function CellInput({
       : 'text-blue-700 hover:bg-blue-100/70'
 
   function step(delta: number) {
-    const next = Math.max(0, cases + delta)
-    onCommit(next)
+    if (sleeveMode) {
+      const sleeves = Math.max(0, casesToSleeves(cases, sleevesPerCase) + delta)
+      onCommit(sleevesToCases(sleeves, sleevesPerCase))
+      return
+    }
+    onCommit(Math.max(0, cases + delta))
   }
 
   return (
@@ -117,6 +144,11 @@ function CellInput({
         placeholder="0"
         className="w-[44px] bg-transparent text-[13px] font-medium text-center tabular-nums focus:outline-none disabled:text-[#bbb] placeholder:text-[#ccc]"
       />
+      {sleeveMode && (
+        <span className="self-center text-[9px] uppercase tracking-wide text-[#999] pr-0.5">
+          slv
+        </span>
+      )}
       <button
         type="button"
         onClick={() => step(1)}
@@ -207,6 +239,7 @@ export function ProgramMatrix({
           kaycoItemNumber: product?.kaycoItemNumber ?? '',
           brand: product?.brandCode || product?.brand || '',
           unitsPerCase: product ? getUnitsPerCase(product) : null,
+          sleevesPerCase: product?.sleevesPerCase ?? null,
           onHalf: halfSelected.has(id),
           onFull: fullSelected.has(id),
           halfCases,
@@ -447,14 +480,16 @@ export function ProgramMatrix({
                       <td className="px-3 py-2 text-[11px] text-[#888] font-mono">
                         {row.kaycoItemNumber || '—'}
                       </td>
-                      <td className="px-3 py-2 text-[11px] text-[#888] text-right tabular-nums">
+                      <td className="px-3 py-2 text-[11px] text-[#888] text-right tabular-nums whitespace-nowrap">
                         {row.unitsPerCase ?? '—'}
+                        {row.sleevesPerCase ? ` · ${row.sleevesPerCase} slv` : ''}
                       </td>
                       {halfPallet && (
                         <td className="px-3 py-2 text-right">
                           {row.onHalf ? (
                             <CellInput
                               tone="half"
+                              sleevesPerCase={row.sleevesPerCase}
                               cases={row.halfCases}
                               disabled={readOnly}
                               onCommit={(value) =>
@@ -471,6 +506,7 @@ export function ProgramMatrix({
                           {row.onFull ? (
                             <CellInput
                               tone="full"
+                              sleevesPerCase={row.sleevesPerCase}
                               cases={row.fullCases}
                               disabled={readOnly}
                               onCommit={(value) =>
@@ -483,10 +519,10 @@ export function ProgramMatrix({
                         </td>
                       )}
                       <td className="px-3 py-2 text-[13px] font-semibold text-[#171717] text-right tabular-nums">
-                        {orderCases ? formatQty(orderCases) : '—'}
+                        {orderCases ? (row.sleevesPerCase ? formatCasesExact(orderCases) : formatQty(orderCases)) : '—'}
                       </td>
                       <td className="px-6 py-2 text-[13px] font-medium text-[#171717] text-right tabular-nums">
-                        {orderUnits != null ? formatQty(orderUnits) : '—'}
+                        {orderUnits != null ? (row.sleevesPerCase ? formatCasesExact(orderUnits) : formatQty(orderUnits)) : '—'}
                       </td>
                     </tr>
                   )

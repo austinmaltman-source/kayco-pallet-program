@@ -82,6 +82,7 @@ export function ProductDetailPage() {
     kaycoItemNumber: product?.kaycoItemNumber ?? '',
     buyer: product?.buyer ?? '',
     caseCost: product?.caseCost?.toString() ?? '',
+    sleevesPerCase: product?.sleevesPerCase?.toString() ?? '',
     brand: product?.brand ?? ('tuscanini' as Brand),
     category: product?.category ?? '',
     width: product?.width ?? 0,
@@ -171,6 +172,7 @@ export function ProductDetailPage() {
       upc: product.upc ?? '', kaycoItemNumber: product.kaycoItemNumber ?? '',
       buyer: product.buyer ?? '',
       caseCost: product.caseCost?.toString() ?? '',
+      sleevesPerCase: product.sleevesPerCase?.toString() ?? '',
       brand: product.brand,
       category: product.category, width: product.width, height: product.height,
       depth: product.depth, weight: product.weight,
@@ -208,6 +210,7 @@ export function ProductDetailPage() {
       upc: product.upc ?? '', kaycoItemNumber: product.kaycoItemNumber ?? '',
       buyer: product.buyer ?? '',
       caseCost: product.caseCost?.toString() ?? '',
+      sleevesPerCase: product.sleevesPerCase?.toString() ?? '',
       brand: product.brand,
       category: product.category, width: product.width, height: product.height,
       depth: product.depth, weight: product.weight,
@@ -219,12 +222,14 @@ export function ProductDetailPage() {
   const handleSave = () => {
     const holidayTags = form.holiday === 'none' ? [] : [form.holiday as Holiday]
     const parsedCaseCost = form.caseCost.trim() === '' ? undefined : parseFloat(form.caseCost)
+    const parsedSleeves = form.sleevesPerCase.trim() === '' ? undefined : parseInt(form.sleevesPerCase, 10)
     updateProduct(product.id, {
       name: form.name, sku: form.sku,
       upc: form.upc.trim() || undefined,
       kaycoItemNumber: form.kaycoItemNumber.trim() || undefined,
       buyer: form.buyer.trim() || undefined,
       caseCost: typeof parsedCaseCost === 'number' && !isNaN(parsedCaseCost) ? parsedCaseCost : undefined,
+      sleevesPerCase: typeof parsedSleeves === 'number' && parsedSleeves > 1 ? parsedSleeves : undefined,
       brand: form.brand,
       brandColor: BRAND_COLORS[form.brand], category: form.category,
       width: form.width, height: form.height, depth: form.depth,
@@ -430,6 +435,7 @@ export function ProductDetailPage() {
                   { label: 'Kayco Item #', key: 'kaycoItemNumber', mono: true },
                   { label: 'Buyer', key: 'buyer', mono: false },
                   { label: 'Case Cost ($)', key: 'caseCost', mono: true },
+                  { label: 'Sleeves / inner packs per case', key: 'sleevesPerCase', mono: true },
                 ].map((f) => (
                   <div key={f.key}>
                     <label className="block text-[10px] font-medium uppercase tracking-wider text-[#999] mb-2">{f.label}</label>
