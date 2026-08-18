@@ -35,15 +35,28 @@ const kaycoHeaders = {
   "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) PalletSync/1.0",
 };
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Be a polite API citizen: pace every call, and when the upstream rate
+// limiter answers 429, back off for real (it runs a cooldown window - short
+// retries just burn attempts, which is how the first backfill died).
 async function kayco(path, attempt = 1) {
   const res = await fetch(`${API_BASE}${path}`, { headers: kaycoHeaders });
+  if (res.status === 429) {
+    if (attempt <= 5) {
+      await sleep(30000 * attempt);
+      return kayco(path, attempt + 1);
+    }
+    throw new Error(`${path} -> 429 (gave up after long backoff)`);
+  }
   if (!res.ok) {
     if (attempt < 3) {
-      await new Promise((r) => setTimeout(r, 1500 * attempt));
+      await sleep(2000 * attempt);
       return kayco(path, attempt + 1);
     }
     throw new Error(`${path} -> ${res.status}`);
   }
+  await sleep(150); // global pacing
   return (await res.json()).data;
 }
 

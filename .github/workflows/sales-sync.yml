@@ -28,5 +28,5 @@ jobs:
           KAYCO_API_KEY: ${{ secrets.KAYCO_API_KEY }}
           PALLET_INGEST_TOKEN: ${{ secrets.PALLET_INGEST_TOKEN }}
           MODE: ${{ inputs.mode || 'incremental' }}
-          CONCURRENCY: ${{ inputs.mode == 'backfill' && '10' || '6' }}
+          CONCURRENCY: ${{ inputs.mode == 'backfill' && '4' || '3' }}
         run: node scripts/sales-sync.mjs
