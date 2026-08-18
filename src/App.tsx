@@ -329,6 +329,11 @@ export default function App() {
       useRetailerStore
         .getState()
         .setRetailers(retailers)
+      // The merge above can ADD data the server copy lacks (seeded Kayco
+      // account patterns, new fallback items). Push the merged result so
+      // server-side readers (e.g. the sales sync) see it too - no-op when
+      // it matches what the server already has.
+      schedulePush(RETAILER_STORAGE_KEY, JSON.stringify(retailers))
 
       const persistedSeasons = readShared<Season[]>(SEASONS_STORAGE_KEY) ?? []
       useSeasonStore.getState().setSeasons(
