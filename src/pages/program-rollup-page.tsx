@@ -437,7 +437,7 @@ export function ProgramRollupPage() {
     mergeProgramAssortment(plan)
     setImportError(
       unmatched.length > 0
-        ? `Imported ${halfMerge.length + fullMerge.length} rows. ${unmatched.length} unmatched Kayco numbers were skipped.`
+        ? `Imported ${halfMerge.length + fullMerge.length} rows. Skipped ${unmatched.length} unmatched Kayco number${unmatched.length === 1 ? '' : 's'}: ${unmatched.slice(0, 10).join(', ')}${unmatched.length > 10 ? `, +${unmatched.length - 10} more` : ''}.`
         : null,
     )
     setTab('quantities')

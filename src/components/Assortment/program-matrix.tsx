@@ -1,4 +1,5 @@
 import { ChangeEvent, useEffect, useMemo, useState } from 'react'
+import { formatQty } from '../../lib/number-format'
 import { Minus, Plus, Search, X } from 'lucide-react'
 import type { DisplayProject, Product, Retailer } from '../../types'
 import { getUnitsPerCase } from '../../lib/assortment-utils'
@@ -482,10 +483,10 @@ export function ProgramMatrix({
                         </td>
                       )}
                       <td className="px-3 py-2 text-[13px] font-semibold text-[#171717] text-right tabular-nums">
-                        {orderCases || '—'}
+                        {orderCases ? formatQty(orderCases) : '—'}
                       </td>
                       <td className="px-6 py-2 text-[13px] font-medium text-[#171717] text-right tabular-nums">
-                        {orderUnits ?? '—'}
+                        {orderUnits != null ? formatQty(orderUnits) : '—'}
                       </td>
                     </tr>
                   )
@@ -502,19 +503,19 @@ export function ProgramMatrix({
                 </td>
                 {halfPallet && (
                   <td className="px-3 py-3 text-[13px] font-semibold text-emerald-800 text-right tabular-nums">
-                    {totals.halfCases || '—'}
+                    {totals.halfCases ? formatQty(totals.halfCases) : '—'}
                   </td>
                 )}
                 {fullPallet && (
                   <td className="px-3 py-3 text-[13px] font-semibold text-blue-800 text-right tabular-nums">
-                    {totals.fullCases || '—'}
+                    {totals.fullCases ? formatQty(totals.fullCases) : '—'}
                   </td>
                 )}
                 <td className="px-3 py-3 text-[13px] font-semibold text-[#171717] text-right tabular-nums">
-                  {totals.totalCases || '—'}
+                  {totals.totalCases ? formatQty(totals.totalCases) : '—'}
                 </td>
                 <td className="px-6 py-3 text-[13px] font-semibold text-[#171717] text-right tabular-nums">
-                  {totals.totalUnits || '—'}
+                  {totals.totalUnits ? formatQty(totals.totalUnits) : '—'}
                 </td>
               </tr>
             </tfoot>
