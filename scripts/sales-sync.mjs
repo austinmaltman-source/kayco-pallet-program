@@ -89,13 +89,38 @@ const inScope = (accountId, accountName) => {
 };
 
 const products = await appState("palletforge-products");
-const itemNumbers = [
+// Only pull what the app can actually show: items AUTHORIZED for (or already
+// selected on) some retailer's program - a few hundred - not the whole
+// 4,671-item catalog. Newly authorized items appear the next night.
+const neededProductIds = new Set();
+for (const r of retailers) {
+  for (const item of r.authorizedItems ?? []) neededProductIds.add(item.productId);
+}
+try {
+  const pallets = await appState("palletforge-pallets");
+  for (const pallet of pallets) {
+    for (const id of pallet.selectedProductIds ?? []) neededProductIds.add(id);
+    for (const entry of pallet.assortment ?? []) neededProductIds.add(entry.productId);
+  }
+} catch {
+  // no pallets yet - authorized items alone are fine
+}
+const productById = new Map(products.map((p) => [p.id, p]));
+let itemNumbers = [
   ...new Set(
-    products
-      .map((p) => normKey(p.kaycoItemNumber))
+    [...neededProductIds]
+      .map((id) => normKey(productById.get(id)?.kaycoItemNumber))
       .filter((n) => /^\d+$/.test(n)),
   ),
 ];
+if (itemNumbers.length === 0) {
+  // Safety net: nothing authorized yet -> fall back to the full catalog.
+  itemNumbers = [
+    ...new Set(
+      products.map((p) => normKey(p.kaycoItemNumber)).filter((n) => /^\d+$/.test(n)),
+    ),
+  ];
+}
 console.log(
   `scope: ${patterns.size} patterns, ${explicitIds.size} ids | catalog items: ${itemNumbers.length} | mode: ${MODE}`,
 );
