@@ -168,14 +168,16 @@ Kayco Sales Intelligence API (Cloudflare Worker; full reference incl. the key:
     and merged into persisted retailers that have no config (see `mergeRetailers` in App.tsx).
   - `Retailer.kaycoAccounts` (`{id, name}[]`) - explicit account links, for volume that ships
     under a different name (e.g. Meijer via KeHE distributor DCs).
-- **Windowed sales (Range selector):** monthly per-item/per-customer history lives in D1
-  `sales_monthly`, synced nightly from the Azure KAYCO_PLANNING warehouse by the
-  `Pallet sales monthly sync` workflow in the **costco-tracker-kayco** repo (Azure firewall +
-  service-principal secrets only exist there; ingest guarded by `INGEST_TOKEN` worker secret =
-  `PALLET_INGEST_TOKEN` GH secret). Worker endpoints: `POST /api/sales/ingest`,
-  `GET /api/sales/summary?from&to&ids&patterns`. Azure schema note (renamed June 2026):
-  cases = `SalesQuantity`, net = `SalesGrossAmount - SalesDiscount - SalesRebate`.
-  "All time" still uses the live per-item dashboard API.
+- **Windowed sales (Range selector):** monthly per-item/per-customer history in D1
+  `sales_monthly` + `customers_dim`, synced nightly by THIS repo's `Sales history sync`
+  workflow ([scripts/sales-sync.mjs](scripts/sales-sync.mjs)) from the hosted Kayco Sales
+  Intelligence API only - **no direct Azure access anywhere**. Scope = only customers linked
+  in the app (patterns + ids, read from /api/state at sync time), so new links (e.g. Meijer
+  via KeHE) are picked up automatically the next night. Repo secrets: `KAYCO_API_KEY`,
+  `PALLET_INGEST_TOKEN` (= worker secret `INGEST_TOKEN`). Worker endpoints:
+  `POST /api/sales/ingest`, `GET /api/sales/summary?from&to&ids&patterns` (indexed via
+  customers_dim + (customer_key, month); responses edge-cached 6h). Manual full rebuild:
+  run the workflow with mode=backfill.
 - **Data gotchas (verified 2026-07-24):** use `/items/:id/accounts` for per-customer item sales -
   it reconciles against `/items/:id/accounts/:accountId/transactions`. Do NOT build on `/orders`:
   its order-line coverage is partial and `balance` is not line revenue. API item id = unpadded
