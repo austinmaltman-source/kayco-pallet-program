@@ -440,10 +440,25 @@ export default function App() {
       setHydrated(true)
     }
 
-    void hydrate()
+    // If hydration throws or the backend is being throttled, open the app on
+    // the local copy instead of spinning forever - the sync chip shows
+    // "Local only" and the next successful fetch reconnects.
+    const watchdog = setTimeout(() => {
+      console.error('[hydrate] watchdog fired - opening with local data')
+      setHydrated(true)
+    }, 8000)
+    hydrate()
+      .catch((error) => {
+        console.error('[hydrate] failed - opening with local data:', error)
+      })
+      .finally(() => {
+        clearTimeout(watchdog)
+        if (!cancelled) setHydrated(true)
+      })
 
     return () => {
       cancelled = true
+      clearTimeout(watchdog)
       unsubscribers.forEach((unsubscribe) => unsubscribe())
     }
   }, [])

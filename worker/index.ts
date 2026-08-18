@@ -140,6 +140,11 @@ async function handleSalesIngest(request: Request, env: Env): Promise<Response> 
      ON CONFLICT(item_key, customer_key, month) DO UPDATE
        SET cases = excluded.cases, net_cents = excluded.net_cents, customer_name = excluded.customer_name`,
   )
+  const dimUpsert = env.DB.prepare(
+    `INSERT INTO customers_dim (customer_key, name) VALUES (?, ?)
+     ON CONFLICT(customer_key) DO UPDATE SET name = excluded.name`,
+  )
+  const seenCustomers = new Set<string>()
   for (const row of body.rows) {
     if (!Array.isArray(row) || row.length < 5) return json({ error: 'bad row shape' }, 400)
     const [itemKey, customerKey, customerName, cases, netCents] = row
@@ -153,6 +158,12 @@ async function handleSalesIngest(request: Request, env: Env): Promise<Response> 
         Math.round(Number(netCents) || 0),
       ),
     )
+    const key = String(customerKey)
+    const name = String(customerName ?? '')
+    if (name && !seenCustomers.has(key)) {
+      seenCustomers.add(key)
+      statements.push(dimUpsert.bind(key, name))
+    }
   }
   await env.DB.batch(statements)
   return json({ data: { month, inserted: body.rows.length, append } })
@@ -183,26 +194,39 @@ async function handleSalesSummary(request: Request, env: Env): Promise<Response>
   ).first<{ value: string }>()
   if (!meta) return json({ data: { ready: false, items: [] } })
 
-  const where: string[] = []
-  const binds: unknown[] = [from, to]
-  if (ids.length > 0) {
-    where.push(`customer_key IN (${ids.map(() => '?').join(',')})`)
-    binds.push(...ids)
-  }
+  // Serve repeats from the edge cache - summary data only changes on the
+  // nightly sync, and every uncached hit costs indexed D1 row reads.
+  const cache = caches.default
+  const cacheKey = new Request(request.url)
+  const cached = await cache.match(cacheKey)
+  if (cached) return cached
+
+  // Resolve name patterns to customer keys via the small dim table, so the
+  // fact query is a pure indexed lookup (customer_key, month) instead of a
+  // month-range scan (which read ~2M rows/query and blew the D1 free tier).
+  const keys = new Set(ids)
   for (const pattern of patterns) {
-    // Escape LIKE wildcards in the prefix itself.
-    where.push(`UPPER(customer_name) LIKE ? ESCAPE '\\'`)
-    binds.push(pattern.replace(/([%_\\])/g, '\\$1') + '%')
+    const { results } = await env.DB.prepare(
+      `SELECT customer_key FROM customers_dim WHERE UPPER(name) LIKE ? ESCAPE '\\'`,
+    )
+      .bind(pattern.replace(/([%_\\])/g, '\\$1') + '%')
+      .all<{ customer_key: string }>()
+    for (const row of results) keys.add(row.customer_key)
   }
+  if (keys.size === 0) {
+    return json({ data: { ready: true, syncedAt: meta.value, items: [] } })
+  }
+  const keyList = [...keys].slice(0, 600)
   const { results } = await env.DB.prepare(
     `SELECT item_key, SUM(cases) AS cases, SUM(net_cents) AS net_cents
      FROM sales_monthly
-     WHERE month >= ? AND month <= ? AND (${where.join(' OR ')})
+     WHERE customer_key IN (${keyList.map(() => '?').join(',')})
+       AND month >= ? AND month <= ?
      GROUP BY item_key`,
   )
-    .bind(...binds)
+    .bind(...keyList, from, to)
     .all<{ item_key: string; cases: number; net_cents: number }>()
-  return json({
+  const response = json({
     data: {
       ready: true,
       syncedAt: meta.value,
@@ -213,6 +237,9 @@ async function handleSalesSummary(request: Request, env: Env): Promise<Response>
       })),
     },
   })
+  response.headers.set('Cache-Control', 'public, s-maxage=21600') // 6h
+  await cache.put(cacheKey, response.clone())
+  return response
 }
 
 async function handleKaycoProxy(request: Request, env: Env, path: string): Promise<Response> {
