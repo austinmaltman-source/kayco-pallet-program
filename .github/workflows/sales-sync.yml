@@ -1,0 +1,32 @@
+# Nightly sales-history sync via the hosted Kayco Sales Intelligence API
+# (no Azure - see scripts/sales-sync.mjs). Runs after the API owner's own
+# morning refresh from the warehouse.
+name: Sales history sync
+
+on:
+  schedule:
+    - cron: "45 11 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: incremental (recent activity) or backfill (every scoped pair)
+        default: incremental
+        type: choice
+        options: [incremental, backfill]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Sync
+        env:
+          KAYCO_API_KEY: ${{ secrets.KAYCO_API_KEY }}
+          PALLET_INGEST_TOKEN: ${{ secrets.PALLET_INGEST_TOKEN }}
+          MODE: ${{ inputs.mode || 'incremental' }}
+          CONCURRENCY: ${{ inputs.mode == 'backfill' && '10' || '6' }}
+        run: node scripts/sales-sync.mjs
