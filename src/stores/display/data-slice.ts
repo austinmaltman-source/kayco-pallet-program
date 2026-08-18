@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand'
+import { safeSetItem } from '../../lib/safe-storage'
 import type { DisplayProject } from '../../types'
 import { getAppSettingsSnapshot } from '../app-settings-store'
 import { useRetailerStore } from '../retailer-store'
@@ -72,7 +73,7 @@ export const createDataSlice: StateCreator<DisplayState, [], [], DataSlice> = (
       updatedAt: Date.now(),
     }
 
-    localStorage.setItem('lastUsedConfig', JSON.stringify(config))
+    safeSetItem('lastUsedConfig', JSON.stringify(config))
 
     set((state) => ({
       projects: [...state.projects, project],

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { safeSetItem, safeRemoveItem } from './lib/safe-storage'
 import { useEffect, useState } from 'react'
 import { DisplayProject, InventoryLocation, InventorySnapshot, Product, Retailer, Salesperson, Season } from './types'
 import { RoleAppLayout } from './components/layout/role-app-layout'
@@ -319,7 +320,7 @@ export default function App() {
             )
           }
           try {
-            localStorage.setItem(MIGRATION_KEY, CURRENT_MIGRATION_VERSION)
+            safeSetItem(MIGRATION_KEY, CURRENT_MIGRATION_VERSION)
           } catch {
             // best effort
           }
@@ -413,27 +414,27 @@ export default function App() {
       unsubscribers.push(
         useCatalogStore.subscribe((state) => {
           const json = JSON.stringify(state.products)
-          localStorage.setItem(CATALOG_STORAGE_KEY, json)
+          safeSetItem(CATALOG_STORAGE_KEY, json)
           schedulePush(CATALOG_STORAGE_KEY, json)
         }),
         useRetailerStore.subscribe((state) => {
           const json = JSON.stringify(state.retailers)
-          localStorage.setItem(RETAILER_STORAGE_KEY, json)
+          safeSetItem(RETAILER_STORAGE_KEY, json)
           schedulePush(RETAILER_STORAGE_KEY, json)
         }),
         useSeasonStore.subscribe((state) => {
           const json = JSON.stringify(state.seasons)
-          localStorage.setItem(SEASONS_STORAGE_KEY, json)
+          safeSetItem(SEASONS_STORAGE_KEY, json)
           schedulePush(SEASONS_STORAGE_KEY, json)
         }),
         useSalespersonStore.subscribe((state) => {
           const json = JSON.stringify(state.salespeople)
-          localStorage.setItem(SALESPEOPLE_STORAGE_KEY, json)
+          safeSetItem(SALESPEOPLE_STORAGE_KEY, json)
           schedulePush(SALESPEOPLE_STORAGE_KEY, json)
         }),
         useInventoryStore.subscribe((state) => {
           const json = JSON.stringify(state.snapshots)
-          localStorage.setItem(INVENTORY_STORAGE_KEY, json)
+          safeSetItem(INVENTORY_STORAGE_KEY, json)
           schedulePush(INVENTORY_STORAGE_KEY, json)
         }),
         // app-settings-store persists itself to localStorage; mirror to server.
@@ -473,16 +474,18 @@ export default function App() {
       if (!useAppSettingsStore.getState().settings.autoSaveProject) return
 
       const json = JSON.stringify(state.projects)
-      localStorage.setItem(PALLETS_STORAGE_KEY, json)
+      safeSetItem(PALLETS_STORAGE_KEY, json)
       schedulePush(PALLETS_STORAGE_KEY, json)
+      // The legacy palletforge-project blob duplicated the current project
+      // (already inside palletforge-pallets) and was the first write to blow
+      // the quota - it is no longer written, only cleaned up.
+      safeRemoveItem(PROJECT_STORAGE_KEY)
       if (state.currentProject) {
-        localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(state.currentProject))
-        localStorage.setItem(ACTIVE_PALLET_STORAGE_KEY, state.currentProject.id)
+        safeSetItem(ACTIVE_PALLET_STORAGE_KEY, state.currentProject.id)
         return
       }
 
-      localStorage.removeItem(PROJECT_STORAGE_KEY)
-      localStorage.removeItem(ACTIVE_PALLET_STORAGE_KEY)
+      safeRemoveItem(ACTIVE_PALLET_STORAGE_KEY)
     })
 
     return () => unsubscribeProject()

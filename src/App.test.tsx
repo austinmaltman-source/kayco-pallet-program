@@ -105,19 +105,19 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(localStorage.getItem('palletforge-pallets')).toContain('Autosaved Project')
-      expect(localStorage.getItem('palletforge-project')).toContain('Autosaved Project')
+      expect(localStorage.getItem('palletforge-pallets')).toContain('Autosaved Project')
     })
 
     act(() => {
       useAppSettingsStore.getState().updateSettings({autoSaveProject: false})
       localStorage.removeItem('palletforge-pallets')
-      localStorage.removeItem('palletforge-project')
+      localStorage.removeItem('palletforge-pallets')
       useDisplayStore.getState().updateBranding({headerText: 'Should not persist'})
     })
 
     await waitFor(() => {
       expect(localStorage.getItem('palletforge-pallets')).toBeNull()
-      expect(localStorage.getItem('palletforge-project')).toBeNull()
+      expect(localStorage.getItem('palletforge-pallets')).toBeNull()
     })
   })
 })

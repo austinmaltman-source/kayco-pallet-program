@@ -3,6 +3,7 @@
 // app moves origins (localStorage is per-origin - e.g. old Vercel URL ->
 // palletforge.pages.dev).
 import { SYNCED_KEYS, fetchServerState, pushKeyNow, type SyncedKey } from './state-sync'
+import { safeSetItem } from './safe-storage'
 
 const BACKUP_VERSION = 1
 
@@ -72,7 +73,7 @@ export async function restoreBackup(fileText: string): Promise<number> {
   // top of the restore. Unreachable -> localStorage-only mode, local is fine.
   const server = await fetchServerState()
   for (const [key, value] of entries) {
-    localStorage.setItem(key, value)
+    safeSetItem(key, value)
   }
   if (server) {
     for (const [key, value] of entries) {

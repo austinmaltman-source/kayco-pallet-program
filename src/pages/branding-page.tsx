@@ -61,7 +61,7 @@ export function BrandingPage() {
 
   const handleSave = () => {
     if (!project) return
-    localStorage.setItem('palletforge-project', JSON.stringify(project))
+    // legacy palletforge-project blob no longer persisted (quota)
     setSaved(true)
     window.setTimeout(() => setSaved(false), 1500)
   }

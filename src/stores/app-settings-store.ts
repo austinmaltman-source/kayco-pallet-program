@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { safeSetItem } from '../lib/safe-storage'
 import type {
   Brand,
   CameraPreset,
@@ -127,7 +128,7 @@ function readPersistedSettings(): AppSettings {
 }
 
 function persistSettings(settings: AppSettings) {
-  localStorage.setItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+  safeSetItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify(settings))
 }
 
 interface AppSettingsState {

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Role } from '../types'
+import { safeSetItem } from '../lib/safe-storage'
 
 const ROLE_STORAGE_KEY = 'palletforge-active-role'
 const SALESPERSON_STORAGE_KEY = 'palletforge-active-salesperson-id'
@@ -36,7 +37,7 @@ export const useRoleStore = create<RoleState>((set) => ({
   activeSalespersonId: loadInitialSalespersonId(),
   setRole: (role) => {
     try {
-      localStorage.setItem(ROLE_STORAGE_KEY, role)
+      safeSetItem(ROLE_STORAGE_KEY, role)
     } catch {
       // ignore
     }
@@ -44,7 +45,7 @@ export const useRoleStore = create<RoleState>((set) => ({
   },
   setActiveSalespersonId: (id) => {
     try {
-      if (id) localStorage.setItem(SALESPERSON_STORAGE_KEY, id)
+      if (id) safeSetItem(SALESPERSON_STORAGE_KEY, id)
       else localStorage.removeItem(SALESPERSON_STORAGE_KEY)
     } catch {
       // ignore

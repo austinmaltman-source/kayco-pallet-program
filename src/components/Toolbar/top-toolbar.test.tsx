@@ -31,7 +31,7 @@ describe('TopToolbar', () => {
     expect(useDisplayStore.getState().historyIndex).toBe(0)
 
     await user.click(screen.getByRole('button', {name: 'Save'}))
-    expect(localStorage.getItem('palletforge-project')).toContain('Test Project')
+    expect(localStorage.getItem('palletforge-pallets')).toContain('Test Project')
     expect(screen.getByRole('button', {name: 'Saved!'})).toBeInTheDocument()
   })
 

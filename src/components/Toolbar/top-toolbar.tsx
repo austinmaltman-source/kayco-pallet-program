@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Undo2, Redo2, ChevronDown } from 'lucide-react'
 import { useDisplayStore } from '../../stores/display-store'
 import { TrayFace } from '../../types'
+import { safeSetItem } from '../../lib/safe-storage'
 
 const faceLabels: Record<TrayFace, string> = {
   front: 'Front Wall',
@@ -43,9 +44,8 @@ export function TopToolbar() {
     const { currentProject, projects } = useDisplayStore.getState()
     const project = currentProject
     if (!project) return
-    localStorage.setItem('palletforge-pallets', JSON.stringify(projects))
-    localStorage.setItem('palletforge-project', JSON.stringify(project))
-    localStorage.setItem('palletforge-active-pallet-id', project.id)
+    safeSetItem('palletforge-pallets', JSON.stringify(projects))
+    safeSetItem('palletforge-active-pallet-id', project.id)
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
   }
