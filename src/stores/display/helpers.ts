@@ -66,6 +66,25 @@ export function buildPlacementShape(
   return { dimensions, caseConfig }
 }
 
+// Physical shape of ONE sleeve/inner pack: the case sliced into
+// sleevesPerCase boxes using the same grid heuristic as unit layouts, so a
+// 12-sleeve case becomes a 4x3 grid of sleeve-slabs rather than paper-thin
+// slices. Rendered as a plain box (no per-piece caseConfig).
+export function buildSleeveShape(
+  product: Product,
+  allProducts: Product[],
+): { width: number; height: number; depth: number } {
+  const sleeves = product.sleevesPerCase ?? 0
+  const { dimensions } = buildPlacementShape(product, allProducts)
+  if (sleeves <= 1) return dimensions
+  const layout = deriveCaseLayout(sleeves)
+  return {
+    width: Math.max(0.5, dimensions.width / layout.cols),
+    depth: Math.max(0.5, dimensions.depth / layout.rows),
+    height: Math.max(0.5, dimensions.height / layout.layers),
+  }
+}
+
 // Stamp a slot-based placement with its world transform so the physics
 // sandbox can spawn it as a rigid body. No-op for placements whose slot data
 // cannot be resolved (their existing transform, if any, stays).

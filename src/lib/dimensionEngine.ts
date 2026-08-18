@@ -102,6 +102,7 @@ export function resolvePlacementWeight(
   placement: {
     sourceProductId?: string
     caseConfig?: Product['caseConfig']
+    subunit?: 'sleeve'
     width: number
     height: number
     depth: number
@@ -125,7 +126,13 @@ export function resolvePlacementWeight(
   const source = placement.sourceProductId
     ? allProducts.find((candidate) => candidate.id === placement.sourceProductId)
     : undefined
-  return source ? resolveProductWeight(source, allProducts) : 0
+  if (!source) return 0
+  const full = resolveProductWeight(source, allProducts)
+  // One sleeve weighs its share of the case.
+  if (placement.subunit === 'sleeve' && (source.sleevesPerCase ?? 0) > 1) {
+    return full / source.sleevesPerCase!
+  }
+  return full
 }
 
 export function resolveProductWeight(product: Product, allProducts: Product[]): number {

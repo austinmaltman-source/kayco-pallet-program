@@ -5,7 +5,7 @@ import { useCatalogStore } from '../catalog-store'
 import { useRetailerStore } from '../retailer-store'
 import { buildTierConfigs } from '../../lib/shelfCoordinates'
 import type { DisplayState, PhysicsSlice } from './types'
-import { buildPlacementShape, commitProjectUpdate, withTransform } from './helpers'
+import { buildPlacementShape, buildSleeveShape, commitProjectUpdate, withTransform } from './helpers'
 
 export const createPhysicsSlice: StateCreator<
   DisplayState,
@@ -22,14 +22,20 @@ export const createPhysicsSlice: StateCreator<
   verticalDragMode: false,
   heldRotateToken: 0,
 
-  spawnProduct: (product) => {
+  spawnProduct: (product, options) => {
     const state = get()
     if (!state.currentProject) return undefined
 
     const allProducts = useCatalogStore.getState().products
     // Pallet programs deal in cases: a single-unit product that knows its
     // case count places as a real case rendering every unit inside it.
-    const { dimensions, caseConfig } = buildPlacementShape(product, allProducts)
+    // Sleeve spawns place ONE sleeve/inner pack instead (a case slice).
+    const asSleeve =
+      options?.asSleeve === true && (product.sleevesPerCase ?? 0) > 1
+    const shape = asSleeve
+      ? { dimensions: buildSleeveShape(product, allProducts), caseConfig: undefined }
+      : buildPlacementShape(product, allProducts)
+    const { dimensions, caseConfig } = shape
 
     // Spawn in midair in front of the display; the drag manager picks it up
     // and follows the cursor immediately (carry mode).
@@ -41,13 +47,14 @@ export const createPhysicsSlice: StateCreator<
       height: dimensions.height,
       depth: dimensions.depth,
       color: product.brandColor,
-      label: product.name,
+      label: asSleeve ? `${product.name} (sleeve)` : product.name,
       sku: product.sku,
       category: product.category,
       imageUrl: product.imageUrl,
-      modelUrl: product.modelUrl,
+      modelUrl: asSleeve ? undefined : product.modelUrl,
       packaging: product.packaging,
       caseConfig,
+      ...(asSleeve ? { subunit: 'sleeve' as const } : {}),
       quantity: 1,
       position: [0, 50, 30],
       quaternion: [0, 0, 0, 1],

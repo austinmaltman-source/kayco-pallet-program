@@ -114,7 +114,7 @@ export interface PhysicsSlice {
   heldRotateToken: number
 
   // Spawn a free (physics) placement carried by the cursor until placed.
-  spawnProduct: (product: Product) => string | undefined
+  spawnProduct: (product: Product, options?: { asSleeve?: boolean }) => string | undefined
   // Write physics-settled transforms back; clears slot fields on moved items.
   settlePlacements: (
     updates: {

@@ -75,6 +75,9 @@ export interface PlacedProduct {
   packaging?: PackagingType; // packaging type for scaling strategy
   caseConfig?: CaseConfig;
   orientation?: number;    // index into ORIENTATION_PRESETS (0-5)
+  // 'sleeve' = this body is ONE sleeve/inner pack, not a full case (dims are
+  // the case sliced by Product.sleevesPerCase; weight scaled to match).
+  subunit?: 'sleeve'
   wall?: WallFace
   tier?: number
   gridCol?: number
@@ -173,6 +176,9 @@ export interface Product {
   // program quantities for this item are ENTERED in whole sleeves and stored
   // as fractional cases (see src/lib/subunits.ts).
   sleevesPerCase?: number
+  // Pieces inside one sleeve/inner pack (from the Kayco item master's
+  // ninnerunit). Informational for now.
+  unitsPerSleeve?: number
   imageUrl?: string
   modelUrl?: string
   packaging?: PackagingType

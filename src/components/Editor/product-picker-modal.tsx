@@ -115,9 +115,9 @@ export function ProductPickerModal() {
 
   // Spawn the item carried by the cursor; the user drops it wherever it
   // should live and gravity settles it.
-  const handleStartPlacement = () => {
+  const handleStartPlacement = (asSleeve = false) => {
     if (!selectedProduct) return
-    spawnProduct(selectedProduct)
+    spawnProduct(selectedProduct, { asSleeve })
     setSelectedProduct(null)
     resetFilters()
   }
@@ -283,8 +283,17 @@ export function ProductPickerModal() {
               className="px-4 py-2 text-[12px] font-medium text-[#888] hover:text-[#555] transition-colors">
               Cancel
             </button>
+            {(selectedProduct?.sleevesPerCase ?? 0) > 1 && (
+              <button
+                onClick={() => handleStartPlacement(true)}
+                className="px-4 py-2 text-[12px] font-medium rounded-md ring-1 ring-[#ddd] text-[#171717] hover:bg-[#fafafa] transition-all"
+                title={`One sleeve = 1/${selectedProduct?.sleevesPerCase} of a case`}
+              >
+                Add a Sleeve
+              </button>
+            )}
             <button
-              onClick={handleStartPlacement}
+              onClick={() => handleStartPlacement(false)}
               disabled={!selectedProduct}
               className={`px-6 py-2 text-[12px] font-medium rounded-md transition-all ${
                 selectedProduct
@@ -292,7 +301,7 @@ export function ProductPickerModal() {
                   : 'bg-[#f5f5f5] text-[#ccc] cursor-not-allowed'
               }`}
             >
-              Add to Pallet
+              Add a Case
             </button>
           </div>
         </footer>
