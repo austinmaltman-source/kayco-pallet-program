@@ -31,7 +31,8 @@ interface MatrixRow {
 }
 
 function casesToDraft(cases: number) {
-  return cases > 0 ? String(cases) : ''
+  // Display-only: trim float artifacts (1 sleeve of 12 = 0.0833... -> 0.08).
+  return cases > 0 ? String(Math.round(cases * 100) / 100) : ''
 }
 
 function getSelectedSet(pallet: DisplayProject | null): Set<string> {
@@ -144,11 +145,6 @@ function CellInput({
         placeholder="0"
         className="w-[44px] bg-transparent text-[13px] font-medium text-center tabular-nums focus:outline-none disabled:text-[#bbb] placeholder:text-[#ccc]"
       />
-      {sleeveMode && (
-        <span className="self-center text-[9px] uppercase tracking-wide text-[#999] pr-0.5">
-          slv
-        </span>
-      )}
       <button
         type="button"
         onClick={() => step(1)}
@@ -159,6 +155,40 @@ function CellInput({
         <Plus className="w-3 h-3" strokeWidth={2.5} />
       </button>
     </div>
+  )
+}
+
+function UnitToggle({
+  mode,
+  onChange,
+  disabled,
+}: {
+  mode: 'case' | 'sleeve'
+  onChange: (mode: 'case' | 'sleeve') => void
+  disabled?: boolean
+}) {
+  const base = 'px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide transition-colors'
+  return (
+    <span className="inline-flex rounded-md ring-1 ring-[#e0e0e0] overflow-hidden select-none">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange('case')}
+        title="Enter quantities in whole cases"
+        className={`${base} ${mode === 'case' ? 'bg-[#171717] text-white' : 'bg-white text-[#999] hover:text-[#555]'}`}
+      >
+        cs
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange('sleeve')}
+        title="Enter quantities in sleeves / inner packs"
+        className={`${base} ${mode === 'sleeve' ? 'bg-[#171717] text-white' : 'bg-white text-[#999] hover:text-[#555]'}`}
+      >
+        slv
+      </button>
+    </span>
   )
 }
 
@@ -208,6 +238,18 @@ export function ProgramMatrix({
   onGoToItems,
 }: ProgramMatrixProps) {
   const [search, setSearch] = useState('')
+  // Per-row entry unit for sleeve/inner-pack items. Defaults from the data:
+  // a row already holding fractional cases was entered in sleeves.
+  const [unitModes, setUnitModes] = useState<Record<string, 'case' | 'sleeve'>>({})
+  const rowUnitMode = (
+    productId: string,
+    halfCases: number,
+    fullCases: number,
+  ): 'case' | 'sleeve' =>
+    unitModes[productId] ??
+    (!Number.isInteger(halfCases) || !Number.isInteger(fullCases)
+      ? 'sleeve'
+      : 'case')
 
   const productMap = useMemo(
     () => new Map(products.map((product) => [product.id, product])),
@@ -480,16 +522,38 @@ export function ProgramMatrix({
                       <td className="px-3 py-2 text-[11px] text-[#888] font-mono">
                         {row.kaycoItemNumber || '—'}
                       </td>
-                      <td className="px-3 py-2 text-[11px] text-[#888] text-right tabular-nums whitespace-nowrap">
-                        {row.unitsPerCase ?? '—'}
-                        {row.sleevesPerCase ? ` · ${row.sleevesPerCase} slv` : ''}
+                      <td
+                        className="px-3 py-2 text-[11px] text-[#888] text-right tabular-nums whitespace-nowrap"
+                        title={
+                          row.sleevesPerCase
+                            ? `${row.sleevesPerCase} sleeves / inner packs per case`
+                            : undefined
+                        }
+                      >
+                        <span className="inline-flex items-center gap-1.5">
+                          {row.unitsPerCase ?? '—'}
+                          {row.sleevesPerCase ? (
+                            <UnitToggle
+                              disabled={readOnly}
+                              mode={rowUnitMode(row.productId, row.halfCases, row.fullCases)}
+                              onChange={(mode) =>
+                                setUnitModes((prev) => ({ ...prev, [row.productId]: mode }))
+                              }
+                            />
+                          ) : null}
+                        </span>
                       </td>
                       {halfPallet && (
                         <td className="px-3 py-2 text-right">
                           {row.onHalf ? (
                             <CellInput
+                              key={rowUnitMode(row.productId, row.halfCases, row.fullCases)}
                               tone="half"
-                              sleevesPerCase={row.sleevesPerCase}
+                              sleevesPerCase={
+                                rowUnitMode(row.productId, row.halfCases, row.fullCases) === 'sleeve'
+                                  ? row.sleevesPerCase
+                                  : undefined
+                              }
                               cases={row.halfCases}
                               disabled={readOnly}
                               onCommit={(value) =>
@@ -505,8 +569,13 @@ export function ProgramMatrix({
                         <td className="px-3 py-2 text-right">
                           {row.onFull ? (
                             <CellInput
+                              key={rowUnitMode(row.productId, row.halfCases, row.fullCases)}
                               tone="full"
-                              sleevesPerCase={row.sleevesPerCase}
+                              sleevesPerCase={
+                                rowUnitMode(row.productId, row.halfCases, row.fullCases) === 'sleeve'
+                                  ? row.sleevesPerCase
+                                  : undefined
+                              }
                               cases={row.fullCases}
                               disabled={readOnly}
                               onCommit={(value) =>
