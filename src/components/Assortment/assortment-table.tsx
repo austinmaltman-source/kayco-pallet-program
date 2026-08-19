@@ -32,15 +32,17 @@ export function AssortmentTable({ project, retailer }: AssortmentTableProps) {
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [activeTab, setActiveTab] = useState<'authorized' | 'pending'>('authorized')
 
-  // Auto-populate pallet when assortment changes
+  // Auto-populate the pallet when the assortment changes - but ONLY while
+  // the pallet has no layout yet. Repopulating over a hand-laid layout
+  // silently destroyed the builder's work.
   const prevAssortmentRef = useRef(JSON.stringify(project.assortment))
   useEffect(() => {
     const current = JSON.stringify(project.assortment)
     if (current !== prevAssortmentRef.current) {
       prevAssortmentRef.current = current
-      populateFromAssortment()
+      if ((project.placements?.length ?? 0) === 0) populateFromAssortment()
     }
-  }, [project.assortment, populateFromAssortment])
+  }, [project.assortment, project.placements, populateFromAssortment])
 
   const rows = useMemo(
     () => buildAssortmentRows(retailer, project, products),

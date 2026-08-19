@@ -162,6 +162,7 @@ export const ItemBody: React.FC<ItemBodyProps> = ({
       ref={bodyRef}
       type={isHeldByCursor ? 'kinematicPosition' : 'dynamic'}
       colliders={false}
+      ccd
       position={placement.position}
       quaternion={placement.quaternion}
       linearDamping={0.5}

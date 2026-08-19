@@ -91,7 +91,7 @@ export interface PlacedProduct {
   merchGap?: number
 }
 
-export type CameraPreset = 'front' | 'side' | 'top' | 'isometric';
+export type CameraPreset = 'front' | 'back' | 'side' | 'left' | 'top' | 'isometric';
 export type DisplayEnvironment = 'retail' | 'studio' | 'clean'
 
 export interface PalletDisplayProps {

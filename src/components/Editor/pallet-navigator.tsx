@@ -4,9 +4,9 @@ import { TrayFace, CameraPreset } from '../../types'
 
 const CAMERA_FOR_FACE: Record<TrayFace, CameraPreset> = {
   front: 'front',
-  back: 'side',
-  left: 'side',
-  right: 'front',
+  back: 'back',
+  left: 'left',
+  right: 'side',
 }
 
 const ROTATION_FOR_FACE: Record<TrayFace, number> = {
@@ -26,6 +26,7 @@ export function PalletNavigator({ className }: PalletNavigatorProps) {
   const activeFace = useDisplayStore(s => s.activeFace)
   const setActiveFace = useDisplayStore(s => s.setActiveFace)
   const setCameraPreset = useDisplayStore(s => s.setCameraPreset)
+  const resetCamera = useDisplayStore(s => s.resetCamera)
   const palletType = useDisplayStore(s => s.currentProject?.palletType ?? 'full')
 
   const isHalf = palletType === 'half'
@@ -38,8 +39,10 @@ export function PalletNavigator({ className }: PalletNavigatorProps) {
       setActiveFace(face)
       setRotY(ROTATION_FOR_FACE[face])
       setCameraPreset(CAMERA_FOR_FACE[face])
+      // Re-clicking the active face re-flies the camera to it.
+      resetCamera()
     },
-    [setActiveFace, setCameraPreset, isHalf]
+    [setActiveFace, setCameraPreset, resetCamera, isHalf]
   )
 
   const cubeSize = 52

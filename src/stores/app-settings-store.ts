@@ -38,6 +38,8 @@ export interface AppSettings {
 
   // Data
   autoSaveProject: boolean
+  // 3D editor: fill an empty pallet from the program assortment on open.
+  autoFill3DOnOpen: boolean
 
   // Builder - per-pallet costs, used for margin math
   defaultLaborCostFull: number
@@ -71,6 +73,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 
   // Data
   autoSaveProject: true,
+  autoFill3DOnOpen: false,
 
   // Builder
   defaultLaborCostFull: 77.25,

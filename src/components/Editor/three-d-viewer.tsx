@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { ArrowUpDown, Plus, RotateCw, Undo2, Weight } from 'lucide-react'
+import { ArrowUpDown, Plus, RotateCw, Sparkles, Undo2, Weight } from 'lucide-react'
 import { useDisplayStore } from '../../stores/display-store'
 import { PalletDisplay } from '../PalletDisplay'
 import { PalletNavigator } from './pallet-navigator'
@@ -26,6 +26,9 @@ export function ThreeDViewer() {
   const offPalletNotice = useDisplayStore(s => s.offPalletNotice)
   const clearOffPalletNotice = useDisplayStore(s => s.clearOffPalletNotice)
   const show3DHeader = useAppSettingsStore((s) => s.settings.show3DHeader)
+  const autoFillOnOpen = useAppSettingsStore((s) => s.settings.autoFill3DOnOpen)
+  const updateSettings = useAppSettingsStore((s) => s.updateSettings)
+  const populateFromAssortment = useDisplayStore((s) => s.populateFromAssortment)
   const displayEnvironment = useAppSettingsStore(
     (s) => s.settings.displayEnvironment
   )
@@ -33,6 +36,18 @@ export function ThreeDViewer() {
   const retailer = useRetailerStore((s) =>
     currentProject ? s.getRetailer(currentProject.retailerId) : undefined,
   )
+
+  // Auto-fill an empty pallet from the program assortment when enabled.
+  const projectId = currentProject?.id
+  const hasPlacements = (currentProject?.placements.length ?? 0) > 0
+  const hasAssortment = (currentProject?.assortment ?? []).some((e) => e.cases > 0)
+  useEffect(() => {
+    if (!projectId || !autoFillOnOpen || hasPlacements || !hasAssortment) return
+    populateFromAssortment()
+    // Only on entering a pallet (or turning the setting on) - not on every
+    // placement change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, autoFillOnOpen])
 
   // Auto-dismiss the off-pallet return notice.
   useEffect(() => {
@@ -77,6 +92,37 @@ export function ThreeDViewer() {
       {/* Pallet Navigator — same widget as 2D, also controls camera in 3D */}
       <div className="absolute top-20 left-4 z-20">
         <PalletNavigator />
+      </div>
+
+      {/* Auto-fill controls */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 mt-16">
+        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white/95 backdrop-blur shadow-card text-[11px] font-medium text-[#555] cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={autoFillOnOpen}
+            onChange={(e) => updateSettings({ autoFill3DOnOpen: e.target.checked })}
+            className="accent-[#171717]"
+          />
+          Auto-fill on open
+        </label>
+        {hasAssortment && (
+          <button
+            onClick={() => {
+              if (
+                hasPlacements &&
+                !window.confirm(
+                  'Auto-fill replaces the current layout with a fresh arrangement from the program items. Continue?',
+                )
+              )
+                return
+              populateFromAssortment()
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white/95 backdrop-blur shadow-card text-[11px] font-medium text-[#171717] hover:bg-white transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Auto-fill now
+          </button>
+        )}
       </div>
 
       {/* Advisory weight chip */}
