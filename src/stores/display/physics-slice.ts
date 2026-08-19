@@ -458,11 +458,12 @@ export const createPhysicsSlice: StateCreator<
     const allProducts = useCatalogStore.getState().products
     const productMap = new Map(allProducts.map((p) => [p.id, p]))
 
-    // Sort by weight descending — heaviest first
+    // Heaviest first: bottom tiers get the heavy items.
     const sorted = [...activeEntries]
       .map((entry) => ({ ...entry, product: productMap.get(entry.productId) }))
       .filter((entry) => entry.product)
       .sort((a, b) => (b.product!.weight ?? 0) - (a.product!.weight ?? 0))
+    if (sorted.length === 0) return
 
     const tierCount = state.currentProject.tierCount
     const retailer = useRetailerStore
@@ -474,82 +475,104 @@ export const createPhysicsSlice: StateCreator<
       state.currentProject.palletType,
     )
     const palletHeight = retailer?.palletDimensions.height ?? 6
+    const isHalf = state.currentProject.palletType === 'half'
 
-    // Weight-based tier assignment:
-    // Tier 1 (bottom) = heavy items, tier N (top) = lightest, rest between.
+    // Merchandised auto-fill: every item gets a block of UNPACKED units,
+    // touching (tiny merch gap), sized to its fair share of a shelf. Items
+    // are chunked bottom-up so heavy products land low.
+    const GAP = 0.05
+    const perTier = Math.ceil(sorted.length / tiers.length)
     const placements: PlacedProduct[] = []
 
-    const HEAVY_THRESHOLD = 1.5 // lbs - anything above goes on tier 1
-    const LIGHT_THRESHOLD = 0.6 // lbs - anything below goes on top tier
+    tiers.forEach((tier, tierIndex) => {
+      const group = sorted.slice(tierIndex * perTier, (tierIndex + 1) * perTier)
+      if (group.length === 0) return
 
-    const heavy: typeof sorted = []
-    const mid: typeof sorted = []
-    const light: typeof sorted = []
+      const usableWidth = tier.width - 2
+      const depthBudget = isHalf
+        ? tier.depth - 2
+        : Math.max(tier.shelfDepth - 0.5, 4)
+      const heightBudget = Math.max(tier.trayHeight - 0.5, 2)
+      const segWidth = usableWidth / group.length
+      const surfaceY = palletHeight + tier.yOffset + 1.05
+      let cursor = -usableWidth / 2
 
-    for (const entry of sorted) {
-      const w = entry.product!.weight ?? 0
-      if (w >= HEAVY_THRESHOLD) heavy.push(entry)
-      else if (w <= LIGHT_THRESHOLD) light.push(entry)
-      else mid.push(entry)
-    }
+      for (const entry of group) {
+        const product = entry.product!
+        const unitW = product.width
+        const unitH = product.height
+        const unitD = product.depth
+        const hasUnitDims = unitW > 0.2 && unitH > 0.2 && unitD > 0.2
 
-    const assignments: Array<{ product: typeof sorted[0]['product']; tier: number }> = []
+        if (!hasUnitDims) {
+          // No usable unit dimensions: fall back to a sealed case block.
+          const { dimensions, caseConfig } = buildPlacementShape(product, allProducts)
+          placements.push({
+            id: crypto.randomUUID(),
+            sourceProductId: product.id,
+            slotId: '',
+            width: dimensions.width,
+            height: dimensions.height,
+            depth: dimensions.depth,
+            color: product.brandColor,
+            label: product.name,
+            sku: product.sku,
+            category: product.category,
+            imageUrl: product.imageUrl,
+            modelUrl: product.modelUrl,
+            packaging: product.packaging,
+            caseConfig,
+            quantity: 1,
+            position: [
+              Math.min(cursor + dimensions.width / 2, usableWidth / 2 - dimensions.width / 2),
+              surfaceY,
+              tier.depth / 2 - dimensions.depth / 2 - 0.6,
+            ],
+            quaternion: [0, 0, 0, 1],
+          })
+          cursor += dimensions.width + GAP
+          continue
+        }
 
-    for (const entry of heavy) {
-      assignments.push({ product: entry.product, tier: 1 })
-    }
-    for (const entry of light) {
-      assignments.push({ product: entry.product, tier: tierCount })
-    }
-    const midTierStart = 2
-    const midTierEnd = Math.max(midTierStart, tierCount - 1)
-    const midTierCount = midTierEnd - midTierStart + 1
-    for (let i = 0; i < mid.length; i++) {
-      const tier = midTierStart + (i % midTierCount)
-      assignments.push({ product: mid[i].product, tier })
-    }
+        const facings = Math.max(1, Math.min(10, Math.floor((segWidth + GAP) / (unitW + GAP))))
+        const rows = Math.max(1, Math.min(8, Math.floor(depthBudget / unitD)))
+        const layers = Math.max(1, Math.min(3, Math.floor(heightBudget / unitH)))
+        const blockWidth = facings * unitW + (facings - 1) * GAP
+        const blockDepth = rows * unitD
 
-    // Lay items out left-to-right along each tier's front tray as free
-    // physics placements; gravity settles them when the scene loads.
-    const GAP = 0.75
-    const cursors = new Map<number, number>()
-
-    for (const { product, tier: tierId } of assignments) {
-      if (!product) continue
-      const tier = tiers.find((t) => t.id === tierId)
-      if (!tier) continue
-
-      const { dimensions, caseConfig } = buildPlacementShape(product, allProducts)
-      if (dimensions.height > tier.trayHeight + 0.5) continue // too tall for this tier
-
-      const startX = -tier.width / 2 + 1
-      const cursor = cursors.get(tierId) ?? startX
-      if (cursor + dimensions.width > tier.width / 2 - 1) continue // tier full
-      cursors.set(tierId, cursor + dimensions.width + GAP)
-
-      const surfaceY = palletHeight + tier.yOffset + 1
-      const frontZ = tier.depth / 2 - dimensions.depth / 2 - 1
-
-      placements.push({
-        id: crypto.randomUUID(),
-        sourceProductId: product.id,
-        slotId: '',
-        width: dimensions.width,
-        height: dimensions.height,
-        depth: dimensions.depth,
-        color: product.brandColor,
-        label: product.name,
-        sku: product.sku,
-        category: product.category,
-        imageUrl: product.imageUrl,
-        modelUrl: product.modelUrl,
-        packaging: product.packaging,
-        caseConfig,
-        quantity: 1,
-        position: [cursor + dimensions.width / 2, surfaceY, frontZ],
-        quaternion: [0, 0, 0, 1],
-      })
-    }
+        placements.push({
+          id: crypto.randomUUID(),
+          sourceProductId: product.id,
+          slotId: '',
+          // Unit-block contract: width/height/depth are UNIT dims; the
+          // facings/rows/layers grid defines the block (renderer + collider
+          // both derive the block from these).
+          width: unitW,
+          height: unitH,
+          depth: unitD,
+          color: product.brandColor,
+          label: product.name,
+          sku: product.sku,
+          category: product.category,
+          imageUrl: product.imageUrl,
+          modelUrl: product.modelUrl,
+          packaging: product.packaging,
+          renderStyle: rows > 1 || layers > 1 ? 'deep-stock' : 'facing-row',
+          facings,
+          rows,
+          layers,
+          merchGap: GAP,
+          quantity: 1,
+          position: [
+            cursor + blockWidth / 2,
+            surfaceY,
+            tier.depth / 2 - blockDepth / 2 - 0.6,
+          ],
+          quaternion: [0, 0, 0, 1],
+        })
+        cursor += Math.max(blockWidth, segWidth * 0.98) + GAP
+      }
+    })
 
     const nextProject = {
       ...state.currentProject,

@@ -103,6 +103,9 @@ export function resolvePlacementWeight(
     sourceProductId?: string
     caseConfig?: Product['caseConfig']
     subunit?: 'sleeve'
+    facings?: number
+    rows?: number
+    layers?: number
     width: number
     height: number
     depth: number
@@ -127,6 +130,12 @@ export function resolvePlacementWeight(
     ? allProducts.find((candidate) => candidate.id === placement.sourceProductId)
     : undefined
   if (!source) return 0
+  // Unit-block (unpacked merchandising): unit weight times the grid count.
+  if (!placement.caseConfig && placement.facings) {
+    const count =
+      placement.facings * (placement.rows ?? 1) * (placement.layers ?? 1)
+    return Math.max(source.weight, 0.1) * count
+  }
   const full = resolveProductWeight(source, allProducts)
   // One sleeve weighs its share of the case.
   if (placement.subunit === 'sleeve' && (source.sleevesPerCase ?? 0) > 1) {

@@ -7,6 +7,7 @@ import { useDisplayStore } from '../../../stores/display-store'
 import { usePhysicsDisabled } from './SandboxPhysics'
 import { useDragManager } from './DragManager'
 import { queueSettledTransform } from './settle'
+import { deriveMerchBlockLayout } from '../products/merchUtils'
 
 interface ItemBodyProps {
   placement: PlacedProduct & {
@@ -59,6 +60,29 @@ export const ItemBody: React.FC<ItemBodyProps> = ({
     const weight = resolvePlacementWeight(placement, products)
     return Number.isFinite(weight) && weight > 0 ? weight : 1
   }, [placement, products])
+
+  // Unit-block placements (unpacked merchandising: rows of touching units)
+  // carry UNIT dims + a facings/rows/layers grid; the collider must span the
+  // whole block exactly like the renderer does.
+  const colliderDims = useMemo(() => {
+    if (placement.caseConfig || !placement.facings) {
+      return {
+        width: placement.width,
+        height: placement.height,
+        depth: placement.depth,
+      }
+    }
+    const layout = deriveMerchBlockLayout(placement, {
+      width: placement.width,
+      height: placement.height,
+      depth: placement.depth,
+    })
+    return {
+      width: layout.blockWidth,
+      height: layout.blockHeight,
+      depth: layout.blockDepth,
+    }
+  }, [placement])
 
   // Slot-derived placements sit exactly on a shelf surface, so they spawn
   // asleep and a reloaded pallet never twitches. Free transforms (physics
@@ -170,8 +194,8 @@ export const ItemBody: React.FC<ItemBodyProps> = ({
       onSleep={handleSleep}
     >
       <CuboidCollider
-        args={[placement.width / 2, placement.height / 2, placement.depth / 2]}
-        position={[0, placement.height / 2, 0]}
+        args={[colliderDims.width / 2, colliderDims.height / 2, colliderDims.depth / 2]}
+        position={[0, colliderDims.height / 2, 0]}
         mass={mass}
         friction={0.9}
         restitution={0.05}
