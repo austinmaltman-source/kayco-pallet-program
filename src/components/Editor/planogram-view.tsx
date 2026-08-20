@@ -430,7 +430,16 @@ export function PlanogramView() {
                         <span
                           style={{
                             display: '-webkit-box',
-                            WebkitLineClamp: 3,
+                            // Clamp to the lines that actually fit: SVG
+                            // foreignObject clipping is unreliable, so text
+                            // that overflows visibly bleeds onto neighbours.
+                            WebkitLineClamp: Math.max(
+                              1,
+                              Math.floor(
+                                (item.h - 0.3) /
+                                  (Math.max(0.7, Math.min(1.05, item.w / 7)) * 1.25),
+                              ),
+                            ),
                             WebkitBoxOrient: 'vertical',
                             overflow: 'hidden',
                             fontSize: `${Math.max(0.7, Math.min(1.05, item.w / 7))}px`,
