@@ -9,6 +9,7 @@ import type {
   Product,
   Retailer,
   Role,
+  SelectMode,
   TrayFace,
 } from '../../types'
 
@@ -80,9 +81,10 @@ export interface EditorUiSlice {
   isPickerOpen: boolean
   pickerSelectedProduct: Product | null
 
-  // additive (shift/cmd-click) toggles the id in the set; a plain click on the
-  // sole selection clears it, otherwise it becomes the single selection.
-  selectProduct: (productId: string | null, additive?: boolean) => void
+  // mode: 'single' picks one (re-click clears), 'toggle' (cmd/ctrl) toggles
+  // set membership, 'same-product' (shift) selects every placement of the
+  // clicked item's product. Boolean true is accepted as legacy 'toggle'.
+  selectProduct: (productId: string | null, mode?: boolean | SelectMode) => void
   setActiveFace: (face: TrayFace) => void
   setCameraPreset: (preset: CameraPreset) => void
   openPicker: () => void
@@ -112,6 +114,10 @@ export interface PhysicsSlice {
   // Bumped by the on-screen rotate button to spin the held item 90 degrees
   // (touch fallback for the R key / scroll wheel).
   heldRotateToken: number
+  // When a drag starts on an item that is part of the multi-selection, the
+  // whole selection moves together; these ids render kinematic alongside the
+  // held item so re-renders cannot drop them mid-drag.
+  heldGroupIds: string[]
 
   // Spawn a free (physics) placement carried by the cursor until placed.
   spawnProduct: (product: Product, options?: { asSleeve?: boolean }) => string | undefined
@@ -127,6 +133,11 @@ export interface PhysicsSlice {
   duplicatePlacement: (placementId: string) => void
   // Move a free placement by inches (keyboard nudge); clears slot fields.
   nudgePlacement: (placementId: string, delta: [number, number, number]) => void
+  // Set absolute positions for placements (2D planogram drag); the whole
+  // batch lands as ONE commit so undo reverses the entire move.
+  movePlacements: (
+    updates: { id: string; position: [number, number, number] }[],
+  ) => void
   // Batch variants for multi-selection — each lands as ONE history entry so
   // undo reverses the whole group action, not item by item.
   removePlacements: (placementIds: string[]) => void
@@ -139,6 +150,7 @@ export interface PhysicsSlice {
   setCarryPlacement: (placementId: string | null) => void
   setDragging3D: (dragging: boolean) => void
   setHeldPlacement: (placementId: string | null) => void
+  setHeldGroup: (placementIds: string[]) => void
   clearOffPalletNotice: () => void
   rotateProduct: (placementId: string) => void
   removeProduct: (placementId: string) => void

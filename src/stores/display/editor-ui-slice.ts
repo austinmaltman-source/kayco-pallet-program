@@ -14,7 +14,7 @@ export const createEditorUiSlice: StateCreator<
   isPickerOpen: false,
   pickerSelectedProduct: null,
 
-  selectProduct: (productId, additive = false) =>
+  selectProduct: (productId, mode = 'single') =>
     set((state) => {
       if (productId === null) {
         return {
@@ -23,7 +23,25 @@ export const createEditorUiSlice: StateCreator<
           pickerSelectedProduct: null,
         }
       }
-      if (additive) {
+      // Legacy boolean arg: true meant additive toggle.
+      const resolved = mode === true ? 'toggle' : mode === false ? 'single' : mode
+      if (resolved === 'same-product') {
+        // Spaceman-style: shift-click selects every placement of this product.
+        const placements = state.currentProject?.placements ?? []
+        const clicked = placements.find((p) => p.id === productId)
+        const key = clicked?.sourceProductId ?? clicked?.label
+        const ids = clicked
+          ? placements
+              .filter((p) => (p.sourceProductId ?? p.label) === key)
+              .map((p) => p.id)
+          : [productId]
+        return {
+          selectedProductIds: ids,
+          selectedProductId: productId,
+          pickerSelectedProduct: null,
+        }
+      }
+      if (resolved === 'toggle') {
         const has = state.selectedProductIds.includes(productId)
         const ids = has
           ? state.selectedProductIds.filter((id) => id !== productId)
@@ -71,5 +89,6 @@ export const createEditorUiSlice: StateCreator<
       pickerSelectedProduct: null,
       carryPlacementId: null,
       isDragging3D: false,
+      heldGroupIds: [],
     }),
 })

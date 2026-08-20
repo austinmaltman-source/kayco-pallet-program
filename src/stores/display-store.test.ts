@@ -69,7 +69,7 @@ describe('display-store', () => {
     expect(useDisplayStore.getState().currentProject?.placements).toHaveLength(1)
   })
 
-  it('synthesizes a case from unitsPerCase when spawning a unit product', () => {
+  it('spawns ONE unit with item measurements even when the product has a case count', () => {
     const store = useDisplayStore.getState()
     store.createProject('Case Project', {
       palletType: 'full',
@@ -81,13 +81,12 @@ describe('display-store', () => {
       makeProduct({id: 'unit-1', width: 4, height: 8, depth: 3, unitsPerCase: 8}),
     )
 
+    // The pallet shows item measurements: no synthesized case, unit dims.
     const placement = useDisplayStore.getState().currentProject!.placements[0]
-    expect(placement.caseConfig).toMatchObject({
-      unitProductId: 'unit-1',
-      layout: {cols: 4, rows: 2, layers: 1},
-    })
-    // Case is wider than a single 4 inch unit
-    expect(placement.width).toBeGreaterThan(15)
+    expect(placement.caseConfig).toBeUndefined()
+    expect(placement.width).toBe(4)
+    expect(placement.height).toBe(8)
+    expect(placement.depth).toBe(3)
   })
 
   it('persists settled transforms and clears slot fields on moved items', () => {
@@ -270,17 +269,136 @@ describe('display-store', () => {
 
     store.populateFromAssortment()
 
+    // Cases are unpacked: each product becomes MULTIPLE individual unit
+    // placements (its own selectable body), all resting asleep on shelves.
     const placements = useDisplayStore.getState().currentProject!.placements
-    expect(placements.length).toBe(2)
+    const heavyUnits = placements.filter((p) => p.sourceProductId === 'heavy')
+    const lightUnits = placements.filter((p) => p.sourceProductId === 'light')
+    expect(heavyUnits.length).toBeGreaterThan(1)
+    expect(lightUnits.length).toBeGreaterThan(1)
     for (const placement of placements) {
       expect(placement.slotId).toBe('')
       expect(placement.position).toBeDefined()
-      expect(placement.quaternion).toEqual([0, 0, 0, 1])
+      expect(placement.quaternion).toBeDefined()
+      expect(placement.spawnAsleep).toBe(true)
+      // Item measurements, never case dims.
+      expect(placement.caseConfig).toBeUndefined()
     }
-    const heavy = placements.find((p) => p.sourceProductId === 'heavy')!
-    const light = placements.find((p) => p.sourceProductId === 'light')!
-    // Heavy sits on tier 1 (lower y), light on the top tier
-    expect(heavy.position![1]).toBeLessThan(light.position![1])
+    // Unit dims survive on each placement.
+    expect(heavyUnits[0].width).toBe(6)
+    expect(lightUnits[0].width).toBe(4)
+    // Heavy sits on a lower tier than light.
+    const minY = (list: typeof placements) =>
+      Math.min(...list.map((p) => p.position![1]))
+    expect(minY(heavyUnits)).toBeLessThan(minY(lightUnits))
+  })
+
+  it('spreads a full pallet across all four faces instead of one side', () => {
+    useCatalogStore.getState().setProducts(
+      Array.from({length: 12}, (_, i) =>
+        makeProduct({
+          id: `p-${i}`,
+          name: `Item ${i}`,
+          weight: 12 - i,
+          width: 3,
+          height: 6,
+          depth: 3,
+        }),
+      ),
+    )
+
+    const store = useDisplayStore.getState()
+    store.createProject('Wrap Project', {
+      palletType: 'full',
+      season: 'none',
+      retailerId: 'ret-main',
+    })
+    store.setAssortment(
+      Array.from({length: 12}, (_, i) => ({productId: `p-${i}`, cases: 1})),
+    )
+    store.populateFromAssortment()
+
+    const placements = useDisplayStore.getState().currentProject!.placements
+    // Dominant outward direction of each unit tells us which face it fills.
+    const faceOf = ([x, , z]: [number, number, number]) =>
+      ([
+        ['front', z],
+        ['back', -z],
+        ['right', x],
+        ['left', -x],
+      ] as const)
+        .slice()
+        .sort((a, b) => b[1] - a[1])[0][0]
+
+    const faces = new Set(placements.map((p) => faceOf(p.position!)))
+    expect(faces).toEqual(new Set(['front', 'back', 'left', 'right']))
+  })
+
+  it('keeps a half pallet on its single shopped face', () => {
+    useCatalogStore.getState().setProducts([
+      makeProduct({id: 'h-1', name: 'One', width: 3, height: 6, depth: 3}),
+      makeProduct({id: 'h-2', name: 'Two', width: 3, height: 6, depth: 3}),
+    ])
+
+    const store = useDisplayStore.getState()
+    store.createProject('Half Fill', {
+      palletType: 'half',
+      season: 'none',
+      retailerId: 'ret-main',
+    })
+    store.setAssortment([
+      {productId: 'h-1', cases: 1},
+      {productId: 'h-2', cases: 1},
+    ])
+    store.populateFromAssortment()
+
+    const placements = useDisplayStore.getState().currentProject!.placements
+    expect(placements.length).toBeGreaterThan(0)
+    // No back/side rotation: every unit faces the shopper.
+    for (const placement of placements) {
+      expect(placement.quaternion).toEqual([0, 0, 0, 1])
+      expect(placement.position![2]).toBeGreaterThan(0)
+    }
+  })
+
+  it('shift-click selects every placement of the clicked product', () => {
+    const store = useDisplayStore.getState()
+    store.createProject('Select Project', {
+      palletType: 'full',
+      season: 'none',
+      retailerId: 'ret-main',
+    })
+
+    const unit = (id: string, sourceProductId: string) => ({
+      id,
+      slotId: '',
+      sourceProductId,
+      width: 3, height: 6, depth: 3,
+      color: '#000', label: sourceProductId, sku: 'S',
+      position: [0, 20, 0] as [number, number, number],
+      quaternion: [0, 0, 0, 1] as [number, number, number, number],
+    })
+    useDisplayStore.setState((state) => ({
+      currentProject: state.currentProject && {
+        ...state.currentProject,
+        placements: [
+          unit('a1', 'cola'), unit('a2', 'cola'), unit('a3', 'cola'),
+          unit('b1', 'chips'),
+        ],
+      },
+    }))
+
+    store.selectProduct('a2', 'same-product')
+    const state = useDisplayStore.getState()
+    expect(state.selectedProductIds.sort()).toEqual(['a1', 'a2', 'a3'])
+    // The clicked unit stays primary so the action pill points at it.
+    expect(state.selectedProductId).toBe('a2')
+
+    // Cmd-click still toggles a single unit in and out of the set.
+    store.selectProduct('b1', 'toggle')
+    expect(useDisplayStore.getState().selectedProductIds).toHaveLength(4)
+    store.selectProduct('b1', 'toggle')
+    expect(useDisplayStore.getState().selectedProductIds).toHaveLength(3)
   })
 
   it('nudges a placement by inches and clears its slot fields', () => {

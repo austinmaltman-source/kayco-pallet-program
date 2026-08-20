@@ -38,6 +38,27 @@ localStorage is the cache/offline fallback. See PROJECT.md "Shared state backend
   in App.tsx, add the key to `SYNCED_KEYS` **and** the Worker's `STATE_KEYS` allowlist in worker/index.ts).
 - **Kayco sales data:** client code calls `/api/kayco/*` only - the key is injected by the Vite dev proxy ([vite.config.ts](vite.config.ts)) or the prod edge function ([api/kayco/[...path].ts](api/kayco/[...path].ts), Vercel env `KAYCO_API_KEY`). Per-customer item sales come from `/items/:id/accounts` summed over `Retailer.kaycoAccountPatterns` (account-name prefixes, e.g. 'COSTCO' = every Costco DC) plus explicit `Retailer.kaycoAccounts` links (see [src/lib/kayco-sales.ts](src/lib/kayco-sales.ts)). Never build sales math on `/orders` - partial coverage, and `balance` is not line revenue. Details: PROJECT.md "Kayco sales data integration".
 
+## Editor: 2D planogram + 3D physics (same placements, two views)
+
+`?view=2d` renders [`<PlanogramView>`](src/components/Editor/planogram-view.tsx) (flat elevation of
+one face), `?view=3d` the Rapier sandbox. Both edit the SAME `PlacedProduct[]`.
+
+- **The pallet shows ITEM measurements, never case dims.** `populateFromAssortment` unpacks each
+  program item into individual units (one body per bottle/box) packed edge to edge, wrapping all
+  four faces on a full pallet. Case dims are the fallback only when a product has no unit
+  dimensions. Same rule in `spawnProduct`.
+- **Selection:** `selectProduct(id, mode)` where mode is `'single'` | `'toggle'` (cmd/ctrl) |
+  `'same-product'` (shift — every placement of that product). Group ops use the batch actions
+  (`removePlacements`/`duplicatePlacements`/`nudgePlacements`/`movePlacements`), one undo entry each.
+- **Dragging slides horizontally** at the pick-up height (`planeY`); Shift-drag changes height.
+  Don't raycast the scene for the drop point — items climb every shelf edge they cross.
+- **Bystanders are pinned** (`type="fixed"`) while `isDragging3D`, or moving one item shoves its
+  touching neighbours off the shelf.
+- **Never pass a fresh object literal as a RigidBody prop** — it churns the body and snaps
+  dragged items back to their original position. Use a module-level constant.
+- **Face classification** = the edge an item sits closest to, not raw axis dominance (corner items
+  of the front row otherwise vanish from the front elevation).
+
 ## Pallet creation wizard
 
 [`<PalletCreationWizard>`](src/components/PalletCreationWizard/index.tsx) accepts:

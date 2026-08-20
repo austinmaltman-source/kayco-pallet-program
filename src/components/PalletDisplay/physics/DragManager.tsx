@@ -71,8 +71,9 @@ interface DragManagerApi {
   // True exactly once after a drag ends, so the synthetic click that
   // follows pointer-up can be swallowed instead of toggling selection.
   consumeDragClick: () => boolean
-  // Whether the most recent press held a multi-select modifier (shift/cmd/ctrl).
-  wasAdditiveClick: () => boolean
+  // Which modifier the most recent press held: shift selects all placements
+  // of the product, cmd/ctrl toggles set membership.
+  clickModifier: () => 'shift' | 'meta' | null
   isHeld: (id: string) => boolean
 }
 
@@ -91,6 +92,10 @@ interface HeldState {
   orientationIndex: number
   targetQuaternion: THREE.Quaternion
   wheelAccum: number
+  // Height the item slides at. A plain drag moves it horizontally on this
+  // plane (predictable shelf-to-shelf placement); Shift-drag (or the touch
+  // Vertical toggle) changes the height and updates this.
+  planeY: number
 }
 
 interface DragManagerProps {
@@ -105,9 +110,12 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
   const pointerNdc = useRef(new THREE.Vector2())
   const raycaster = useMemo(() => new THREE.Raycaster(), [])
   const shiftDown = useRef(false)
-  // Modifier state captured at the last press, read by the click handler to
-  // decide additive (multi-)selection.
-  const additiveClick = useRef(false)
+  // Modifier captured at the last press, read by the click handler to decide
+  // the selection mode (shift = same-product, cmd/ctrl = toggle).
+  const clickMod = useRef<'shift' | 'meta' | null>(null)
+  // Multi-selection dragged along with the held item: id -> offset from the
+  // held body's translation at grab time.
+  const heldGroup = useRef(new Map<string, [number, number, number]>())
 
   const { world, rapier } = useRapier()
   // Reused across frames; rapier.Ray is only constructible once rapier loads.
@@ -149,7 +157,17 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
       body.setAngvel({ x: 0, y: 0, z: 0 }, true)
       justDragged.current = true
     }
+    // Release the rest of the dragged group the same way.
+    heldGroup.current.forEach((_offset, id) => {
+      const member = bodies.current.get(id)
+      if (!member) return
+      member.setBodyType(RigidBodyType.Dynamic, true)
+      member.setLinvel({ x: 0, y: 0, z: 0 }, true)
+      member.setAngvel({ x: 0, y: 0, z: 0 }, true)
+    })
+    heldGroup.current.clear()
     const store = useDisplayStore.getState()
+    if (store.heldGroupIds.length > 0) store.setHeldGroup([])
     if (store.carryPlacementId === current.id) store.setCarryPlacement(null)
     store.setHeldPlacement(null)
     // Vertical mode is a per-hold touch toggle; don't carry it to the next item.
@@ -161,14 +179,39 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
   const activateHold = useCallback((state: HeldState, body: RapierRigidBody) => {
     // heldPlacementId drives the RigidBody type prop to kinematic, so
     // unrelated re-renders cannot flip the held body back to dynamic.
-    useDisplayStore.getState().setHeldPlacement(state.id)
+    const store = useDisplayStore.getState()
+    store.setHeldPlacement(state.id)
     body.setBodyType(RigidBodyType.KinematicPositionBased, true)
     const rotation = body.rotation()
     const q = new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w)
     // Snap to the nearest 90 degree preset so held items carry tidily.
     state.orientationIndex = nearestPresetIndex(q)
     state.targetQuaternion = PRESET_QUATERNIONS[state.orientationIndex].clone()
+    // Slide at the height the item was picked up from, so a drag moves it
+    // along its own shelf instead of climbing whatever geometry the cursor
+    // crosses. Shift-drag changes the height deliberately.
+    state.planeY = body.translation().y
     state.active = true
+
+    // Dragging an item that is part of the multi-selection moves the whole
+    // selection: the other members turn kinematic and keep their offsets
+    // from the held item for the length of the drag.
+    heldGroup.current.clear()
+    const selection = store.selectedProductIds
+    if (state.mode === 'drag' && selection.length > 1 && selection.includes(state.id)) {
+      const anchor = body.translation()
+      const groupIds: string[] = []
+      selection.forEach((id) => {
+        if (id === state.id) return
+        const member = bodies.current.get(id)
+        if (!member) return
+        const t = member.translation()
+        heldGroup.current.set(id, [t.x - anchor.x, t.y - anchor.y, t.z - anchor.z])
+        member.setBodyType(RigidBodyType.KinematicPositionBased, true)
+        groupIds.push(id)
+      })
+      if (groupIds.length > 0) store.setHeldGroup(groupIds)
+    }
   }, [])
 
   const rotateHeld = useCallback((direction: 1 | -1) => {
@@ -192,7 +235,15 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
 
   // Pick up a freshly spawned placement (picker carry mode).
   useEffect(() => {
-    if (!carryPlacementId) return
+    if (!carryPlacementId) {
+      // The store dropped the carry (item fell off / was returned to the
+      // catalog). Clear the stale hold, or every future grab is refused.
+      if (held.current?.mode === 'carry') {
+        held.current = null
+        setControlsEnabled(true)
+      }
+      return
+    }
     if (held.current?.id === carryPlacementId) return
     held.current = {
       id: carryPlacementId,
@@ -203,6 +254,7 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
       orientationIndex: 0,
       targetQuaternion: PRESET_QUATERNIONS[0].clone(),
       wheelAccum: 0,
+      planeY: 0,
     }
     setControlsEnabled(false)
   }, [carryPlacementId, setControlsEnabled])
@@ -249,7 +301,11 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
 
     const onPointerDown = (event: PointerEvent) => {
       updateNdc(event)
-      additiveClick.current = event.shiftKey || event.metaKey || event.ctrlKey
+      clickMod.current = event.shiftKey
+        ? 'shift'
+        : event.metaKey || event.ctrlKey
+          ? 'meta'
+          : null
       const current = held.current
       if (current && current.mode === 'carry' && event.button === 0) {
         // Click places the carried item.
@@ -452,35 +508,53 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
         _plane.setFromNormalAndCoplanarPoint(_normal, _anchor)
         if (raycaster.ray.intersectPlane(_plane, _intersection)) {
           _target.set(translation.x, _intersection.y, translation.z)
+          // Horizontal dragging resumes at whatever height it was moved to.
+          current.planeY = _intersection.y
           hasTarget = true
         }
       }
     } else {
-      // Surface mode: cast against the physics world (excluding the held
-      // body) and hover just above whatever is under the cursor.
-      const ray = (rayRef.current ??= new rapier.Ray(
-        { x: 0, y: 0, z: 0 },
-        { x: 0, y: 0, z: 0 },
-      ))
-      ray.origin.x = origin.x
-      ray.origin.y = origin.y
-      ray.origin.z = origin.z
-      ray.dir.x = direction.x
-      ray.dir.y = direction.y
-      ray.dir.z = direction.z
-      const hit = world.castRay(
-        ray,
-        1000,
-        true,
-        undefined,
-        undefined,
-        undefined,
-        body,
-      )
-      if (hit) {
-        const point = ray.pointAt(hit.timeOfImpact)
-        _target.set(point.x, point.y + HOVER_OFFSET, point.z)
+      // Horizontal slide: move the item across a level plane at the height it
+      // was picked up from. Raycasting the scene instead would make the item
+      // climb every shelf edge and neighbouring item the cursor passes over,
+      // which is what made placement feel unpredictable.
+      _normal.set(0, 1, 0)
+      _anchor.set(0, current.planeY, 0)
+      _plane.setFromNormalAndCoplanarPoint(_normal, _anchor)
+      if (raycaster.ray.intersectPlane(_plane, _intersection)) {
+        _target.set(_intersection.x, current.planeY, _intersection.z)
         hasTarget = true
+      } else {
+        // Camera looking edge-on at the plane: fall back to the scene surface
+        // under the cursor so the drag never dead-stops.
+        const ray = (rayRef.current ??= new rapier.Ray(
+          { x: 0, y: 0, z: 0 },
+          { x: 0, y: 0, z: 0 },
+        ))
+        ray.origin.x = origin.x
+        ray.origin.y = origin.y
+        ray.origin.z = origin.z
+        ray.dir.x = direction.x
+        ray.dir.y = direction.y
+        ray.dir.z = direction.z
+        // Structure only - never perch the held item on top of other product.
+        const hit = world.castRay(
+          ray,
+          1000,
+          true,
+          undefined,
+          undefined,
+          undefined,
+          body,
+          (collider) =>
+            (collider.parent()?.userData as { isItem?: boolean } | undefined)
+              ?.isItem !== true,
+        )
+        if (hit) {
+          const point = ray.pointAt(hit.timeOfImpact)
+          _target.set(point.x, point.y + HOVER_OFFSET, point.z)
+          hasTarget = true
+        }
       }
     }
 
@@ -494,6 +568,17 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
     // Smooth follow, exact rotation.
     _next.set(translation.x, translation.y, translation.z).lerp(_target, 0.4)
     body.setNextKinematicTranslation({ x: _next.x, y: _next.y, z: _next.z })
+
+    // The rest of the dragged selection rides along at fixed offsets.
+    heldGroup.current.forEach((offset, id) => {
+      const member = bodies.current.get(id)
+      if (!member) return
+      member.setNextKinematicTranslation({
+        x: _next.x + offset[0],
+        y: Math.min(Math.max(_next.y + offset[1], 0.5), maxY),
+        z: _next.z + offset[2],
+      })
+    })
 
     const rotation = body.rotation()
     _quat.set(rotation.x, rotation.y, rotation.z, rotation.w)
@@ -528,6 +613,7 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
           orientationIndex: 0,
           targetQuaternion: PRESET_QUATERNIONS[0].clone(),
           wheelAccum: 0,
+          planeY: 0,
         }
         setControlsEnabled(false)
       },
@@ -536,7 +622,7 @@ function DragManagerInner({ maxDisplayHeight = 60, children }: DragManagerProps)
         justDragged.current = false
         return was
       },
-      wasAdditiveClick: () => additiveClick.current,
+      clickModifier: () => clickMod.current,
       isHeld: (id) => held.current?.id === id,
     }),
     [setControlsEnabled],

@@ -21,20 +21,33 @@ export const createPhysicsSlice: StateCreator<
   cameraResetToken: 0,
   verticalDragMode: false,
   heldRotateToken: 0,
+  heldGroupIds: [],
 
   spawnProduct: (product, options) => {
     const state = get()
     if (!state.currentProject) return undefined
 
     const allProducts = useCatalogStore.getState().products
-    // Pallet programs deal in cases: a single-unit product that knows its
-    // case count places as a real case rendering every unit inside it.
-    // Sleeve spawns place ONE sleeve/inner pack instead (a case slice).
+    // The pallet shows ITEM measurements: a spawn is one physical unit of the
+    // product. Only when the product has no usable unit dimensions do we fall
+    // back to its sealed-case shape. Sleeve spawns place ONE sleeve/inner
+    // pack (a case slice).
     const asSleeve =
       options?.asSleeve === true && (product.sleevesPerCase ?? 0) > 1
+    const hasUnitDims =
+      product.width > 0.2 && product.height > 0.2 && product.depth > 0.2
     const shape = asSleeve
       ? { dimensions: buildSleeveShape(product, allProducts), caseConfig: undefined }
-      : buildPlacementShape(product, allProducts)
+      : hasUnitDims
+        ? {
+            dimensions: {
+              width: product.width,
+              height: product.height,
+              depth: product.depth,
+            },
+            caseConfig: undefined,
+          }
+        : buildPlacementShape(product, allProducts)
     const { dimensions, caseConfig } = shape
 
     // Spawn in midair in front of the display; the drag manager picks it up
@@ -262,6 +275,42 @@ export const createPhysicsSlice: StateCreator<
     )
   },
 
+  movePlacements: (updates) => {
+    const state = get()
+    if (!state.currentProject || updates.length === 0) return
+
+    const updateMap = new Map(updates.map((u) => [u.id, u.position]))
+    let changed = false
+    const placements = state.currentProject.placements.map((placement) => {
+      const position = updateMap.get(placement.id)
+      if (!position) return placement
+      changed = true
+      return {
+        ...placement,
+        position: [position[0], Math.max(0.5, position[1]), position[2]] as [
+          number,
+          number,
+          number,
+        ],
+        slotId: '',
+        wall: undefined,
+        tier: undefined,
+        gridCol: undefined,
+        colSpan: undefined,
+        displayMode: undefined,
+      }
+    })
+    if (!changed) return
+
+    set(
+      commitProjectUpdate(state, {
+        ...state.currentProject,
+        placements,
+        updatedAt: Date.now(),
+      }),
+    )
+  },
+
   resetCamera: () =>
     set((state) => ({ cameraResetToken: state.cameraResetToken + 1 })),
 
@@ -278,6 +327,8 @@ export const createPhysicsSlice: StateCreator<
   setDragging3D: (dragging) => set({ isDragging3D: dragging }),
 
   setHeldPlacement: (placementId) => set({ heldPlacementId: placementId }),
+
+  setHeldGroup: (placementIds) => set({ heldGroupIds: placementIds }),
 
   clearOffPalletNotice: () => set({ offPalletNotice: null }),
 
@@ -477,100 +528,229 @@ export const createPhysicsSlice: StateCreator<
     const palletHeight = retailer?.palletDimensions.height ?? 6
     const isHalf = state.currentProject.palletType === 'half'
 
-    // Merchandised auto-fill: every item gets a block of UNPACKED units,
-    // touching (tiny merch gap), sized to its fair share of a shelf. Items
-    // are chunked bottom-up so heavy products land low.
+    // Merchandised auto-fill, Spaceman-style: every item is unpacked into
+    // INDIVIDUAL units (each its own selectable, movable body) standing
+    // touching in facings x rows x layers formation. Half pallets face
+    // front; full pallets are shopped from all four sides, so their items
+    // wrap around the tray ring. Heavy items land on the low tiers.
     const GAP = 0.05
+    // Inset from the outer edge. The retaining-lip collider occupies the
+    // outer 0.42in of the tray, so anything under ~0.5 here starts the fill
+    // already touching the lip and gets shoved on the first settle tick.
+    const EDGE = 1
+    // Individual bodies are the whole point, but the solver has limits.
+    const MAX_UNITS = 280
+
+    type Face = 'front' | 'right' | 'back' | 'left'
+    const FACE_YAW: Record<Face, number> = {
+      front: 0,
+      right: Math.PI / 2,
+      back: Math.PI,
+      left: -Math.PI / 2,
+    }
+
+    interface UnitSpec {
+      product: NonNullable<(typeof sorted)[number]['product']>
+      tier: (typeof tiers)[number]
+      face: Face
+      sliceStart: number // local u where this item's slice begins
+      sliceWidth: number
+      packStart?: number // left edge after edge-to-edge packing
+      unitW: number
+      unitH: number
+      unitD: number
+      hasUnitDims: boolean
+      facings: number
+      rows: number
+      layers: number
+    }
+
+    // Deal items bottom-up: chunk per tier, then round-robin across the
+    // tier's faces so a full pallet fills all the way around.
+    const faces: Face[] = isHalf ? ['front'] : ['front', 'right', 'back', 'left']
     const perTier = Math.ceil(sorted.length / tiers.length)
-    const placements: PlacedProduct[] = []
+    const specs: UnitSpec[] = []
 
     tiers.forEach((tier, tierIndex) => {
       const group = sorted.slice(tierIndex * perTier, (tierIndex + 1) * perTier)
       if (group.length === 0) return
 
-      const usableWidth = tier.width - 2
-      const depthBudget = isHalf
-        ? tier.depth - 2
-        : Math.max(tier.shelfDepth - 0.5, 4)
-      const heightBudget = Math.max(tier.trayHeight - 0.5, 2)
-      const segWidth = usableWidth / group.length
-      const surfaceY = palletHeight + tier.yOffset + 1.05
-      let cursor = -usableWidth / 2
+      // Split this tier's items across its faces. The rotation is offset by
+      // tier so it does not restart at 'front' every level - otherwise a
+      // three-items-per-tier assortment would never touch the fourth face.
+      const byFace = new Map<Face, typeof group>()
+      group.forEach((entry, index) => {
+        const face = faces[(index + tierIndex) % faces.length]
+        const list = byFace.get(face) ?? []
+        list.push(entry)
+        byFace.set(face, list)
+      })
 
-      for (const entry of group) {
-        const product = entry.product!
-        const unitW = product.width
-        const unitH = product.height
-        const unitD = product.depth
-        const hasUnitDims = unitW > 0.2 && unitH > 0.2 && unitD > 0.2
+      byFace.forEach((faceItems, face) => {
+        const alongWidth = face === 'front' || face === 'back'
+        // Corners can only be claimed once. Front and back (the shopped
+        // faces) get the full width; the side bands take the middle depth so
+        // nothing double-books a corner and no shelf end sits empty.
+        const span = isHalf
+          ? tier.width - 2
+          : alongWidth
+            ? tier.width - 1
+            : Math.max(tier.depth - tier.shelfDepth * 2 - 1, 8)
+        const bandDepth = isHalf
+          ? tier.depth - EDGE * 2
+          : Math.max(tier.shelfDepth - 1, 4)
+        const heightBudget = Math.max(tier.trayHeight - 0.6, 2)
+        const sliceWidth = span / faceItems.length
 
-        if (!hasUnitDims) {
-          // No usable unit dimensions: fall back to a sealed case block.
-          const { dimensions, caseConfig } = buildPlacementShape(product, allProducts)
-          placements.push({
-            id: crypto.randomUUID(),
-            sourceProductId: product.id,
-            slotId: '',
-            width: dimensions.width,
-            height: dimensions.height,
-            depth: dimensions.depth,
-            color: product.brandColor,
-            label: product.name,
-            sku: product.sku,
-            category: product.category,
-            imageUrl: product.imageUrl,
-            modelUrl: product.modelUrl,
-            packaging: product.packaging,
-            caseConfig,
-            quantity: 1,
-            position: [
-              Math.min(cursor + dimensions.width / 2, usableWidth / 2 - dimensions.width / 2),
-              surfaceY,
-              tier.depth / 2 - dimensions.depth / 2 - 0.6,
-            ],
-            quaternion: [0, 0, 0, 1],
+        faceItems.forEach((entry, sliceIndex) => {
+          const product = entry.product!
+          const hasUnitDims =
+            product.width > 0.2 && product.height > 0.2 && product.depth > 0.2
+          let unitW = product.width
+          let unitH = product.height
+          let unitD = product.depth
+          if (!hasUnitDims) {
+            // No unit dimensions: the sealed case stands in as one "unit".
+            const { dimensions } = buildPlacementShape(product, allProducts)
+            unitW = dimensions.width
+            unitH = dimensions.height
+            unitD = dimensions.depth
+          }
+
+          const facings = hasUnitDims
+            ? Math.max(1, Math.min(6, Math.floor((sliceWidth + GAP) / (unitW + GAP))))
+            : 1
+          const rows = hasUnitDims
+            ? Math.max(
+                1,
+                Math.min(isHalf ? 3 : 2, Math.floor(bandDepth / (unitD + GAP))),
+              )
+            : 1
+          const layers = hasUnitDims
+            ? Math.max(1, Math.min(2, Math.floor(heightBudget / unitH)))
+            : 1
+
+          specs.push({
+            product,
+            tier,
+            face,
+            sliceStart: -span / 2 + sliceIndex * sliceWidth,
+            sliceWidth,
+            unitW,
+            unitH,
+            unitD,
+            hasUnitDims,
+            facings,
+            rows,
+            layers,
           })
-          cursor += dimensions.width + GAP
-          continue
-        }
-
-        const facings = Math.max(1, Math.min(10, Math.floor((segWidth + GAP) / (unitW + GAP))))
-        const rows = Math.max(1, Math.min(8, Math.floor(depthBudget / unitD)))
-        const layers = Math.max(1, Math.min(3, Math.floor(heightBudget / unitH)))
-        const blockWidth = facings * unitW + (facings - 1) * GAP
-        const blockDepth = rows * unitD
-
-        placements.push({
-          id: crypto.randomUUID(),
-          sourceProductId: product.id,
-          slotId: '',
-          // Unit-block contract: width/height/depth are UNIT dims; the
-          // facings/rows/layers grid defines the block (renderer + collider
-          // both derive the block from these).
-          width: unitW,
-          height: unitH,
-          depth: unitD,
-          color: product.brandColor,
-          label: product.name,
-          sku: product.sku,
-          category: product.category,
-          imageUrl: product.imageUrl,
-          modelUrl: product.modelUrl,
-          packaging: product.packaging,
-          renderStyle: rows > 1 || layers > 1 ? 'deep-stock' : 'facing-row',
-          facings,
-          rows,
-          layers,
-          merchGap: GAP,
-          quantity: 1,
-          position: [
-            cursor + blockWidth / 2,
-            surfaceY,
-            tier.depth / 2 - blockDepth / 2 - 0.6,
-          ],
-          quaternion: [0, 0, 0, 1],
         })
-        cursor += Math.max(blockWidth, segWidth * 0.98) + GAP
+      })
+    })
+
+    // Pack each face-tier band edge to edge: hand out the leftover width as
+    // extra facings (widest-gap first) so neighbouring items end up touching
+    // instead of each floating in the middle of its own slice.
+    const bands = new Map<string, UnitSpec[]>()
+    specs.forEach((spec) => {
+      const key = `${spec.tier.id}:${spec.face}`
+      const list = bands.get(key) ?? []
+      list.push(spec)
+      bands.set(key, list)
+    })
+    bands.forEach((band) => {
+      const span = band[0].sliceWidth * band.length
+      const runWidth = () =>
+        band.reduce(
+          (sum, s) => sum + s.facings * s.unitW + (s.facings - 1) * GAP,
+          0,
+        ) +
+        GAP * (band.length - 1)
+      // Grow the item that would gain the most shelf presence, until the
+      // next facing would not fit.
+      for (let guard = 0; guard < 60; guard += 1) {
+        const slack = span - runWidth()
+        const candidates = band
+          .filter((s) => s.hasUnitDims && s.facings < 8 && s.unitW + GAP <= slack)
+          .sort((a, b) => a.facings * a.unitW - b.facings * b.unitW)
+        if (candidates.length === 0) break
+        candidates[0].facings += 1
+      }
+      // Pack contiguously, centering whatever run we ended up with.
+      let cursor = -span / 2 + Math.max(0, (span - runWidth()) / 2)
+      band.forEach((spec) => {
+        const blockWidth = spec.facings * spec.unitW + (spec.facings - 1) * GAP
+        spec.packStart = cursor
+        cursor += blockWidth + GAP
+      })
+    })
+
+    // Physics budget: trim depth first, then stacking, before ever cutting
+    // an item's shelf presence entirely.
+    const totalUnits = () =>
+      specs.reduce((sum, s) => sum + s.facings * s.rows * s.layers, 0)
+    if (totalUnits() > MAX_UNITS) specs.forEach((s) => (s.layers = 1))
+    if (totalUnits() > MAX_UNITS) specs.forEach((s) => (s.rows = Math.min(s.rows, 1)))
+
+    const placements: PlacedProduct[] = []
+    specs.forEach((spec) => {
+      const { product, tier, face } = spec
+      const yaw = FACE_YAW[face]
+      const quaternion: [number, number, number, number] = [
+        0,
+        Math.sin(yaw / 2),
+        0,
+        Math.cos(yaw / 2),
+      ]
+      const surfaceY = palletHeight + tier.yOffset + 1.05
+      // Outer edge of this face's tray band, measured from pallet center.
+      const outerEdge =
+        face === 'front' || face === 'back' ? tier.depth / 2 : tier.width / 2
+      const blockWidth = spec.facings * spec.unitW + (spec.facings - 1) * GAP
+      const uBase =
+        (spec.packStart ??
+          spec.sliceStart + (spec.sliceWidth - blockWidth) / 2) +
+        spec.unitW / 2
+
+      const caseFallback = spec.hasUnitDims
+        ? undefined
+        : buildPlacementShape(product, allProducts).caseConfig
+
+      for (let layer = 0; layer < spec.layers; layer += 1) {
+        for (let row = 0; row < spec.rows; row += 1) {
+          for (let facing = 0; facing < spec.facings; facing += 1) {
+            const u = uBase + facing * (spec.unitW + GAP)
+            const out = outerEdge - EDGE - spec.unitD / 2 - row * (spec.unitD + GAP)
+            const x =
+              face === 'front' || face === 'back'
+                ? u
+                : face === 'right'
+                  ? out
+                  : -out
+            const z =
+              face === 'front' ? out : face === 'back' ? -out : u
+            placements.push({
+              id: crypto.randomUUID(),
+              sourceProductId: product.id,
+              slotId: '',
+              width: spec.unitW,
+              height: spec.unitH,
+              depth: spec.unitD,
+              color: product.brandColor,
+              label: product.name,
+              sku: product.sku,
+              category: product.category,
+              imageUrl: product.imageUrl,
+              modelUrl: product.modelUrl,
+              packaging: product.packaging,
+              caseConfig: caseFallback,
+              quantity: 1,
+              spawnAsleep: true,
+              position: [x, surfaceY + layer * (spec.unitH + 0.02), z],
+              quaternion,
+            })
+          }
+        }
       }
     })
 

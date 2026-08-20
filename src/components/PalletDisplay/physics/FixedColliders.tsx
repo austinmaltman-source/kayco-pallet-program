@@ -5,7 +5,11 @@ import { usePhysicsDisabled } from './SandboxPhysics'
 
 const PLATFORM_THICKNESS = 1
 const WALL_THICKNESS = 0.75
-const SHELF_LIP_HEIGHT = 1.4
+// Physics-only lip height (the visible tray lip is drawn separately). Tall
+// enough to actually retain 6-10 inch grocery items when a neighbour is
+// nudged; the lip's depth footprint is unchanged, so nothing that auto-fill
+// places against the edge starts out intersecting it.
+const SHELF_LIP_HEIGHT = 2.6
 
 interface FixedCollidersProps {
   tiers: TierConfig[]

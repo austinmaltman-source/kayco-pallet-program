@@ -78,6 +78,10 @@ export interface PlacedProduct {
   // 'sleeve' = this body is ONE sleeve/inner pack, not a full case (dims are
   // the case sliced by Product.sleevesPerCase; weight scaled to match).
   subunit?: 'sleeve'
+  // Auto-filled items rest exactly on a shelf surface; spawning their bodies
+  // asleep avoids the solver spike (and tunneling) of waking hundreds of
+  // touching bodies in the same frame.
+  spawnAsleep?: boolean
   wall?: WallFace
   tier?: number
   gridCol?: number
@@ -93,6 +97,11 @@ export interface PlacedProduct {
 
 export type CameraPreset = 'front' | 'back' | 'side' | 'left' | 'top' | 'isometric';
 export type DisplayEnvironment = 'retail' | 'studio' | 'clean'
+
+// How a click modifies the selection: plain click picks one item, cmd/ctrl
+// toggles it in the set, shift selects EVERY placement of the same product
+// (Spaceman-style "select all of this item").
+export type SelectMode = 'single' | 'toggle' | 'same-product'
 
 export interface PalletDisplayProps {
   // Configuration
@@ -111,7 +120,7 @@ export interface PalletDisplayProps {
   selectedProductIds?: string[];
 
   // Interaction callbacks
-  onProductClick?: (productId: string, additive: boolean) => void;
+  onProductClick?: (productId: string, mode: SelectMode) => void;
   onRotateProduct?: (productId: string) => void;
   onDeleteProduct?: (productId: string) => void;
   // Camera

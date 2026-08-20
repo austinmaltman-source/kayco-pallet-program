@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react'
 import { useGLTF } from '@react-three/drei'
-import { PlacedProduct, TierConfig, PalletType } from '../../types'
+import { PlacedProduct, TierConfig, PalletType, SelectMode } from '../../types'
 import { ItemBody } from './physics/ItemBody'
 import { useCatalogStore } from '../../stores/catalog-store'
 
@@ -11,7 +11,7 @@ interface PlacedProductsProps {
   palletDimensions?: { width: number; depth: number; height: number }
   selectedProductId?: string | null
   selectedProductIds?: string[]
-  onProductClick?: (productId: string, additive: boolean) => void
+  onProductClick?: (productId: string, mode: SelectMode) => void
   onRotateProduct?: (productId: string) => void
   onDeleteProduct?: (productId: string) => void
 }
@@ -77,7 +77,7 @@ export const PlacedProducts: React.FC<PlacedProductsProps> = ({
             products={catalogProducts}
             isSelected={selectedSet.has(product.id)}
             isPrimary={product.id === selectedProductId}
-            onClick={(additive) => onProductClick?.(product.id, additive)}
+            onClick={(mode) => onProductClick?.(product.id, mode)}
             onRotate={() => onRotateProduct?.(product.id)}
             onDelete={() => onDeleteProduct?.(product.id)}
           />

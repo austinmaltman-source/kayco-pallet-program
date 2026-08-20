@@ -42,9 +42,21 @@ localStorage is the cache/offline fallback. See PROJECT.md "Shared state backend
   in App.tsx, add the key to `SYNCED_KEYS` **and** the Worker's `STATE_KEYS` allowlist in worker/index.ts).
 - **Kayco sales data:** client code calls `/api/kayco/*` only - the key is injected by the Vite dev proxy ([vite.config.ts](vite.config.ts)) or the prod edge function ([api/kayco/[...path].ts](api/kayco/[...path].ts), Vercel env `KAYCO_API_KEY`). Per-customer item sales come from `/items/:id/accounts` summed over `Retailer.kaycoAccountPatterns` (account-name prefixes, e.g. 'COSTCO' = every Costco DC) plus explicit `Retailer.kaycoAccounts` links (see [src/lib/kayco-sales.ts](src/lib/kayco-sales.ts)). Never build sales math on `/orders` - partial coverage, and `balance` is not line revenue. Details: PROJECT.md "Kayco sales data integration".
 
-## 3D physics editor (the only pallet editor)
+## Editor: 2D planogram + 3D physics (same placements, two views)
 
-The slot-grid/2D editor is retired. The editor is a Rapier physics sandbox
+`/…/editor?view=2d` renders [`<PlanogramView>`](src/components/Editor/planogram-view.tsx),
+a flat Spaceman-style elevation of one face; `?view=3d` renders the physics sandbox. Both edit
+the SAME `PlacedProduct[]` — 2D is a projection, not a separate model. The switch lives in
+[editor-page.tsx](src/pages/editor-page.tsx) and both views share `<PalletNavigator>` for face
+selection.
+
+- **Which face an item is on** = the edge it sits closest to (`faceOf` in planogram-view).
+  Never classify by raw axis dominance: the far end of the front row has a large x and gets
+  misfiled to the side, hiding it from the front elevation.
+- 2D drags move items in the face plane and snap the released item to the nearest shelf
+  surface; the batch lands as one `movePlacements` commit so undo reverses the whole move.
+
+### 3D physics sandbox
 ([src/components/PalletDisplay/physics/](src/components/PalletDisplay/physics/)):
 
 - **World units are inches**, gravity is `-386 in/s2` (`SandboxPhysics.tsx`). Y-up, origin at pallet center.
@@ -55,7 +67,37 @@ The slot-grid/2D editor is retired. The editor is a Rapier physics sandbox
 - **Fit is physical:** colliders (deck, shelves, lips, max-height ceiling) enforce volume; items settling on the floor are returned to the catalog. The only advisory check is the total-weight HUD chip (`resolvePlacementWeight`).
 - **Cases:** products with `unitsPerCase > 1` get a synthesized `caseConfig` (`buildPlacementShape` in display-store, `deriveCaseLayout`); units render via `CaseItemGrid` (GLB) or `PrimitiveCaseItemGrid` (no GLB). A case is one rigid body.
 - When shelf geometry changes (tier count, pallet type), bump `wakeToken` so bodies wake and re-settle.
-- **Selection is a set:** `selectedProductIds` holds the multi-selection (shift/cmd-click toggles membership; `selectedProductId` is the primary/last-clicked, drives the action pill). Group ops (delete/duplicate/nudge) use the batch store actions (`removePlacements`/`duplicatePlacements`/`nudgePlacements`) so each lands as one undo entry. Keep `selectedProductIds` consistent anywhere you reset `selectedProductId`.
+- **The pallet shows ITEM measurements, never case dims.** `populateFromAssortment` unpacks each
+  program item into individual units (one rigid body per bottle/box) packed edge to edge, and a
+  full pallet wraps all four faces (front/back take the full width, the side bands take the
+  middle depth, so no corner is double-booked). Case dims are the fallback ONLY when a product
+  has no usable unit dimensions. Same rule in `spawnProduct`.
+- **Selection is a set:** `selectedProductIds` holds the multi-selection; `selectedProductId` is
+  the primary/last-clicked and drives the action pill. `selectProduct(id, mode)` takes a
+  `SelectMode`: `'single'` (plain click), `'toggle'` (cmd/ctrl — one unit in/out), `'same-product'`
+  (shift — every placement of that product, the Spaceman "select all facings" gesture). Group ops
+  use the batch store actions (`removePlacements`/`duplicatePlacements`/`nudgePlacements`/
+  `movePlacements`) so each lands as one undo entry. Keep `selectedProductIds` consistent anywhere
+  you reset `selectedProductId`.
+- **Dragging is a horizontal slide, not a raycast onto whatever is under the cursor.** A grab
+  records `planeY` (the pick-up height) and the item slides on that level plane; Shift-drag (or
+  the touch Vertical toggle) changes height and updates `planeY`. Raycasting the scene instead
+  makes items climb every shelf edge and neighbour they pass over, which is what made placement
+  feel unpredictable. The fallback raycast filters on `userData.isItem` so a held item never
+  perches on top of other product.
+- **Bystanders are pinned during a drag.** While `isDragging3D`, every non-held body renders
+  `type="fixed"` (see `isPinned` in ItemBody). Merchandised shelves are packed touching, so
+  without this, moving one bottle shoves its neighbours off the shelf. Dragging a member of the
+  multi-selection carries the whole set via `heldGroupIds`.
+- **Never pass a fresh object literal as a RigidBody prop** (`userData={{…}}`). It churns the
+  body and re-applies its `position` prop, which silently snaps dragged items back to where they
+  started. Use a module-level constant. Cost me an afternoon.
+- **ItemBody's teleport effect compares the store against the LAST APPLIED store value**, not
+  against the live body pose. Comparing to the body re-teleports an item every time physics (or
+  the user's hand) moves it away from a store value that has not been written back yet.
+- **Auto-filled units carry `spawnAsleep`** so they spawn resting instead of waking hundreds of
+  touching bodies in one frame. Keep the fill's `EDGE` inset clear of the retaining-lip collider
+  (`SHELF_LIP_HEIGHT` in FixedColliders) or the first settle tick shoves the outer row off.
 - **Editor input:** keyboard (arrows nudge, `D` duplicate, `Delete` remove, `C` camera reset, `R`/wheel rotate held, Shift-drag vertical) lives in `DragManager`; the click modifier for additive select is captured at pointer-down (`wasAdditiveClick`). Touch has no Shift/wheel, so the held-item HUD buttons in [three-d-viewer.tsx](src/components/Editor/three-d-viewer.tsx) route through the store via `verticalDragMode` (a flag DragManager reads each frame) and `heldRotateToken` (a counter DragManager watches). Camera reset re-runs the preset animation via `cameraResetToken`.
 
 ## Pallet creation wizard

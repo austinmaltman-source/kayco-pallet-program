@@ -46,6 +46,16 @@ import {
   type SyncedKey,
 } from './lib/state-sync'
 
+// Local-only debug handle: headless browser tests read store state through
+// this instead of guessing at pixels. Never exposed on the deployed domain.
+if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+  ;(window as unknown as Record<string, unknown>).__stores = {
+    display: useDisplayStore,
+    catalog: useCatalogStore,
+    retailers: useRetailerStore,
+  }
+}
+
 const PROJECT_STORAGE_KEY = 'palletforge-project'
 const PALLETS_STORAGE_KEY = 'palletforge-pallets'
 const ACTIVE_PALLET_STORAGE_KEY = 'palletforge-active-pallet-id'

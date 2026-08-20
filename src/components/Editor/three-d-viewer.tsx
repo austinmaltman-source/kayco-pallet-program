@@ -80,7 +80,7 @@ export function ThreeDViewer() {
         placedProducts={currentProject.placements}
         selectedProductId={selectedProductId}
         selectedProductIds={selectedProductIds}
-        onProductClick={(id, additive) => selectProduct(id, additive)}
+        onProductClick={(id, mode) => selectProduct(id, mode)}
         onRotateProduct={rotateProduct}
         onDeleteProduct={(id) => { removeProduct(id); selectProduct(null); }}
         cameraPreset={cameraPreset}
@@ -188,8 +188,8 @@ export function ThreeDViewer() {
         {!carryPlacementId && selectedProductId && (
           <div className="px-3 py-1.5 rounded-md bg-black/70 backdrop-blur text-[11px] font-medium text-white">
             {selectedProductIds.length > 1
-              ? `${selectedProductIds.length} selected · Arrows nudge · D duplicates · Del removes`
-              : 'Shift-click to multi-select · Arrows nudge · D duplicates · Del removes · C resets camera'}
+              ? `${selectedProductIds.length} selected · Drag one to move all · Arrows nudge · D duplicates · Del removes`
+              : 'Shift-click selects all of this item · Cmd-click adds one · Arrows nudge · Del removes'}
           </div>
         )}
         <button

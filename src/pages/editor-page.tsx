@@ -1,18 +1,27 @@
 import { useEffect } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useDisplayStore } from '../stores/display-store'
 import { useRoleStore } from '../stores/role-store'
 import { ThreeDViewer } from '../components/Editor/three-d-viewer'
+import { PlanogramView } from '../components/Editor/planogram-view'
 import { ProductPickerModal } from '../components/Editor/product-picker-modal'
 import { useRoleHref } from '../lib/role-href'
-import { ArrowLeft, Package } from 'lucide-react'
+import { ArrowLeft, Box, LayoutGrid, Package } from 'lucide-react'
 
 export function EditorPage() {
   const { palletId, retailerId } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const roleHref = useRoleHref()
   const role = useRoleStore((state) => state.role)
   const currentProject = useDisplayStore((state) => state.currentProject)
   const selectProject = useDisplayStore((state) => state.selectProject)
+
+  const view = searchParams.get('view') === '2d' ? '2d' : '3d'
+  const setView = (next: '2d' | '3d') => {
+    const params = new URLSearchParams(searchParams)
+    params.set('view', next)
+    setSearchParams(params, { replace: true })
+  }
 
   useEffect(() => {
     if (palletId && currentProject?.id !== palletId) {
@@ -56,7 +65,36 @@ export function EditorPage() {
             </Link>
           </div>
         )}
-        <ThreeDViewer />
+
+        {/* 2D / 3D switch */}
+        <div className="absolute top-5 left-1/2 -translate-x-1/2 z-[60]">
+          <div className="flex items-center gap-0.5 p-0.5 rounded-md bg-white/95 backdrop-blur shadow-card">
+            <button
+              onClick={() => setView('2d')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-medium transition-colors ${
+                view === '2d'
+                  ? 'bg-[#171717] text-white'
+                  : 'text-[#777] hover:text-[#171717]'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              2D
+            </button>
+            <button
+              onClick={() => setView('3d')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-medium transition-colors ${
+                view === '3d'
+                  ? 'bg-[#171717] text-white'
+                  : 'text-[#777] hover:text-[#171717]'
+              }`}
+            >
+              <Box className="w-3.5 h-3.5" />
+              3D
+            </button>
+          </div>
+        </div>
+
+        {view === '2d' ? <PlanogramView /> : <ThreeDViewer />}
       </div>
       <ProductPickerModal />
     </>
