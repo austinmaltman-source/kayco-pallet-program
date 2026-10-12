@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { HardHat, LogOut } from 'lucide-react'
 import { SyncStatusChip } from '../SyncStatus/sync-status-chip'
+import { HubBackLink } from './hub-back-link'
 
 const TABS = [
   { to: '/builder', label: 'Queue', end: true },
@@ -18,6 +19,7 @@ export function BuilderLayout({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-40 bg-[#0f0f10] border-b border-white/[0.08]">
         <div className="max-w-[1320px] mx-auto px-8 h-[64px] flex items-center justify-between gap-6">
           <div className="flex items-center gap-3">
+            <HubBackLink dark divider />
             <Link to="/" className="flex items-center gap-2.5">
               <span className="text-[16px] font-semibold tracking-display text-white">
                 Kayco Pallet Programs

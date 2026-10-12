@@ -5,6 +5,7 @@ import { useRoleStore, ROLE_LABELS, ROLE_DESCRIPTIONS } from '../stores/role-sto
 import { downloadBackup, restoreBackup } from '../lib/backup'
 import { useConfirm } from '../components/ConfirmDialog'
 import type { Role } from '../types'
+import { HubBackLink } from '../components/layout/hub-back-link'
 
 const TILE_ORDER: Role[] = ['salesman', 'builder', 'buyer', 'manager']
 
@@ -53,7 +54,8 @@ export function RoleLauncher() {
 
   return (
     <div className="min-h-screen bg-[#0e0e0e] text-white flex flex-col">
-      <header className="px-12 pt-12">
+      <header className="px-12 pt-8">
+        <HubBackLink dark className="mb-6" />
         <h1 className="text-[28px] font-semibold tracking-display">Kayco Pallet Programs</h1>
         <p className="text-[13px] text-[#888] mt-2 max-w-xl">
           Pallet program planning for Kayco. Pick how you're using the app today —

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { LogOut, ShoppingCart } from 'lucide-react'
 import { SyncStatusChip } from '../SyncStatus/sync-status-chip'
+import { HubBackLink } from './hub-back-link'
 
 const TABS = [
   { to: '/buyer', label: 'Demand', end: true },
@@ -19,6 +20,7 @@ export function BuyerLayout({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-40 bg-white border-b border-[#e5ebf2]">
         <div className="max-w-[1320px] mx-auto px-8 h-[60px] flex items-center justify-between gap-6">
           <div className="flex items-center gap-3">
+            <HubBackLink divider />
             <Link to="/" className="flex items-center gap-2">
               <span className="text-[15px] font-semibold tracking-display text-[#171717]">
                 Kayco Pallet Programs

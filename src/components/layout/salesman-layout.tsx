@@ -6,6 +6,7 @@ import { useSalespersonStore } from '../../stores/salesperson-store'
 import { useSmartBack } from '../../lib/use-smart-back'
 import { TopToolbar } from '../Toolbar/top-toolbar'
 import { SyncStatusChip } from '../SyncStatus/sync-status-chip'
+import { HubBackLink } from './hub-back-link'
 
 const TABS: { to: string; label: string; end: boolean }[] = []
 
@@ -52,6 +53,7 @@ export function SalesmanLayout({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-40 bg-white border-b border-[#ececec]">
         <div className="max-w-[1280px] mx-auto px-8 h-[60px] flex items-center justify-between gap-6">
           <div className="flex items-center gap-3">
+            <HubBackLink divider />
             <Link to="/" className="flex items-center gap-2">
               <span className="text-[15px] font-semibold tracking-display text-[#171717]">
                 Kayco Pallet Programs
