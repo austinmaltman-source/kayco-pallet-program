@@ -5,6 +5,7 @@ import type { Product } from '../../types'
 import { BRAND_COLORS } from '../../lib/mock-data'
 import { formatWeight } from '../../lib/number-format'
 import { useRoleHref } from '../../lib/role-href'
+import { ProductThumb } from './product-thumb'
 
 interface ProductRowProps {
   product: Product
@@ -27,12 +28,16 @@ export function ProductRow({ product, onDelete }: ProductRowProps) {
     >
       <td className="px-5 py-3">
         <div className="flex items-center gap-3">
-          <div
-            className="w-8 h-8 rounded-md flex items-center justify-center text-white text-[9px] font-semibold uppercase shrink-0"
-            style={{ backgroundColor: brandColor }}
-          >
-            {product.brand.slice(0, 2)}
-          </div>
+          {product.imageUrl ? (
+            <ProductThumb imageUrl={product.imageUrl} name={product.name} color={brandColor} size={32} />
+          ) : (
+            <div
+              className="w-8 h-8 rounded-md flex items-center justify-center text-white text-[9px] font-semibold uppercase shrink-0"
+              style={{ backgroundColor: brandColor }}
+            >
+              {product.brand.slice(0, 2)}
+            </div>
+          )}
           <div>
             <div className="text-[13px] font-medium text-[#171717]">{product.name}</div>
             <div className="text-[11px] text-[#999] font-mono">

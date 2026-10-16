@@ -33,6 +33,7 @@ import { useAppSettingsStore, APP_SETTINGS_STORAGE_KEY } from './stores/app-sett
 import { mockRetailers, mockSalespeople } from './lib/mock-data'
 import { loadInventoryInfo } from './lib/inventory-info-loader'
 import { mergeInventoryInfoIntoProducts } from './lib/inventory-info-import'
+import { loadProductImageMap, mergeProductImages } from './lib/product-images'
 import { migrateProjectPlacements } from './lib/placementMigration'
 import {
   pruneOrphanedAssortmentAndPlacements,
@@ -283,6 +284,14 @@ export default function App() {
       useCatalogStore
         .getState()
         .setProducts(catalogProducts)
+
+      // Product photos from the Kayco API. Only writes (and syncs) when a
+      // photo is new or its URL changed; hand-set photos are never replaced.
+      void loadProductImageMap().then((images) => {
+        const catalogState = useCatalogStore.getState()
+        const result = mergeProductImages(catalogState.products, images)
+        if (result.updated > 0) catalogState.setProducts(result.products)
+      })
 
       void loadInventoryInfo().then((inventoryInfo) => {
         if (inventoryInfo.length === 0) return

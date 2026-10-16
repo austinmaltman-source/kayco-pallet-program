@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDisplayStore } from '../../stores/display-store'
 import { useRetailerStore } from '../../stores/retailer-store'
+import { useCatalogStore } from '../../stores/catalog-store'
 import { buildTierConfigs } from '../../lib/shelfCoordinates'
 import { PalletNavigator } from './pallet-navigator'
 import type { PlacedProduct, SelectMode, TrayFace } from '../../types'
@@ -65,6 +66,15 @@ export function PlanogramView() {
   const movePlacements = useDisplayStore((s) => s.movePlacements)
   const removePlacements = useDisplayStore((s) => s.removePlacements)
   const nudgePlacements = useDisplayStore((s) => s.nudgePlacements)
+  const catalogProducts = useCatalogStore((s) => s.products)
+  // Placements saved before product photos existed fall back to the catalog's.
+  const catalogImages = useMemo(() => {
+    const map = new Map<string, string>()
+    catalogProducts.forEach((p) => {
+      if (p.imageUrl) map.set(p.id, p.imageUrl)
+    })
+    return map
+  }, [catalogProducts])
   const retailer = useRetailerStore((s) =>
     currentProject ? s.getRetailer(currentProject.retailerId) : undefined,
   )
@@ -368,6 +378,9 @@ export function PlanogramView() {
           const isPrimary = selectedProductId === item.placement.id
           const x = sx(item.u + du - item.w / 2)
           const y = sy(item.y + dy + item.h)
+          const imageUrl =
+            item.placement.imageUrl ??
+            catalogImages.get(item.placement.sourceProductId ?? '')
           return (
             <g
               key={item.placement.id}
@@ -375,7 +388,7 @@ export function PlanogramView() {
               style={{ cursor: 'grab' }}
               opacity={isDragged ? 0.85 : 1}
             >
-              {item.placement.imageUrl ? (
+              {imageUrl ? (
                 <>
                   <rect
                     x={x}
@@ -383,16 +396,18 @@ export function PlanogramView() {
                     width={item.w}
                     height={item.h}
                     fill="#ffffff"
-                    stroke="#d4d4d4"
-                    strokeWidth={0.1}
+                    stroke="#e5e5e5"
+                    strokeWidth={0.08}
                   />
+                  {/* Whole product, standing on the shelf: product shots are
+                      cut-outs on white, so cropping would lose the label. */}
                   <image
-                    href={item.placement.imageUrl}
+                    href={imageUrl}
                     x={x}
                     y={y}
                     width={item.w}
                     height={item.h}
-                    preserveAspectRatio="xMidYMid slice"
+                    preserveAspectRatio="xMidYMax meet"
                   />
                 </>
               ) : (

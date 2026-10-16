@@ -22,6 +22,7 @@ import { useRoleHref } from '../lib/role-href'
 import { useSmartBack } from '../lib/use-smart-back'
 import { useConfirm } from '../components/ConfirmDialog'
 import { cascadeDeleteProduct, describeProductReferences } from '../lib/cascade-delete'
+import { ProductThumb } from '../components/Catalog/product-thumb'
 
 const BRANDS: Brand[] = ['tuscanini', 'kedem', 'gefen', 'liebers', 'haddar', 'osem']
 const HOLIDAYS: Holiday[] = ['rosh-hashanah', 'pesach', 'sukkos', 'none']
@@ -267,6 +268,10 @@ export function ProductDetailPage() {
 
         {/* Header Bar */}
         <div className="flex items-start justify-between gap-6 mb-0">
+          <div className="min-w-0 flex items-start gap-4">
+          {product.imageUrl && (
+            <ProductThumb imageUrl={product.imageUrl} name={product.name} color={brandColor} size={72} />
+          )}
           <div className="min-w-0">
             <div className="flex items-center gap-3 mb-1.5">
               <h1 className="text-[24px] font-semibold tracking-display text-[#171717] truncate">
@@ -302,6 +307,7 @@ export function ProductDetailPage() {
                 </span>
               )}
             </div>
+          </div>
           </div>
 
           <button

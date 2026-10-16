@@ -28,6 +28,10 @@ export default defineConfig(({mode}) => {
           target: 'http://localhost:8787',
           changeOrigin: true,
         },
+        '/api/product-images': {
+          target: 'http://localhost:8787',
+          changeOrigin: true,
+        },
         // Mirrors the Worker's /api/kayco proxy. Key comes from .env.local
         // (KAYCO_API_KEY) and never reaches the client bundle.
         '/api/kayco': {

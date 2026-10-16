@@ -64,9 +64,22 @@ export const ItemBody: React.FC<ItemBodyProps> = ({
 
   // The body owns the world transform, so the renderer must not re-apply the
   // orientation preset baked into the quaternion.
+  // Placements made before product photos existed carry no imageUrl; fall back
+  // to the catalog product's photo so every saved pallet picks them up.
+  const catalogImage = useMemo(
+    () =>
+      placement.imageUrl
+        ? undefined
+        : products.find((p) => p.id === placement.sourceProductId)?.imageUrl,
+    [placement.imageUrl, placement.sourceProductId, products],
+  )
   const renderPlacement = useMemo(
-    () => ({ ...placement, orientation: 0 }),
-    [placement],
+    () => ({
+      ...placement,
+      orientation: 0,
+      imageUrl: placement.imageUrl ?? catalogImage,
+    }),
+    [placement, catalogImage],
   )
 
   const mass = useMemo(() => {

@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom'
 import { useRoleHref } from '../../lib/role-href'
 import { useWindowedItemSales } from '../../hooks/useWindowedItemSales'
 import { windowLabel, type SalesWindow } from '../../lib/sales-window'
+import { ProductThumb } from '../Catalog/product-thumb'
 
 type SortColumn =
   | 'name'
@@ -151,6 +152,8 @@ export function ProgramItemPicker({
         return {
           id,
           name: product?.name ?? id,
+          imageUrl: product?.imageUrl,
+          color: product?.brandColor,
           upc: product?.upc ?? '',
           kaycoItemNumber: product?.kaycoItemNumber ?? '',
           retailerItemNumber: auth?.sku ?? '',
@@ -508,7 +511,15 @@ export function ProgramItemPicker({
                       style={{ boxShadow: '0 -1px 0 0 rgba(0,0,0,0.04)' }}
                     >
                       <td className="px-6 py-2.5">
-                        <p className="text-[13px] text-[#171717]">{row.name}</p>
+                        <div className="flex items-center gap-2.5">
+                          <ProductThumb
+                            imageUrl={row.imageUrl}
+                            name={row.name}
+                            color={row.color}
+                            size={30}
+                          />
+                          <p className="text-[13px] text-[#171717]">{row.name}</p>
+                        </div>
                       </td>
                       <td className="px-3 py-2.5 text-[11px] text-[#777] capitalize">
                         {row.brand || '—'}

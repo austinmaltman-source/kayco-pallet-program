@@ -263,6 +263,68 @@ async function handleKaycoProxy(request: Request, env: Env, path: string): Promi
   })
 }
 
+// GET /api/product-images -> { data: { [kaycoItemNumber]: imageUrl } }
+// The upstream /items payload is ~5MB for ~5.8k items; clients only need the
+// item number -> photo URL pairs (~3.3k, a few hundred KB). One upstream call
+// per day per edge, so this never trips the API's rate limiter.
+async function handleProductImages(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405)
+  if (!env.KAYCO_API_KEY) return json({ error: 'KAYCO_API_KEY is not configured' }, 500)
+
+  const respond = (body: string, source: string) =>
+    new Response(body, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=86400',
+        'X-Image-Map-Cache': source,
+      },
+    })
+
+  // Warm isolate: serve from memory. Backstop for the edge cache, which does
+  // not always apply to requests arriving over the Pages service binding.
+  if (imageMapMemo && Date.now() - imageMapMemo.at < IMAGE_MAP_TTL_MS) {
+    return respond(imageMapMemo.body, 'memory')
+  }
+
+  const cache = caches.default
+  const cacheKey = new Request(new URL('/api/product-images', request.url).toString())
+  const cached = await cache.match(cacheKey)
+  if (cached) {
+    const body = await cached.text()
+    imageMapMemo = { body, at: Date.now() }
+    return respond(body, 'edge')
+  }
+
+  const upstream = await fetch(`${KAYCO_UPSTREAM}/items?limit=10000`, {
+    headers: {
+      Authorization: `Bearer ${env.KAYCO_API_KEY}`,
+      'User-Agent':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) PalletForge/1.0',
+    },
+  })
+  if (!upstream.ok) {
+    // Never cache a failure; the client keeps its last good map.
+    return json({ error: `upstream items -> ${upstream.status}` }, 502)
+  }
+  const payload = (await upstream.json()) as {
+    data?: { id?: unknown; imageUrl?: unknown }[]
+  }
+  const images: Record<string, string> = {}
+  for (const item of payload.data ?? []) {
+    const id = String(item.id ?? '').trim()
+    const imageUrl = typeof item.imageUrl === 'string' ? item.imageUrl.trim() : ''
+    if (id && imageUrl.startsWith('https://')) images[id] = imageUrl
+  }
+
+  const body = JSON.stringify({ data: images })
+  imageMapMemo = { body, at: Date.now() }
+  await cache.put(cacheKey, respond(body, 'edge'))
+  return respond(body, 'upstream')
+}
+
+const IMAGE_MAP_TTL_MS = 24 * 60 * 60 * 1000
+let imageMapMemo: { body: string; at: number } | null = null
+
 export default {
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url)
@@ -280,6 +342,9 @@ export default {
       }
       if (url.pathname === '/api/sales/summary') {
         return await handleSalesSummary(request, env)
+      }
+      if (url.pathname === '/api/product-images') {
+        return await handleProductImages(request, env)
       }
       if (url.pathname.startsWith('/api/kayco/')) {
         return await handleKaycoProxy(request, env, url.pathname.slice('/api/kayco'.length))
