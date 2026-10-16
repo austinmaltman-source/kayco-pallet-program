@@ -100,6 +100,20 @@ selection.
   (`SHELF_LIP_HEIGHT` in FixedColliders) or the first settle tick shoves the outer row off.
 - **Editor input:** keyboard (arrows nudge, `D` duplicate, `Delete` remove, `C` camera reset, `R`/wheel rotate held, Shift-drag vertical) lives in `DragManager`; the click modifier for additive select is captured at pointer-down (`wasAdditiveClick`). Touch has no Shift/wheel, so the held-item HUD buttons in [three-d-viewer.tsx](src/components/Editor/three-d-viewer.tsx) route through the store via `verticalDragMode` (a flag DragManager reads each frame) and `heldRotateToken` (a counter DragManager watches). Camera reset re-runs the preset animation via `cameraResetToken`.
 
+- **Product photos -> 3D models.** Photos come from the Kayco API (`imageUrl` on `/items`) via the
+  Worker's edge-cached `/api/product-images` map, merged into the catalog by Kayco item number
+  (`src/lib/product-images.ts`; hand-set photos are never overwritten). `PhotoProductModel` builds
+  the model from the ONE front photo: `analyzePhoto` (`src/lib/photo-model.ts`) traces the
+  silhouette row by row; round-footprint items whose outline curves (or whose name says
+  bottle/jar/can/cup) become a lathe body using that profile with the photo wrapped on the front;
+  everything else is a box with the photo front and back and sides in the photo's edge color.
+  Geometry and materials are cached per product. Only URLs are stored (the images stay on the
+  API's host), and models are built in the browser only for items actually on a pallet.
+- **Kayco sales pulls are PAUSED (Austin, 2026-10-16).** The `Sales history sync` workflow is
+  disabled and the item picker's live per-item calls are off (`LIVE_KAYCO_SALES` in
+  program-item-picker.tsx). Range figures show the last stored history (last good sync
+  2026-09-13). Do not re-enable either without Austin asking.
+
 ## Pallet creation wizard
 
 [`<PalletCreationWizard>`](src/components/PalletCreationWizard/index.tsx) accepts:

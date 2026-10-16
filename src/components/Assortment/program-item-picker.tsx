@@ -15,6 +15,10 @@ import { useWindowedItemSales } from '../../hooks/useWindowedItemSales'
 import { windowLabel, type SalesWindow } from '../../lib/sales-window'
 import { ProductThumb } from '../Catalog/product-thumb'
 
+// Flip back to true to resume live per-item sales calls to the Kayco API.
+const LIVE_KAYCO_SALES = false
+const NO_ITEMS: string[] = []
+
 type SortColumn =
   | 'name'
   | 'brand'
@@ -187,7 +191,14 @@ export function ProgramItemPicker({
     sales,
     loading: salesLoading,
     error: salesError,
-  } = useRetailerItemSales(linkedAccountIds, accountPatterns, itemNumbers)
+  } = useRetailerItemSales(
+    linkedAccountIds,
+    accountPatterns,
+    // Live per-item sales pulls are paused (Austin, 2026-10-16): one Kayco API
+    // call per item per salesman was crowding out other apps. Range figures
+    // still come from our stored monthly history.
+    LIVE_KAYCO_SALES ? itemNumbers : NO_ITEMS,
+  )
 
   // Windowed (rolling 12 / YTD / custom) figures come from the synced monthly
   // history; "All time" uses the live per-item totals above. Last order stays
