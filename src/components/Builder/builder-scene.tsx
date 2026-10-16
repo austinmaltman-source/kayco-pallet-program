@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import type { DisplayBranding, PalletType, PlacedProduct } from '../../types'
 import type { Block, Invalid, ShelfSurface } from '../../lib/builder/placement-engine'
-import { displaySpec, defaultHeaderText } from '../../lib/builder/display-spec'
+import { type DividerMap, displaySpec, defaultHeaderText } from '../../lib/builder/display-spec'
 import { DisplayModel } from './display-model'
 import { CaseMesh } from './case-mesh'
 
@@ -41,15 +41,20 @@ interface BuilderSceneProps {
   onDragStart: (id: string) => Set<string>
   onDragMove: (id: string, target: DragTarget) => { block: Block; invalid: Invalid | null } | null
   onDragEnd: (id: string, commit: boolean) => void
+  dividers?: DividerMap
+  art: { header: string | null; side: string | null; lip: string | null }
+  // Filled by the scene: screen point -> shelf target (for dropping a
+  // product dragged in from the list).
+  pickRef?: React.MutableRefObject<((clientX: number, clientY: number) => DragTarget | null) | null>
 }
 
-const CAMERA_TARGET_Y = 24
+const CAMERA_TARGET_Y = 30
 
 function viewPose(view: CameraView, aspect: number, isHalf: boolean) {
   // Narrow (phone) screens need the camera further back to fit the width.
   const k = Math.max(1.2, 1.25 / Math.max(0.45, aspect))
   const t = new THREE.Vector3(0, CAMERA_TARGET_Y, isHalf ? 0 : 0)
-  const dist = 88 * k
+  const dist = 100 * k
   switch (view) {
     case 'front':
       return { pos: new THREE.Vector3(0, CAMERA_TARGET_Y + 6, dist), target: t }
@@ -63,18 +68,19 @@ function viewPose(view: CameraView, aspect: number, isHalf: boolean) {
       return { pos: new THREE.Vector3(0, 70 + dist, 0.01), target: new THREE.Vector3(0, 0, 0) }
     default:
       return {
-        pos: new THREE.Vector3(dist * 0.55, CAMERA_TARGET_Y + dist * 0.42, dist * 0.8),
+        pos: new THREE.Vector3(dist * 0.42, CAMERA_TARGET_Y + dist * 0.3, dist * 0.88),
         target: t,
       }
   }
 }
 
 function CameraRig({ view, viewToken, isHalf }: { view: CameraView; viewToken: number; isHalf: boolean }) {
-  const { camera, size, controls } = useThree()
+  const { camera, size, controls, invalidate } = useThree()
   const anim = useRef<{ pos: THREE.Vector3; target: THREE.Vector3; t: number } | null>(null)
   useEffect(() => {
     const pose = viewPose(view, size.width / Math.max(1, size.height), isHalf)
     anim.current = { ...pose, t: 0 }
+    invalidate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, viewToken, isHalf, size.width < size.height])
   useFrame((_, delta) => {
@@ -87,6 +93,7 @@ function CameraRig({ view, viewToken, isHalf }: { view: CameraView; viewToken: n
     c.target.lerp(a.target, ease)
     c.update()
     if (a.t >= 1) anim.current = null
+    else invalidate() // render-on-demand: keep frames coming while it moves
   })
   return null
 }
@@ -195,6 +202,9 @@ function DragController({
     const raycaster = new THREE.Raycaster()
     const ndc = new THREE.Vector2()
     const el = gl.domElement
+    // Pointer moves are coalesced to one raycast + placement solve per frame.
+    let pending: PointerEvent | null = null
+    let raf = 0
     const move = (ev: PointerEvent) => {
       const drag = dragRef.current
       if (!drag || ev.pointerId !== drag.pointerId) return
@@ -202,6 +212,15 @@ function DragController({
         if (Math.hypot(ev.clientX - drag.startX, ev.clientY - drag.startY) < 5) return
         drag.started = true
       }
+      pending = ev
+      if (!raf) raf = requestAnimationFrame(flush)
+    }
+    const flush = () => {
+      raf = 0
+      const ev = pending
+      pending = null
+      const drag = dragRef.current
+      if (!ev || !drag) return
       const rect = el.getBoundingClientRect()
       ndc.set(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1)
       raycaster.setFromCamera(ndc, camera)
@@ -236,6 +255,10 @@ function DragController({
     const up = (ev: PointerEvent) => {
       const drag = dragRef.current
       if (!drag || ev.pointerId !== drag.pointerId) return
+      if (pending) {
+        if (raf) cancelAnimationFrame(raf)
+        flush()
+      }
       dragRef.current = null
       controlsEnabled(true)
       setGhost(null)
@@ -248,6 +271,7 @@ function DragController({
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', up)
+      if (raf) cancelAnimationFrame(raf)
     }
   }, [camera, gl, dragRef, proxiesRef, casesRef, onDragMove, onDragEnd, setGhost, controlsEnabled])
   return null
@@ -263,6 +287,43 @@ interface DragState {
   offsetZ: number
   ignore: Set<string>
   last: { block: Block; invalid: Invalid | null } | null
+}
+
+// Screen point -> the shelf under it (for products dropped from the list).
+function DropPicker({
+  pickRef,
+  proxiesRef,
+  casesRef,
+}: {
+  pickRef?: BuilderSceneProps['pickRef']
+  proxiesRef: React.RefObject<THREE.Group | null>
+  casesRef: React.RefObject<THREE.Group | null>
+}) {
+  const { camera, gl } = useThree()
+  useEffect(() => {
+    if (!pickRef) return
+    const raycaster = new THREE.Raycaster()
+    const ndc = new THREE.Vector2()
+    pickRef.current = (clientX, clientY) => {
+      const rect = gl.domElement.getBoundingClientRect()
+      ndc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1)
+      raycaster.setFromCamera(ndc, camera)
+      const targets: THREE.Object3D[] = []
+      if (proxiesRef.current) targets.push(...proxiesRef.current.children)
+      if (casesRef.current) targets.push(casesRef.current)
+      const hits = raycaster.intersectObjects(targets, true).filter((h) => {
+        const k = h.object.userData.kind
+        return k === 'shelf' || k === 'case'
+      })
+      const hit = hits[0]
+      if (!hit) return null
+      return { tier: hit.object.userData.tier, x: hit.point.x, z: hit.point.z, stack: false }
+    }
+    return () => {
+      pickRef.current = null
+    }
+  }, [pickRef, camera, gl, proxiesRef, casesRef])
+  return null
 }
 
 // Dev-only hook for browser tests: project a world point to client pixels.
@@ -303,8 +364,8 @@ function SceneContents(props: BuilderSceneProps) {
   } = props
   const isHalf = palletType === 'half'
   const spec = useMemo(
-    () => displaySpec(palletType, tierCount, palletDims.height, maxDisplayHeight),
-    [palletType, tierCount, palletDims.height, maxDisplayHeight],
+    () => displaySpec(palletType, tierCount, palletDims.height, maxDisplayHeight, props.dividers),
+    [palletType, tierCount, palletDims.height, maxDisplayHeight, props.dividers],
   )
   const controlsRef = useRef<OrbitControlsImpl>(null)
   const proxiesRef = useRef<THREE.Group>(null)
@@ -322,15 +383,19 @@ function SceneContents(props: BuilderSceneProps) {
     [],
   )
 
-  const startDrag = (placement: PlacedProduct) => (e: ThreeEvent<PointerEvent>) => {
+  // Stable handlers so unchanged cases skip re-rendering (CaseMesh is memo'd).
+  const live = useRef({ blocks, onSelect, onDragStart })
+  live.current = { blocks, onSelect, onDragStart }
+  const startDrag = useCallback((e: ThreeEvent<PointerEvent>, id: string) => {
     if (e.button !== undefined && e.button !== 0) return
     e.stopPropagation()
-    onSelect(placement.id)
-    const block = blocks.get(placement.id)
+    const { blocks, onSelect, onDragStart } = live.current
+    onSelect(id)
+    const block = blocks.get(id)
     if (!block) return
-    const ignore = onDragStart(placement.id)
+    const ignore = onDragStart(id)
     dragRef.current = {
-      id: placement.id,
+      id,
       pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
@@ -341,7 +406,9 @@ function SceneContents(props: BuilderSceneProps) {
       last: null,
     }
     controlsEnabled(false)
-  }
+  }, [controlsEnabled])
+  const onOver = useCallback((id: string) => setHoverId(id), [])
+  const onOut = useCallback((id: string) => setHoverId((cur) => (cur === id ? null : cur)), [])
 
   return (
     <>
@@ -351,7 +418,7 @@ function SceneContents(props: BuilderSceneProps) {
         position={[40, 90, 60]}
         intensity={1.6}
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={[1024, 1024]}
         shadow-camera-left={-60}
         shadow-camera-right={60}
         shadow-camera-top={80}
@@ -374,6 +441,7 @@ function SceneContents(props: BuilderSceneProps) {
         headerTextColor={branding?.headerTextColor || '#ffd54a'}
         headerBackground={branding?.headerBackgroundColor || lipColor || '#1f5fbf'}
         showHeader={showHeader}
+        art={props.art}
       />
 
       {(showGrid || dragging) && <ShelfGrid surfaces={surfaces} />}
@@ -393,9 +461,9 @@ function SceneContents(props: BuilderSceneProps) {
               selected={selectedId === p.id}
               hovered={hoverId === p.id}
               cartons={cartons}
-              onPointerDown={isGhost ? undefined : startDrag(p)}
-              onPointerOver={() => setHoverId(p.id)}
-              onPointerOut={() => setHoverId((cur) => (cur === p.id ? null : cur))}
+              onPointerDown={isGhost ? undefined : startDrag}
+              onPointerOver={onOver}
+              onPointerOut={onOut}
             />
           )
         })}
@@ -422,6 +490,7 @@ function SceneContents(props: BuilderSceneProps) {
         target={[0, CAMERA_TARGET_Y, 0]}
       />
       <CameraRig view={view} viewToken={viewToken} isHalf={isHalf} />
+      <DropPicker pickRef={props.pickRef} proxiesRef={proxiesRef} casesRef={casesRef} />
       <DevProbe />
     </>
   )
@@ -431,9 +500,10 @@ export function BuilderScene(props: BuilderSceneProps) {
   return (
     <Canvas
       shadows
-      dpr={[1, 2]}
+      frameloop="demand"
+      dpr={[1, 1.5]}
       camera={{ position: [60, 70, 90], fov: 40, near: 1, far: 2000 }}
-      gl={{ antialias: true, preserveDrawingBuffer: true }}
+      gl={{ antialias: true, powerPreference: 'high-performance' }}
       onPointerMissed={() => props.onSelect(null)}
       style={{ touchAction: 'none' }}
     >

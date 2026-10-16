@@ -56,7 +56,7 @@ export function PalletWizard({
 
     const config: WizardPalletConfig = {
       id: crypto.randomUUID(),
-      name: `${state.palletType === 'full' ? 'Full' : 'Half'} ${state.baseWidth}×${state.baseDepth}`,
+      name: `${state.palletType === 'full' ? 'Full' : 'Half'} ${state.baseWidth}×${state.palletType === 'half' ? Math.round(state.baseDepth / 2) : state.baseDepth}`,
       type: isCustom,
       base: {
         width: state.baseWidth,

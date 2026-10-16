@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { DisplaySpec } from '../../lib/builder/display-spec'
 import { Pallet } from '../PalletDisplay/Pallet'
@@ -18,6 +19,52 @@ interface DisplayModelProps {
   headerTextColor: string
   headerBackground: string
   showHeader: boolean
+  // Printed art (photo crops or uploads); null = drawn fallback.
+  art?: { header: string | null; side: string | null; lip: string | null }
+}
+
+// Load an art image as a texture; re-render once it arrives (the canvas
+// renders on demand).
+function useArtTexture(url: string | null | undefined) {
+  const invalidate = useThree((s) => s.invalidate)
+  const [tex, setTex] = useState<THREE.Texture | null>(null)
+  useEffect(() => {
+    if (!url) {
+      setTex(null)
+      return
+    }
+    let dead = false
+    new THREE.TextureLoader().load(url, (t) => {
+      if (dead) {
+        t.dispose()
+        return
+      }
+      t.colorSpace = THREE.SRGBColorSpace
+      t.anisotropy = 4
+      setTex(t)
+      invalidate()
+    })
+    return () => {
+      dead = true
+    }
+  }, [url, invalidate])
+  useEffect(() => () => tex?.dispose(), [tex])
+  return tex
+}
+
+// A copy of an art texture tiled `repeat` times across (for the repeating
+// full-pallet lip print).
+function useTiled(tex: THREE.Texture | null, repeat: number) {
+  const out = useMemo(() => {
+    if (!tex) return null
+    const t = tex.clone()
+    t.wrapS = THREE.RepeatWrapping
+    t.repeat.set(repeat, 1)
+    t.needsUpdate = true
+    return t
+  }, [tex, repeat])
+  useEffect(() => () => out?.dispose(), [out])
+  return out
 }
 
 const noRaycast = () => null
@@ -164,14 +211,28 @@ export function DisplayModel({
   headerTextColor,
   headerBackground,
   showHeader,
+  art,
 }: DisplayModelProps) {
   const cardboard = useMemo(() => getCardboardMaterial(), [])
+  const isHalfType = spec.type === 'half'
+  const artHeader = useArtTexture(art?.header)
+  const artSide = useArtTexture(isHalfType ? art?.side : null)
+  const artLip = useArtTexture(art?.lip)
+  const lipImg = artLip?.image as { width: number; height: number } | undefined
+  const lipAspect = lipImg ? lipImg.width / lipImg.height : 1
+  // Half: one lip print spans the shelf. Full: the print repeats round the tray.
+  const lipLongArt = useTiled(artLip, isHalfType ? 1 : Math.max(1, Math.round(spec.width / (spec.lipHeight * lipAspect))))
+  const lipShortArt = useTiled(artLip, isHalfType ? 1 : Math.max(1, Math.round(spec.depth / (spec.lipHeight * lipAspect))))
+  const panelColor = isHalfType ? '#05b5d3' : lipColor
+  const panelPlain = useDisposable(() => new THREE.MeshStandardMaterial({ color: panelColor, roughness: 0.65 }), [panelColor])
+  const dividerMat = useDisposable(() => new THREE.MeshStandardMaterial({ color: '#eef6f7', roughness: 0.8 }), [])
+  const yellowPlain = useDisposable(() => new THREE.MeshStandardMaterial({ color: '#fcf405', roughness: 0.6 }), [])
   const coreMaterial = useMemo(() => new THREE.MeshStandardMaterial({ color: '#c49a63', roughness: 0.92 }), [])
   const lipLong = useDisposable(() => lipTexture(lipText, lipColor, lipTextColor, spec.width), [lipText, lipColor, lipTextColor, spec.width])
   const lipShort = useDisposable(() => lipTexture(lipText, lipColor, lipTextColor, spec.depth), [lipText, lipColor, lipTextColor, spec.depth])
-  const lipLongMat = useDisposable(() => new THREE.MeshStandardMaterial({ map: lipLong, roughness: 0.55 }), [lipLong])
-  const lipShortMat = useDisposable(() => new THREE.MeshStandardMaterial({ map: lipShort, roughness: 0.55 }), [lipShort])
-  const lipPlain = useDisposable(() => new THREE.MeshStandardMaterial({ color: lipColor, roughness: 0.55 }), [lipColor])
+  const lipLongMat = useDisposable(() => new THREE.MeshStandardMaterial({ map: lipLongArt ?? lipLong, roughness: 0.55 }), [lipLong, lipLongArt])
+  const lipShortMat = useDisposable(() => new THREE.MeshStandardMaterial({ map: lipShortArt ?? lipShort, roughness: 0.55 }), [lipShort, lipShortArt])
+  const lipPlain = useDisposable(() => new THREE.MeshStandardMaterial({ color: artLip ? panelColor : lipColor, roughness: 0.55 }), [lipColor, artLip, panelColor])
 
   const isHalf = spec.type === 'half'
   const panelHeight = spec.structureTop - spec.palletHeight
@@ -179,17 +240,20 @@ export function DisplayModel({
     () => panelTexture(lipText, lipColor, lipTextColor, true, spec.depth, panelHeight),
     [lipText, lipColor, lipTextColor, spec.depth, panelHeight],
   )
-  const sideMat = useDisposable(() => new THREE.MeshStandardMaterial({ map: sideTex, roughness: 0.6 }), [sideTex])
+  const sideMat = useDisposable(() => new THREE.MeshStandardMaterial({ map: artSide ?? sideTex, roughness: 0.6 }), [sideTex, artSide])
   const backTex = useDisposable(
     () => panelTexture('', lipColor, lipTextColor, false, spec.width, panelHeight),
     [lipColor, lipTextColor, spec.width, panelHeight],
   )
-  const backMat = useDisposable(() => new THREE.MeshStandardMaterial({ map: backTex, roughness: 0.6 }), [backTex])
+  const backMat = useDisposable(
+    () => (art?.side ? new THREE.MeshStandardMaterial({ color: panelColor, roughness: 0.65 }) : new THREE.MeshStandardMaterial({ map: backTex, roughness: 0.6 })),
+    [backTex, art?.side, panelColor],
+  )
   const headerTex = useDisposable(
     () => headerTexture(headerText, headerBackground, headerTextColor, spec.header.width, spec.header.height, isHalf),
     [headerText, headerBackground, headerTextColor, spec.header.width, spec.header.height, isHalf],
   )
-  const headerMat = useDisposable(() => new THREE.MeshStandardMaterial({ map: headerTex, roughness: 0.5 }), [headerTex])
+  const headerMat = useDisposable(() => new THREE.MeshStandardMaterial({ map: artHeader ?? headerTex, roughness: 0.5 }), [headerTex, artHeader])
 
   const W = spec.width
   const D = spec.depth
@@ -260,7 +324,7 @@ export function DisplayModel({
                 <mesh
                   key={k}
                   position={[c.x1 + spec.dividerThickness / 2, level.floorY + (next.floorY - t - level.floorY) / 2, (c.z0 + c.z1) / 2 - 0.5]}
-                  material={cardboard}
+                  material={dividerMat}
                   castShadow
                   raycast={noRaycast}
                 >
@@ -278,7 +342,11 @@ export function DisplayModel({
             <mesh
               key={side}
               position={[side * (W / 2 - spec.panelThickness / 2), spec.palletHeight + panelHeight / 2, 0]}
-              material={side < 0 ? [sideMat, sideMat, cardboard, cardboard, cardboard, cardboard] : [sideMat, sideMat, cardboard, cardboard, cardboard, cardboard]}
+              material={
+                side < 0
+                  ? [panelPlain, sideMat, panelPlain, panelPlain, panelPlain, panelPlain]
+                  : [sideMat, panelPlain, panelPlain, panelPlain, panelPlain, panelPlain]
+              }
               castShadow
               receiveShadow
               raycast={noRaycast}
@@ -288,7 +356,7 @@ export function DisplayModel({
           ))}
           <mesh
             position={[0, spec.palletHeight + panelHeight / 2, -D / 2 + spec.panelThickness / 2]}
-            material={[cardboard, cardboard, cardboard, cardboard, backMat, cardboard]}
+            material={[panelPlain, panelPlain, panelPlain, panelPlain, backMat, panelPlain]}
             castShadow
             receiveShadow
             raycast={noRaycast}
@@ -298,7 +366,7 @@ export function DisplayModel({
           {showHeader && (
             <mesh
               position={[0, spec.header.y + spec.header.height / 2, -D / 2 + spec.panelThickness / 2]}
-              material={[cardboard, cardboard, cardboard, cardboard, headerMat, cardboard]}
+              material={[panelPlain, panelPlain, panelPlain, panelPlain, headerMat, panelPlain]}
               castShadow
               raycast={noRaycast}
             >
@@ -309,17 +377,14 @@ export function DisplayModel({
       ) : (
         showHeader && (
           <group>
-            {/* pop-up header sign from the centre of the top tray */}
-            <mesh position={[0, spec.header.y + 1, 0]} material={coreMaterial} castShadow raycast={noRaycast}>
-              <boxGeometry args={[16, 2, 3]} />
-            </mesh>
+            {/* pop-up header box in the middle of the top tray, printed on all four faces */}
             <mesh
-              position={[0, spec.header.y + 2 + spec.header.height / 2, 0]}
-              material={[cardboard, cardboard, cardboard, cardboard, headerMat, headerMat]}
+              position={[0, spec.header.y + spec.header.height / 2, 0]}
+              material={artHeader ? [headerMat, headerMat, yellowPlain, yellowPlain, headerMat, headerMat] : [cardboard, cardboard, cardboard, cardboard, headerMat, headerMat]}
               castShadow
               raycast={noRaycast}
             >
-              <boxGeometry args={[spec.header.width, spec.header.height, 0.5]} />
+              <boxGeometry args={[spec.header.width, spec.header.height, artHeader ? spec.header.width : 0.5]} />
             </mesh>
           </group>
         )

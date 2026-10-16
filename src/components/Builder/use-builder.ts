@@ -4,7 +4,9 @@ import { useCatalogStore } from '../../stores/catalog-store'
 import { useRetailerStore } from '../../stores/retailer-store'
 import { commitProjectUpdate } from '../../stores/display/helpers'
 import type { PalletType, PlacedProduct } from '../../types'
-import { type BuilderContext, reflowForGeometry, surfacesFor } from '../../lib/builder/builder-model'
+import { type BuilderContext, reflowForGeometry, respecProduct, surfacesFor } from '../../lib/builder/builder-model'
+import { setSquishOverrides } from '../../lib/builder/case-spec'
+import { normalizeDividers } from '../../lib/builder/display-spec'
 
 // Store glue for the v2 builder: the active pallet, its geometry context and
 // one `commit` that writes placements as a single undoable history entry
@@ -20,6 +22,9 @@ export function useBuilder() {
     project ? s.getRetailer(project.retailerId) : undefined,
   )
 
+  // Per-item squishable overrides feed case sizing (module-level registry).
+  setSquishOverrides(project?.squishOverrides)
+
   const palletDims = retailer?.palletDimensions ?? { width: 48, depth: 40, height: 6 }
   const maxDisplayHeight = retailer?.maxDisplayHeight ?? 60
   const ctx: BuilderContext = useMemo(
@@ -28,8 +33,9 @@ export function useBuilder() {
       tierCount: project?.tierCount ?? 4,
       palletHeight: palletDims.height,
       maxDisplayHeight,
+      dividers: project?.cubbyDividers,
     }),
-    [project?.palletType, project?.tierCount, palletDims.height, maxDisplayHeight],
+    [project?.palletType, project?.tierCount, palletDims.height, maxDisplayHeight, project?.cubbyDividers],
   )
   const surfaces = useMemo(() => surfacesFor(ctx), [ctx])
 
@@ -54,18 +60,51 @@ export function useBuilder() {
       if (!current) return [] as PlacedProduct[]
       const palletType = next.palletType ?? current.palletType
       const tierCount = Math.min(6, Math.max(2, next.tierCount ?? current.tierCount))
-      const { placements, dropped } = reflowForGeometry(current.placements, {
-        ...ctx,
-        palletType,
-        tierCount,
-      })
+      const { placements, dropped } = reflowForGeometry(
+        current.placements,
+        { ...ctx, palletType, tierCount },
+        catalog,
+      )
       commit(placements, { palletType, tierCount })
       return dropped
     },
-    [commit, ctx],
+    [commit, ctx, catalog],
+  )
+
+  // Move / add / remove cubby dividers on one shelf (or several) in one
+  // undoable step; products re-seat into the new cubbies.
+  const setDividers = useCallback(
+    (levels: number[], xs: number[]) => {
+      const current = useDisplayStore.getState().currentProject
+      if (!current) return [] as PlacedProduct[]
+      const clean = normalizeDividers(xs)
+      const cubbyDividers = { ...(current.cubbyDividers ?? {}) }
+      levels.forEach((l) => {
+        cubbyDividers[l] = clean
+      })
+      const { placements, dropped } = reflowForGeometry(current.placements, { ...ctx, dividers: cubbyDividers }, catalog)
+      commit(placements, { cubbyDividers })
+      return dropped
+    },
+    [commit, ctx, catalog],
+  )
+
+  const setSquish = useCallback(
+    (productId: string, on: boolean) => {
+      const current = useDisplayStore.getState().currentProject
+      if (!current) return [] as PlacedProduct[]
+      const squishOverrides = { ...(current.squishOverrides ?? {}), [productId]: on }
+      setSquishOverrides(squishOverrides)
+      const { placements, dropped } = respecProduct(current.placements, productId, ctx, catalog)
+      commit(placements, { squishOverrides })
+      return dropped
+    },
+    [commit, ctx, catalog],
   )
 
   return {
+    setDividers,
+    setSquish,
     project,
     retailer,
     catalog,

@@ -40,10 +40,13 @@ function loadPhotoAsset(url: string): Promise<PhotoAsset | null> {
         // Texture = the product only, cropped out of its white margin, so the
         // label fills the model's face instead of shrinking into the middle.
         const { x, y, width, height } = profile.bbox
+        // Downsized to <= 256px: a unit is a few inches on screen, and big
+        // photo textures were a large part of the builder's lag.
         const crop = document.createElement('canvas')
-        crop.width = width
-        crop.height = height
-        crop.getContext('2d')!.drawImage(canvas, x, y, width, height, 0, 0, width, height)
+        const k = Math.min(1, 256 / Math.max(width, height))
+        crop.width = Math.max(1, Math.round(width * k))
+        crop.height = Math.max(1, Math.round(height * k))
+        crop.getContext('2d')!.drawImage(canvas, x, y, width, height, 0, 0, crop.width, crop.height)
 
         const texture = new THREE.CanvasTexture(crop)
         texture.colorSpace = THREE.SRGBColorSpace
@@ -178,18 +181,24 @@ export function usePhotoModel(
     if (!asset) return null
     const round = looksRound(dims, product.label ?? '', asset.profile)
     const key = `${product.imageUrl}|${dims.width}|${dims.height}|${dims.depth}|${round}`
+    const matKey = `${product.imageUrl}|${round}`
     let geometry = geometryCache.get(key)
-    let material = materialCache.get(key)
-    if (!geometry || !material) {
+    let material = materialCache.get(matKey)
+    if (!geometry) {
+      if (round) geometry = buildRoundGeometry(asset.profile, dims)
+      else {
+        geometry = new THREE.BoxGeometry(dims.width, dims.height, dims.depth)
+        geometry.translate(0, dims.height / 2, 0)
+      }
+      geometryCache.set(key, geometry)
+    }
+    if (!material) {
       if (round) {
-        geometry = buildRoundGeometry(asset.profile, dims)
         material = [
           new THREE.MeshStandardMaterial({ map: asset.texture, roughness: 0.45, metalness: 0.05 }),
           edgeMaterial(asset.profile),
         ]
       } else {
-        geometry = new THREE.BoxGeometry(dims.width, dims.height, dims.depth)
-        geometry.translate(0, dims.height / 2, 0)
         const side = edgeMaterial(asset.profile)
         // BoxGeometry face order: +x, -x, +y, -y, +z (front), -z (back).
         material = [
@@ -201,8 +210,7 @@ export function usePhotoModel(
           new THREE.MeshStandardMaterial({ map: asset.mirrored, roughness: 0.6, metalness: 0.02 }),
         ]
       }
-      geometryCache.set(key, geometry)
-      materialCache.set(key, material)
+      materialCache.set(matKey, material)
     }
     return { geometry, material }
     // dims are primitives read above; product identity beyond them is irrelevant.

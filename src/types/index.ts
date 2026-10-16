@@ -52,6 +52,9 @@ export interface CaseConfig {
   innerPadding: number
   dividers: boolean
   dimensionOverride?: Partial<ProductDimensions>
+  // Soft goods (chips, bags, pouches) give a little: units are packed this
+  // fraction of their width/depth apart and drawn overlapping. 1 / unset = rigid.
+  squish?: number
 }
 
 export interface PlacedProduct {
@@ -367,6 +370,10 @@ export interface DisplayProject {
   // even when cases = 0. Undefined on legacy projects — fall back to deriving
   // selection from `assortment` entries.
   selectedProductIds?: string[]
+  // v2 builder: half pallet cubby dividers per shelf (X of each divider, in)
+  // and per-item "squishable" overrides (product id -> on/off).
+  cubbyDividers?: Record<number, number[]>
+  squishOverrides?: Record<string, boolean>
   shipByDate?: number
   // Number of identical pallets the salesman is requesting (default 1).
   // Cases on each assortment entry are per-pallet; multiply by quantity for

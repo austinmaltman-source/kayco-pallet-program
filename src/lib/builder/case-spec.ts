@@ -14,6 +14,10 @@ export interface CaseLayout {
 
 export interface CaseSpec {
   productId: string
+  // pitch factor for soft goods (1 = rigid). `unit` below is the PITCH a unit
+  // takes on the shelf (true size x squish); `trueUnit` is its real size.
+  squish: number
+  trueUnit: { width: number; height: number; depth: number }
   unitsPerCase: number
   layout: CaseLayout
   unit: { width: number; height: number; depth: number }
@@ -122,15 +126,36 @@ export function layoutOptions(count: number): CaseLayout[] {
   return out.length ? out : [preferred]
 }
 
+// Soft goods squeeze together on the shelf (Austin: "account for items that
+// can be squished together like chips or soft bags"). Detected from the name
+// / category / packaging; a per-item toggle overrides it.
+export const SQUISH_FACTOR = 0.8
+const SOFT_WORDS =
+  /\b(CHIPS?|CRISPS?|BAGS?|BAGGED|POUCH(ES)?|PUFFS?|SNACKS?|POPCORN|PRETZELS?|CHEESE ?CURLS|CURLS|DOODLES|BAMBA|BISSLI|MARSHMALLOWS?|GUMMY|GUMMIES|CANDY|SOFT)\b/i
+let squishOverrides: Record<string, boolean> = {}
+export function setSquishOverrides(map: Record<string, boolean> | undefined) {
+  squishOverrides = map ?? {}
+}
+export function autoSquishable(product: Pick<Product, 'name' | 'category' | 'packaging'>) {
+  if (product.packaging === 'bag' || product.packaging === 'pouch') return true
+  return SOFT_WORDS.test(`${product.name ?? ''} ${product.category ?? ''}`)
+}
+export function isSquishable(product: Pick<Product, 'id' | 'name' | 'category' | 'packaging'>) {
+  const o = squishOverrides[product.id]
+  return o != null ? o : autoSquishable(product)
+}
+
 // A merchandised block of units. By default one whole case; `units` makes it
 // a half case or any loose unit count (Austin: "we add by case, sometimes by
 // half a case, the option should be there to only add units too").
 export function caseSpecFor(product: Product, layoutOverride?: CaseLayout | null, units?: number): CaseSpec {
   const unitsPerCase = units != null ? Math.max(1, Math.round(units)) : unitsPerCaseOf(product)
   const estimatedUnit = !(positive(product.width) && positive(product.height) && positive(product.depth))
-  const unit = merchandisedUnit(
+  const trueUnit = merchandisedUnit(
     estimatedUnit ? FALLBACK_UNIT : { width: product.width, height: product.height, depth: product.depth },
   )
+  const squish = isSquishable(product) ? SQUISH_FACTOR : 1
+  const unit = { width: trueUnit.width * squish, height: trueUnit.height, depth: trueUnit.depth * squish }
   const layout =
     layoutOverride && layoutOverride.cols * layoutOverride.rows * layoutOverride.layers === unitsPerCase
       ? layoutOverride
@@ -168,6 +193,8 @@ export function caseSpecFor(product: Product, layoutOverride?: CaseLayout | null
       : unitWeight * unitsPerCase
   return {
     productId: product.id,
+    squish,
+    trueUnit,
     // units in THIS block (a whole case unless `units` was given)
     unitsPerCase,
     layout,

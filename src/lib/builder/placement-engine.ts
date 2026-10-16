@@ -7,7 +7,7 @@
 // the rules are unit-tested (placement-engine.test.ts) and the scene just
 // renders what this file decides.
 
-import { displaySpec } from './display-spec'
+import { type DividerMap, displaySpec } from './display-spec'
 import type { PalletType, TrayFace } from '../../types'
 
 export interface Rect {
@@ -59,8 +59,9 @@ export function buildSurfaces(
   tierCount: number,
   palletHeight = 6,
   maxDisplayHeight = 60,
+  dividers?: DividerMap,
 ): ShelfSurface[] {
-  const spec = displaySpec(palletType, tierCount, palletHeight, maxDisplayHeight)
+  const spec = displaySpec(palletType, tierCount, palletHeight, maxDisplayHeight, dividers)
   return spec.levels.map((level) => {
     const faces: TrayFace[] =
       palletType === 'half' ? ['front'] : level.isTop ? ['front', 'back'] : ['front', 'right', 'back', 'left']

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useDisplayStore } from '../stores/display-store'
 import { useRetailerStore } from '../stores/retailer-store'
 import { ThreeDViewer } from '../components/Editor/three-d-viewer'
@@ -15,6 +15,7 @@ export function EditorPage() {
   const { palletId, retailerId } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const roleHref = useRoleHref()
+  const navigate = useNavigate()
   const currentProject = useDisplayStore((state) => state.currentProject)
   const selectProject = useDisplayStore((state) => state.selectProject)
   const retailer = useRetailerStore((s) =>
@@ -53,6 +54,20 @@ export function EditorPage() {
             Go to Retailers
           </Link>
         </div>
+      </div>
+    )
+  }
+
+  // The builder owns the whole screen: its own top bar (back, name, tools).
+  if (view === 'build') {
+    return (
+      <div className="fixed inset-0 z-[200] bg-white">
+        <PalletBuilder
+          title={currentProject.name}
+          subtitle={`${retailer?.name ?? 'Pallet'} · saved automatically`}
+          onBack={retailerId && palletId ? () => navigate(roleHref(`/retailers/${retailerId}/pallets/${palletId}`)) : undefined}
+          onOpenPlan={() => setView('2d')}
+        />
       </div>
     )
   }
@@ -101,7 +116,6 @@ export function EditorPage() {
         </header>
 
         <div className="relative min-h-0 flex-1">
-          {view === 'build' && <PalletBuilder />}
           {view === '2d' && <PlanogramView />}
           {view === 'classic' && <ThreeDViewer />}
         </div>

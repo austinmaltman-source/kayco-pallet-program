@@ -20,6 +20,7 @@ import {
   settleBlocks,
   validateBlock,
 } from './placement-engine'
+import type { DividerMap } from './display-spec'
 import { BUILDER_TAG, type CaseLayout, caseSpecFor, layoutOptions, merchLayouts } from './case-spec'
 
 export interface BuilderContext {
@@ -27,10 +28,12 @@ export interface BuilderContext {
   tierCount: number
   palletHeight: number
   maxDisplayHeight: number
+  // half pallet cubby dividers per shelf (see display-spec DividerMap)
+  dividers?: DividerMap
 }
 
 export function surfacesFor(ctx: BuilderContext): ShelfSurface[] {
-  return buildSurfaces(ctx.palletType, ctx.tierCount, ctx.palletHeight, ctx.maxDisplayHeight)
+  return buildSurfaces(ctx.palletType, ctx.tierCount, ctx.palletHeight, ctx.maxDisplayHeight, ctx.dividers)
 }
 
 export function yawToQuaternion(rotQ: number): [number, number, number, number] {
@@ -111,6 +114,7 @@ export function makeCasePlacement(
       caseStyle: 'tray',
       innerPadding: 0.25,
       dividers: false,
+      ...(spec.squish < 1 ? { squish: spec.squish } : {}),
     },
     renderStyle: 'case',
     facings: spec.layout.cols,
@@ -160,6 +164,11 @@ export function addCases(
   const surfaces = surfacesFor(ctx)
   const units = prefs.unitsPerBlock
   const preferred = caseSpecFor(product, null, units)
+  // Long items (Gefen honey cake) go on the top tray unless aimed elsewhere.
+  if (prefs.tier == null && prefs.onlyTier == null && prefersTopTray(product, surfaces)) {
+    const top = surfaces.find((x) => x.isTop)
+    if (top) prefs = { ...prefs, tier: top.tier }
+  }
   const limits = shelfLimits(surfaces, prefs.onlyTier ?? prefs.tier)
   let next = placements
   let blocks = blocksOf(next, surfaces)
@@ -477,6 +486,7 @@ export function nudgeCase(
 export function reflowForGeometry(
   placements: PlacedProduct[],
   ctx: BuilderContext,
+  catalog?: Product[],
 ): { placements: PlacedProduct[]; dropped: PlacedProduct[] } {
   const surfaces = surfacesFor(ctx)
   const kept: PlacedProduct[] = []
@@ -505,6 +515,20 @@ export function reflowForGeometry(
     }
     blocks = [...blocks, { ...candidate, id: p.id }]
     kept.push(applyBlock(p, { ...candidate, id: p.id }, surfaces))
+  }
+  // A block that no longer fits as it was gets re-laid-out (another unit
+  // arrangement, or split over two spots) before it is given up on.
+  if (catalog && dropped.length) {
+    let next = kept
+    const still: PlacedProduct[] = []
+    for (const p of dropped) {
+      const product = p.sourceProductId ? catalog.find((c) => c.id === p.sourceProductId) : undefined
+      const units = p.caseConfig ? p.caseConfig.layout.cols * p.caseConfig.layout.rows * p.caseConfig.layout.layers : 1
+      const r = product && p.caseConfig ? addCases(next, product, 1, ctx, { unitsPerBlock: units }) : null
+      if (r && r.added) next = r.placements
+      else still.push(p)
+    }
+    return { placements: next, dropped: still }
   }
   return { placements: kept, dropped }
 }
@@ -612,6 +636,147 @@ export function heavyAboveLight(placements: PlacedProduct[], ctx: BuilderContext
 // bottom shelves, each product's cases kept together, packed edge to edge
 // along each side (front first). A lighter item never goes on a lower shelf
 // than a clearly heavier one. Cases that fit nowhere are returned.
+// Items too long to stand face-out in a cubby/shelf slot (Austin: "Gefen
+// honey cake usually go on top but we also do put things sideways sometimes").
+export function prefersTopTray(product: Product, surfaces: ShelfSurface[]) {
+  if (/HONEY\s*CAKE|LOAF|SPONGE\s*CAKE/i.test(product.name ?? '')) return true
+  const unit = caseSpecFor(product, null, 1).trueUnit
+  const widest = Math.max(
+    0,
+    ...surfaces.filter((x) => !x.isTop).flatMap((x) => (x.cubbies ?? [x.outer]).map((c) => c.x1 - c.x0)),
+  )
+  return surfaces.some((x) => x.cubbies) ? unit.width > widest - 0.2 : unit.width > 11
+}
+
+export type Orientation = 'upright' | 'sideways'
+
+export function orientationOf(block: Pick<Block, 'rotQ'> | null | undefined): Orientation {
+  return block && normQ(block.rotQ) % 2 === 1 ? 'sideways' : 'upright'
+}
+
+// Upright = face-out; sideways = turned a quarter so the end/spine faces out
+// (fits long items into a narrow cubby).
+export function setOrientation(placements: PlacedProduct[], id: string, to: Orientation, ctx: BuilderContext) {
+  const surfaces = surfacesFor(ctx)
+  const block = blocksOf(placements, surfaces).find((b) => b.id === id)
+  if (!block) return { placements, ok: false }
+  if (orientationOf(block) === to) return { placements, ok: true }
+  return rotateCase(placements, id, ctx)
+}
+
+// Move one placed block onto the top tray (same units, best arrangement).
+export function moveToTopTray(placements: PlacedProduct[], id: string, ctx: BuilderContext, catalog: Product[]) {
+  const surfaces = surfacesFor(ctx)
+  const top = surfaces.find((x) => x.isTop)
+  const p = placements.find((q) => q.id === id)
+  const product = p?.sourceProductId ? catalog.find((c) => c.id === p.sourceProductId) : undefined
+  if (!top || !p || !product) return { placements, ok: false, newId: null as string | null }
+  const units = p.caseConfig ? p.caseConfig.layout.cols * p.caseConfig.layout.rows * p.caseConfig.layout.layers : 1
+  const without = removeCases(placements, [id], ctx)
+  const r = addCases(without, product, 1, ctx, { onlyTier: top.tier, unitsPerBlock: units, noSplit: true })
+  if (!r.added) return { placements, ok: false, newId: null }
+  return { placements: r.placements, ok: true, newId: r.addedIds[0] ?? null }
+}
+
+// Change a placed block's unit count (the popover's - / + / Case / Half).
+export function setBlockUnits(
+  placements: PlacedProduct[],
+  id: string,
+  units: number,
+  ctx: BuilderContext,
+  catalog: Product[],
+) {
+  const p = placements.find((q) => q.id === id)
+  const product = p?.sourceProductId ? catalog.find((c) => c.id === p.sourceProductId) : undefined
+  if (!p || !product) return { placements, ok: false, newId: null as string | null }
+  const n = Math.max(1, Math.round(units))
+  const surfaces = surfacesFor(ctx)
+  const block = blocksOf(placements, surfaces).find((b) => b.id === id)
+  const without = removeCases(placements, [id], ctx)
+  const r = addCases(without, product, 1, ctx, {
+    tier: block?.tier,
+    unitsPerBlock: n,
+    face: block ? faceAt(block.x, block.z, surfaces.find((x) => x.tier === block.tier)!) : undefined,
+    cubby: block ? cubbyIndexOf(block, surfaces) ?? undefined : undefined,
+  })
+  if (!r.added) return { placements, ok: false, newId: null }
+  return { placements: r.placements, ok: true, newId: r.addedIds[r.addedIds.length - 1] ?? null }
+}
+
+// Grow a placed block to as many units as fit in its cubby / shelf slot
+// (packed edge to edge, back to front) - the "fill this cubby" move.
+export function fillSlot(placements: PlacedProduct[], id: string, ctx: BuilderContext, catalog: Product[]) {
+  const p = placements.find((q) => q.id === id)
+  const product = p?.sourceProductId ? catalog.find((c) => c.id === p.sourceProductId) : undefined
+  const surfaces = surfacesFor(ctx)
+  const block = blocksOf(placements, surfaces).find((b) => b.id === id)
+  if (!p || !product || !block) return { placements, ok: false, newId: null as string | null, units: 0 }
+  const s = surfaces.find((x) => x.tier === block.tier)!
+  const cubby = cubbyIndexOf(block, surfaces)
+  const face = faceAt(block.x, block.z, s)
+  const without = removeCases(placements, [id], ctx)
+  const tryN = (n: number) =>
+    addCases(without, product, 1, ctx, {
+      onlyTier: block.tier,
+      onlyCubby: cubby ?? undefined,
+      onlyFace: s.cubbies ? undefined : face,
+      unitsPerBlock: n,
+      noSplit: true,
+      noStack: true,
+    })
+  const start = p.caseConfig ? p.caseConfig.layout.cols * p.caseConfig.layout.rows * p.caseConfig.layout.layers : 1
+  let best = tryN(start)
+  if (!best.added) return { placements, ok: false, newId: null, units: start }
+  let lo = start
+  let hi = start
+  while (hi < 480) {
+    const r = tryN(hi * 2)
+    if (!r.added) break
+    best = r
+    lo = hi * 2
+    hi = hi * 2
+  }
+  hi = hi * 2
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2)
+    const r = tryN(mid)
+    if (r.added) {
+      lo = mid
+      best = r
+    } else hi = mid
+  }
+  return { placements: best.placements, ok: lo > start, newId: best.addedIds[0] ?? null, units: lo }
+}
+
+function cubbyIndexOf(block: Block, surfaces: ShelfSurface[]) {
+  const s = surfaces.find((x) => x.tier === block.tier)
+  if (!s?.cubbies) return null
+  const i = s.cubbies.findIndex((c) => block.x >= c.x0 - 0.01 && block.x <= c.x1 + 0.01)
+  return i >= 0 ? i : null
+}
+
+// Re-measure every block of a product after its squishable toggle changed
+// (call setSquishOverrides first), then re-seat everything without overlaps.
+export function respecProduct(placements: PlacedProduct[], productId: string, ctx: BuilderContext, catalog: Product[]) {
+  const product = catalog.find((c) => c.id === productId)
+  if (!product) return { placements, dropped: [] as PlacedProduct[] }
+  const resized = placements.map((p) => {
+    if (p.sourceProductId !== productId || !p.caseConfig) return p
+    const l = p.caseConfig.layout
+    const spec = caseSpecFor(product, l, l.cols * l.rows * l.layers)
+    const { squish: _old, ...rest } = p.caseConfig
+    void _old
+    return {
+      ...p,
+      width: round2(spec.case.width),
+      depth: round2(spec.case.depth),
+      height: round2(spec.case.height),
+      caseConfig: { ...rest, ...(spec.squish < 1 ? { squish: spec.squish } : {}) },
+    }
+  })
+  return reflowForGeometry(resized, ctx, catalog)
+}
+
 export function autoArrange(placements: PlacedProduct[], ctx: BuilderContext, catalog: Product[], gap = 0) {
   const surfaces = surfacesFor(ctx)
   const byId = new Map(catalog.map((p) => [p.id, p]))
@@ -673,12 +838,24 @@ export function autoArrange(placements: PlacedProduct[], ctx: BuilderContext, ca
     }
     return null
   }
+  const longIds = new Set(
+    movable
+      .filter((p) => {
+        const product = p.sourceProductId ? byId.get(p.sourceProductId) : undefined
+        return product ? prefersTopTray(product, surfaces) : false
+      })
+      .map((p) => p.sourceProductId),
+  )
   for (const s of tiers) {
     const next: PlacedProduct[] = []
     const queue = [...remaining]
     while (queue.length) {
       const p = queue.shift()!
       const units = unitsOf(p)
+      if (!s.isTop && longIds.has(p.sourceProductId)) {
+        next.push(p)
+        continue
+      }
       const whole = tryPlace(p, units, s, p.id)
       if (whole) {
         placed.push(whole)

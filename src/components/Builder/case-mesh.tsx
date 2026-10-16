@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { memo, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { ThreeEvent } from '@react-three/fiber'
 import type { PlacedProduct } from '../../types'
@@ -13,9 +13,9 @@ interface CaseMeshProps {
   hovered?: boolean
   ghost?: 'ok' | 'bad' | null
   cartons?: boolean
-  onPointerDown?: (e: ThreeEvent<PointerEvent>) => void
-  onPointerOver?: () => void
-  onPointerOut?: () => void
+  onPointerDown?: (e: ThreeEvent<PointerEvent>, id: string) => void
+  onPointerOver?: (id: string) => void
+  onPointerOut?: (id: string) => void
 }
 
 const noRaycast = () => null
@@ -40,12 +40,54 @@ function colorMaterial(color: string) {
   }
   return m
 }
+// Items with no catalog photo still get a printed-looking face: the brand
+// colour with the product name, so a shelf never reads as blank boxes.
+const labelMaterials = new Map<string, THREE.Material[]>()
+function labelMaterial(label: string, color: string) {
+  const key = `${label}|${color}`
+  let m = labelMaterials.get(key)
+  if (m) return m
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 256
+  const ctx = canvas.getContext('2d')!
+  const base = new THREE.Color(color)
+  ctx.fillStyle = `#${base.getHexString()}`
+  ctx.fillRect(0, 0, 256, 256)
+  ctx.fillStyle = 'rgba(255,255,255,0.92)'
+  ctx.fillRect(14, 60, 228, 136)
+  ctx.fillStyle = '#1f2937'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  const words = label.replace(/\(.*?\)/g, '').replace(/\s+/g, ' ').trim().split(' ')
+  const lines: string[] = []
+  let line = ''
+  ctx.font = 'bold 26px system-ui, sans-serif'
+  for (const w of words) {
+    const test = line ? `${line} ${w}` : w
+    if (ctx.measureText(test).width > 210 && line) {
+      lines.push(line)
+      line = w
+    } else line = test
+    if (lines.length >= 4) break
+  }
+  if (line && lines.length < 4) lines.push(line)
+  lines.forEach((l, i) => ctx.fillText(l, 128, 128 + (i - (lines.length - 1) / 2) * 30))
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6 })
+  const side = colorMaterial(`#${base.getHexString()}`)
+  m = [side, side, side, side, face, face]
+  labelMaterials.set(key, m)
+  return m
+}
+
 const cartonMaterial = new THREE.MeshStandardMaterial({ color: '#b98b52', roughness: 0.85 })
 
 // One case on the pallet: a low tray with every unit inside it drawn from the
 // item's photo-built 3D model (instanced, so a case of 24 is one draw call),
 // plus an invisible hit box for picking/dragging and a selection outline.
-export function CaseMesh({
+export const CaseMesh = memo(function CaseMesh({
   placement,
   block,
   selected,
@@ -80,9 +122,15 @@ export function CaseMesh({
       unit: unitGuess,
       case: { width: placement.width, depth: placement.depth, height: placement.height },
     })
-    return { unit: r.unitSize, positions: r.positions }
+    // Soft goods are packed at a fraction of their size and drawn full size,
+    // so neighbouring bags visibly squeeze into each other.
+    const sq = placement.caseConfig?.squish && placement.caseConfig.squish < 1 ? placement.caseConfig.squish : 1
+    return {
+      unit: { width: r.unitSize.width / sq, height: r.unitSize.height, depth: r.unitSize.depth / sq },
+      positions: r.positions,
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [placement.width, placement.depth, placement.height, layout.cols, layout.rows, layout.layers, isCase])
+  }, [placement.width, placement.depth, placement.height, layout.cols, layout.rows, layout.layers, isCase, placement.caseConfig?.squish])
   const unit = geom.unit
   const positions = geom.positions
 
@@ -96,7 +144,7 @@ export function CaseMesh({
 
   const instRef = useRef<THREE.InstancedMesh>(null)
   const geometry = model ? model.geometry : boxGeometry
-  const material = model ? model.material : colorMaterial(placement.color || '#64748b')
+  const material = model ? model.material : labelMaterial(placement.label ?? 'Item', placement.color || '#64748b')
   const baseY = 0
 
   useLayoutEffect(() => {
@@ -133,8 +181,6 @@ export function CaseMesh({
             ref={instRef}
             args={[geometry, material as THREE.Material, positions.length]}
             raycast={noRaycast}
-            castShadow
-            receiveShadow
           />
         </>
       )}
@@ -162,14 +208,14 @@ export function CaseMesh({
           material={hitMaterial}
           scale={[w, h, d]}
           userData={{ kind: 'case', id: placement.id, tier: block.tier }}
-          onPointerDown={onPointerDown}
+          onPointerDown={(e) => onPointerDown(e, placement.id)}
           onPointerOver={(e) => {
             e.stopPropagation()
-            onPointerOver?.()
+            onPointerOver?.(placement.id)
           }}
-          onPointerOut={() => onPointerOut?.()}
+          onPointerOut={() => onPointerOut?.(placement.id)}
         />
       )}
     </group>
   )
-}
+})
