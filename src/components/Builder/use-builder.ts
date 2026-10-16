@@ -1,4 +1,5 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { loadProductImageMap } from '../../lib/product-images'
 import { useDisplayStore } from '../../stores/display-store'
 import { useCatalogStore } from '../../stores/catalog-store'
 import { useRetailerStore } from '../../stores/retailer-store'
@@ -17,7 +18,24 @@ export function useBuilder() {
   const historyLength = useDisplayStore((s) => s.history.length)
   const undo = useDisplayStore((s) => s.undo)
   const redo = useDisplayStore((s) => s.redo)
-  const catalog = useCatalogStore((s) => s.products)
+  const rawCatalog = useCatalogStore((s) => s.products)
+  // Product photos straight from the image map as well, so the builder shows
+  // real photos even before the catalog store has merged them in.
+  const [imageMap, setImageMap] = useState<Record<string, string> | null>(null)
+  useEffect(() => {
+    let alive = true
+    void loadProductImageMap().then((m) => alive && setImageMap(m))
+    return () => {
+      alive = false
+    }
+  }, [])
+  const catalog = useMemo(() => {
+    if (!imageMap) return rawCatalog
+    return rawCatalog.map((p) => {
+      const url = !p.imageUrl && p.kaycoItemNumber ? imageMap[p.kaycoItemNumber.trim()] : undefined
+      return url ? { ...p, imageUrl: url } : p
+    })
+  }, [rawCatalog, imageMap])
   const retailer = useRetailerStore((s) =>
     project ? s.getRetailer(project.retailerId) : undefined,
   )
