@@ -282,7 +282,12 @@ export function PalletBuilder() {
       return
     }
     commit(r.placements)
-    say('info', `Filled it: +${r.added} case${r.added === 1 ? '' : 's'} (${fmt(r.added * caseSpecFor(product).unitsPerCase)} units)`)
+    const ids = new Set(r.addedIds)
+    const addedUnits = r.placements
+      .filter((p) => ids.has(p.id))
+      .reduce((sum, p) => sum + (p.caseConfig ? p.caseConfig.layout.cols * p.caseConfig.layout.rows * p.caseConfig.layout.layers : 1), 0)
+    const upc = caseSpecFor(product).unitsPerCase
+    say('info', `Filled it: +${fmt(addedUnits / upc)} case${addedUnits === upc ? '' : 's'} (${fmt(addedUnits)} units)`)
   }, [selectedId, placements, blocks, productById, surfaces, ctx, gap, commit, say])
 
   // ---- keyboard ----------------------------------------------------------

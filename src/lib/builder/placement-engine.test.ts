@@ -99,7 +99,7 @@ describe('builder edits', () => {
   })
 
   it('stacks on top when dropped onto a case, and falls when the base is removed', () => {
-    const { placements } = addCases([], { ...juice, height: 4 }, 2, full)
+    const { placements } = addCases([], { ...juice, height: 4.8 }, 2, full)
     const [a, b] = placements
     const preview = previewMove(placements, b.id, { tier: a.tier!, x: a.position![0], z: a.position![2], stack: true }, full)!
     expect(preview.invalid).toBeNull()
@@ -146,5 +146,20 @@ describe('builder edits', () => {
     const block = blocksOf(result.placements, surfaces)[0]
     expect(block.rotQ).toBe(1)
     expect(onSurface(footprint(block), surfaces.find((s) => s.tier === block.tier)!)).toBe(true)
+  })
+
+  it('flat packs stand face-out and a case too wide for a cubby is split across cubbies', () => {
+    const biscuits = { ...juice, id: 'tb', name: 'TEA BISCUITS', width: 7.75, depth: 3, height: 1.5, weight: 0.3, unitsPerCase: 24 }
+    const spec = caseSpecFor(biscuits)
+    expect(spec.unit.width).toBeCloseTo(7.75)
+    expect(spec.unit.height).toBeCloseTo(3)
+    expect(spec.unit.depth).toBeCloseTo(1.5)
+    const macaroons = { ...juice, id: 'mac', name: 'MACAROONS', width: 7.35, depth: 3.5, height: 9.5, weight: 1.17, unitsPerCase: 6 }
+    const r = addCases([], macaroons, 1, half, { tier: 1 })
+    expect(r.added).toBe(1)
+    const t = totalsOf(r.placements, [macaroons], 6)
+    expect(t.units).toBe(6)
+    expect(t.cases).toBeCloseTo(1)
+    noOverlaps(r.placements, half)
   })
 })

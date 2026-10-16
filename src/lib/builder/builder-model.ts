@@ -20,7 +20,7 @@ import {
   settleBlocks,
   validateBlock,
 } from './placement-engine'
-import { BUILDER_TAG, type CaseLayout, caseSpecFor, layoutOptions } from './case-spec'
+import { BUILDER_TAG, type CaseLayout, caseSpecFor, layoutOptions, merchLayouts } from './case-spec'
 
 export interface BuilderContext {
   palletType: PalletType
@@ -130,34 +130,47 @@ export interface AddResult {
 
 // Add `count` cases of a product, each in the first free spot (bottom-left
 // fill, front face first). Stops early when nothing fits.
+// How deep and how tall a block may be to fit the shelves it is aimed at
+// (the ring of a full pallet's trays, a half pallet's cubby, a given tier).
+export function shelfLimits(surfaces: ShelfSurface[], tier?: number) {
+  const pool = surfaces.filter((s) => (tier != null ? s.tier === tier : !s.isTop))
+  const use = pool.length ? pool : surfaces
+  let depth = Infinity
+  let height = Infinity
+  for (const s of use) {
+    const dz = s.cubbies || !s.core ? s.outer.z1 - s.outer.z0 : s.outer.z1 - s.core.z1
+    depth = Math.min(depth, dz)
+    height = Math.min(height, s.clearance)
+  }
+  return { depth: Number.isFinite(depth) ? depth : 20, height: Number.isFinite(height) ? height : 12 }
+}
+
+// Add `count` blocks (a case, half case or N loose units each) of a product.
+// Units are merchandised face-out and packed back-to-front to the shelf
+// depth. A block that fits nowhere whole (a case of 6 boxes is wider than a
+// 9" cubby) is split across neighbouring spots, the way a merchandiser
+// would put the case's units into two cubbies; counts stay exact.
 export function addCases(
   placements: PlacedProduct[],
   product: Product,
   count: number,
   ctx: BuilderContext,
-  prefs: { tier?: number; face?: TrayFace; gap?: number; onlyTier?: number; onlyFace?: TrayFace; noStack?: boolean; cubby?: number; onlyCubby?: number; unitsPerBlock?: number } = {},
+  prefs: { tier?: number; face?: TrayFace; gap?: number; onlyTier?: number; onlyFace?: TrayFace; noStack?: boolean; cubby?: number; onlyCubby?: number; unitsPerBlock?: number; noSplit?: boolean } = {},
 ): AddResult {
   const surfaces = surfacesFor(ctx)
   const units = prefs.unitsPerBlock
   const preferred = caseSpecFor(product, null, units)
-  // The item master's arrangement first; when a case that shape fits nowhere
-  // (e.g. 2 rows of bottles deeper than a 10" tray) try the other exact
-  // arrangements of the same unit count, single-file last.
-  const layouts = [preferred.layout, ...layoutOptions(preferred.unitsPerCase)].filter(
-    (l, i, all) => all.findIndex((o) => o.cols === l.cols && o.rows === l.rows && o.layers === l.layers) === i,
-  )
+  const limits = shelfLimits(surfaces, prefs.onlyTier ?? prefs.tier)
   let next = placements
   let blocks = blocksOf(next, surfaces)
   const addedIds: string[] = []
-  let layoutIndex = 0
-  for (let i = 0; i < count; i += 1) {
-    const sameProduct = new Set(
-      next.filter((p) => p.sourceProductId === product.id).map((p) => p.id),
-    )
-    let placed = false
-    for (let k = layoutIndex; k < layouts.length && !placed; k += 1) {
-      const layout = k === 0 ? null : layouts[k]
-      const spec = caseSpecFor(product, layout, units)
+  const layoutsFor = (n: number) => merchLayouts(n, preferred.unit, limits.depth, limits.height)
+
+  // Place n units as ONE block; returns the new placement id or null.
+  const placeBlock = (n: number): string | null => {
+    const sameProduct = new Set(next.filter((p) => p.sourceProductId === product.id).map((p) => p.id))
+    for (const layout of layoutsFor(n)) {
+      const spec = caseSpecFor(product, layout, n)
       const spot = findFreeSpot(
         { width: spec.case.width, depth: spec.case.depth, height: spec.case.height },
         surfaces,
@@ -175,16 +188,55 @@ export function addCases(
         },
       )
       if (!spot) continue
-      const placement = makeCasePlacement(product, spot, surfaces, layout, units)
+      const placement = makeCasePlacement(product, spot, surfaces, layout, n)
       next = [...next, placement]
       blocks = [...blocks, { ...spot, id: placement.id }]
-      addedIds.push(placement.id)
-      layoutIndex = k
-      placed = true
+      return placement.id
     }
-    if (!placed) break
+    return null
   }
-  return { placements: next, added: addedIds.length, requested: count, addedIds }
+
+  let added = 0
+  for (let i = 0; i < count; i += 1) {
+    const n = preferred.unitsPerCase
+    const whole = placeBlock(n)
+    if (whole) {
+      addedIds.push(whole)
+      added += 1
+      continue
+    }
+    if (prefs.noSplit || n < 2) break
+    // Split: the biggest part that fits, then the rest, until all units are
+    // down. Roll back if the case cannot be fully placed.
+    const before = { next, blocks, ids: addedIds.length }
+    let left = n
+    let ok = true
+    while (left > 0) {
+      let placedPart = false
+      for (let k = left; k >= 1; k -= 1) {
+        if (k === n) continue
+        const id = placeBlock(k)
+        if (id) {
+          addedIds.push(id)
+          left -= k
+          placedPart = true
+          break
+        }
+      }
+      if (!placedPart) {
+        ok = false
+        break
+      }
+    }
+    if (!ok) {
+      next = before.next
+      blocks = before.blocks
+      addedIds.length = before.ids
+      break
+    }
+    added += 1
+  }
+  return { placements: next, added, requested: count, addedIds }
 }
 
 // Live preview of a drag: where the case would land and whether it may.
@@ -583,45 +635,87 @@ export function autoArrange(placements: PlacedProduct[], ctx: BuilderContext, ca
   // that has the clearance).
   let remaining = ordered.flat()
   const tiers = [...surfaces].sort((x, y) => x.tier - y.tier)
+  const unitsOf = (p: PlacedProduct) =>
+    p.caseConfig ? p.caseConfig.layout.cols * p.caseConfig.layout.rows * p.caseConfig.layout.layers : 1
+  // Put `units` of p on shelf s in its best merchandised arrangement (packed
+  // back-to-front, face-out). Returns the placed record or null.
+  const tryPlace = (p: PlacedProduct, units: number, s: ShelfSurface, id: string): PlacedProduct | null => {
+    const product = p.sourceProductId ? byId.get(p.sourceProductId) : undefined
+    const shapes: { layout: CaseLayout | null; width: number; depth: number; height: number }[] = []
+    if (product && p.caseConfig) {
+      const lim = shelfLimits([s], s.tier)
+      const unit = caseSpecFor(product, null, units).unit
+      for (const layout of merchLayouts(units, unit, lim.depth, lim.height)) {
+        const spec = caseSpecFor(product, layout, units)
+        shapes.push({ layout, width: spec.case.width, depth: spec.case.depth, height: spec.case.height })
+      }
+    }
+    if (units === unitsOf(p)) shapes.push({ layout: null, width: p.width, depth: p.depth, height: p.height })
+    for (const shape of shapes) {
+      const spot = findFreeSpot(shape, [s], blocks, { gap, allowStack: false })
+      if (!spot) continue
+      const block = { ...spot, id }
+      blocks = [...blocks, block]
+      const reshaped: PlacedProduct = shape.layout
+        ? {
+            ...p,
+            id,
+            width: round2(shape.width),
+            depth: round2(shape.depth),
+            height: round2(shape.height),
+            caseConfig: { ...p.caseConfig!, layout: shape.layout },
+            facings: shape.layout.cols,
+            rows: shape.layout.rows,
+            layers: shape.layout.layers,
+          }
+        : { ...p, id }
+      return applyBlock(reshaped, block, surfaces)
+    }
+    return null
+  }
   for (const s of tiers) {
     const next: PlacedProduct[] = []
-    for (const p of remaining) {
-      // Its current arrangement first, then every other exact arrangement of
-      // the same units (a 9" cubby may need them single file, back to front).
-      const product = p.sourceProductId ? byId.get(p.sourceProductId) : undefined
-      const units = p.caseConfig ? p.caseConfig.layout.cols * p.caseConfig.layout.rows * p.caseConfig.layout.layers : 1
-      const shapes: { layout: CaseLayout | null; width: number; depth: number; height: number }[] = [
-        { layout: null, width: p.width, depth: p.depth, height: p.height },
-      ]
-      if (product && p.caseConfig) {
-        for (const layout of layoutOptions(units)) {
-          const spec = caseSpecFor(product, layout, units)
-          shapes.push({ layout, width: spec.case.width, depth: spec.case.depth, height: spec.case.height })
+    const queue = [...remaining]
+    while (queue.length) {
+      const p = queue.shift()!
+      const units = unitsOf(p)
+      const whole = tryPlace(p, units, s, p.id)
+      if (whole) {
+        placed.push(whole)
+        continue
+      }
+      // Too wide for what is left here (a 9" cubby, the end of a shelf): put
+      // as many of its units as fit on this shelf - the way a merchandiser
+      // spreads a case over two cubbies - and carry the rest on.
+      let split = false
+      if (p.caseConfig && units > 1) {
+        // No slivers: a part is at least a quarter of the block (2+ units).
+        const minPart = Math.min(units - 1, Math.max(2, Math.ceil(units / 4)))
+        for (let k = units - 1; k >= minPart; k -= 1) {
+          if (units - k < 2) continue // never leave a single stray unit behind
+          const part = tryPlace(p, k, s, nanoid())
+          if (!part) continue
+          placed.push(part)
+          const product = p.sourceProductId ? byId.get(p.sourceProductId) : undefined
+          const restSpec = product ? caseSpecFor(product, null, units - k) : null
+          const rest: PlacedProduct = restSpec
+            ? {
+                ...p,
+                width: round2(restSpec.case.width),
+                depth: round2(restSpec.case.depth),
+                height: round2(restSpec.case.height),
+                caseConfig: { ...p.caseConfig, layout: restSpec.layout },
+                facings: restSpec.layout.cols,
+                rows: restSpec.layout.rows,
+                layers: restSpec.layout.layers,
+              }
+            : p
+          queue.unshift(rest)
+          split = true
+          break
         }
       }
-      let done = false
-      for (const shape of shapes) {
-        const spot = findFreeSpot(shape, [s], blocks, { gap, allowStack: false })
-        if (!spot) continue
-        const block = { ...spot, id: p.id }
-        blocks = [...blocks, block]
-        const reshaped: PlacedProduct = shape.layout
-          ? {
-              ...p,
-              width: round2(shape.width),
-              depth: round2(shape.depth),
-              height: round2(shape.height),
-              caseConfig: { ...p.caseConfig!, layout: shape.layout },
-              facings: shape.layout.cols,
-              rows: shape.layout.rows,
-              layers: shape.layout.layers,
-            }
-          : p
-        placed.push(applyBlock(reshaped, block, surfaces))
-        done = true
-        break
-      }
-      if (!done) next.push(p)
+      if (!split) next.push(p)
     }
     remaining = next
   }
@@ -641,10 +735,8 @@ export function autoArrange(placements: PlacedProduct[], ctx: BuilderContext, ca
     blocks = [...blocks, block]
     placed.push(applyBlock(p, block, surfaces))
   }
-  const byPlaced = new Map(placed.map((p) => [p.id, p]))
-  const droppedIds = new Set(dropped.map((p) => p.id))
   return {
-    placements: placements.filter((p) => !droppedIds.has(p.id)).map((p) => byPlaced.get(p.id) ?? p),
+    placements: [...fixed, ...placed],
     dropped,
   }
 }
@@ -658,6 +750,6 @@ export function roomOnFace(
   ctx: BuilderContext,
   gap = 0,
 ) {
-  const r = addCases(placements, product, 60, ctx, { onlyTier: tier, onlyFace: face, gap, noStack: true })
+  const r = addCases(placements, product, 60, ctx, { onlyTier: tier, onlyFace: face, gap, noStack: true, noSplit: true })
   return r
 }

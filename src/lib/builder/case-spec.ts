@@ -37,6 +37,57 @@ export const TRAY_BASE = 0
 export const CASE_PADDING = UNIT_GAP
 const FALLBACK_UNIT = { width: 4, height: 6, depth: 4 }
 
+// How a unit stands on a display shelf: upright and FACE-OUT, the printed
+// face toward the shopper (Austin's reference photos). The item master often
+// lists flat packs lying on their back (tea biscuits 7.75 x 3 x 1.5 high) and
+// some pouches/boxes side-on (2 wide x 6 deep); turn those so the big face
+// is the front.
+export function merchandisedUnit(u: { width: number; height: number; depth: number }) {
+  const { width: w, depth: d, height: h } = u
+  const longest = Math.max(w, d)
+  if (h < Math.min(w, d) && h < 0.6 * longest) {
+    return { width: longest, height: Math.min(w, d), depth: h }
+  }
+  if (d > w * 1.4) return { width: d, height: h, depth: w }
+  return { width: w, height: h, depth: d }
+}
+
+// Units can be stacked in layers only when they are short packs (boxes,
+// sleeves); bottles and jars stand one high.
+export const STACKABLE_UNIT_HEIGHT = 4.5
+
+// Every exact arrangement of `count` units in merchandising order for a shelf
+// `maxDepth` deep with `maxHeight` of clearance: arrangements that fit first,
+// then the narrowest front (each item packed back-to-front to fill the shelf
+// depth, like the real displays), deepest, fewest layers.
+export function merchLayouts(
+  count: number,
+  unit: { width: number; height: number; depth: number },
+  maxDepth: number,
+  maxHeight: number,
+): CaseLayout[] {
+  const canStack = unit.height <= STACKABLE_UNIT_HEIGHT
+  const dims = (l: CaseLayout) => ({
+    w: unit.width * l.cols + UNIT_GAP * (l.cols - 1) + CASE_WALL * 2,
+    d: unit.depth * l.rows + UNIT_GAP * (l.rows - 1) + CASE_WALL * 2,
+    h: unit.height * l.layers,
+  })
+  const options = layoutOptions(count).filter((l) => l.layers === 1 || canStack)
+  const scored = options.map((l) => {
+    const m = dims(l)
+    const fits = m.d <= maxDepth + 0.01 && m.h <= maxHeight + 0.01
+    return { l, m, fits }
+  })
+  scored.sort((a, b) => {
+    if (a.fits !== b.fits) return a.fits ? -1 : 1
+    if (!a.fits) return a.m.d - b.m.d
+    if (Math.abs(a.m.w - b.m.w) > 0.01) return a.m.w - b.m.w
+    if (Math.abs(a.m.d - b.m.d) > 0.01) return b.m.d - a.m.d
+    return a.l.layers - b.l.layers
+  })
+  return scored.map((s) => s.l)
+}
+
 function positive(n: number | undefined): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n > 0
 }
@@ -56,7 +107,7 @@ export function layoutOptions(count: number): CaseLayout[] {
     for (let rows = 1; rows <= perLayer; rows += 1) {
       if (perLayer % rows !== 0) continue
       const cols = perLayer / rows
-      if (rows > 6 || cols > 24) continue
+      if (rows > 14 || cols > 24) continue
       out.push({ cols, rows, layers })
     }
   }
@@ -77,9 +128,9 @@ export function layoutOptions(count: number): CaseLayout[] {
 export function caseSpecFor(product: Product, layoutOverride?: CaseLayout | null, units?: number): CaseSpec {
   const unitsPerCase = units != null ? Math.max(1, Math.round(units)) : unitsPerCaseOf(product)
   const estimatedUnit = !(positive(product.width) && positive(product.height) && positive(product.depth))
-  const unit = estimatedUnit
-    ? FALLBACK_UNIT
-    : { width: product.width, height: product.height, depth: product.depth }
+  const unit = merchandisedUnit(
+    estimatedUnit ? FALLBACK_UNIT : { width: product.width, height: product.height, depth: product.depth },
+  )
   const layout =
     layoutOverride && layoutOverride.cols * layoutOverride.rows * layoutOverride.layers === unitsPerCase
       ? layoutOverride
