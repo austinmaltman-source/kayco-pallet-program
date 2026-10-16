@@ -20,14 +20,20 @@ function initialsOf(name: string): string {
 export function SalesmanLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const smartBack = useSmartBack()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const isEditor = pathname.endsWith('/editor')
+  const classicEditor = isEditor && new URLSearchParams(search).get('view') === 'classic'
   const salespeople = useSalespersonStore((s) => s.salespeople)
   const activeSalespersonId = useRoleStore((s) => s.activeSalespersonId)
   const setActiveSalespersonId = useRoleStore((s) => s.setActiveSalespersonId)
   const activeSalesperson = activeSalespersonId
     ? salespeople.find((sp) => sp.id === activeSalespersonId) ?? null
     : null
+
+  if (isEditor && !classicEditor) {
+    // The v2 builder brings its own header (with Back) and fills the screen.
+    return <div className="h-screen flex bg-[#fafafa]">{children}</div>
+  }
 
   if (isEditor) {
     // Fallback to the pallet detail URL when there's no in-app history

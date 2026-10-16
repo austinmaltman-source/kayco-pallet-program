@@ -81,12 +81,21 @@ function NavSection({ heading, items }: { heading: string; items: NavItem[] }) {
 
 export function ManagerLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const isEditor = pathname.endsWith('/editor')
+  // The v2 builder brings its own header; the old floating toolbar belongs
+  // to the classic (physics) editor only.
+  const classicEditor = isEditor && new URLSearchParams(search).get('view') === 'classic'
+  // The builder needs the whole width on phones/tablets: no sidebar there.
+  const builderEditor = isEditor && !classicEditor
 
   return (
     <div className="flex min-h-screen bg-[#fafafa] text-[#171717]">
-      <aside className="w-[240px] h-screen fixed left-0 top-0 bg-[#0e0e0e] flex flex-col py-5 px-3 z-50">
+      <aside
+        className={`w-[240px] h-screen fixed left-0 top-0 bg-[#0e0e0e] flex-col py-5 px-3 z-50 ${
+          builderEditor ? 'hidden lg:flex' : 'flex'
+        }`}
+      >
         <HubBackLink dark className="mb-4 px-3" />
         <Link to="/" className="mb-6 px-3 block">
           <h1 className="text-[15px] font-semibold text-white tracking-display">Kayco Pallet Programs</h1>
@@ -140,9 +149,11 @@ export function ManagerLayout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 ml-[240px] relative min-h-screen flex flex-col">
-        {isEditor && <TopToolbar />}
-        <div className={`flex-1 ${isEditor ? 'pt-16' : ''}`}>{children}</div>
+      <main
+        className={`flex-1 relative min-h-screen flex flex-col min-w-0 ${builderEditor ? 'ml-0 lg:ml-[240px]' : 'ml-[240px]'}`}
+      >
+        {classicEditor && <TopToolbar />}
+        <div className={`flex-1 min-w-0 ${classicEditor ? 'pt-16' : ''}`}>{children}</div>
       </main>
     </div>
   )

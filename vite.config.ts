@@ -29,7 +29,7 @@ export default defineConfig(({mode}) => {
           changeOrigin: true,
         },
         '/api/product-images': {
-          target: 'http://localhost:8787',
+          target: env.PRODUCT_IMAGES_ORIGIN || 'http://localhost:8787',
           changeOrigin: true,
         },
         // Mirrors the Worker's /api/kayco proxy. Key comes from .env.local

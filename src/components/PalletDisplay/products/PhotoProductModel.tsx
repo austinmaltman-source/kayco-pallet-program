@@ -163,32 +163,18 @@ function edgeMaterial(profile: PhotoProfile) {
   })
 }
 
-interface PhotoProductModelProps {
-  product: PlacedProduct
-  position: [number, number, number]
-  rotation?: [number, number, number]
-  scale?: [number, number, number]
-  onClick?: () => void
-  onPointerOver?: () => void
-  onPointerOut?: () => void
-  // Rendered until the photo is analyzed, or if it cannot be.
-  fallback: React.ReactNode
-}
-
-export const PhotoProductModel: React.FC<PhotoProductModelProps> = ({
-  product,
-  position,
-  rotation = [0, 0, 0],
-  scale = [1, 1, 1],
-  onClick,
-  onPointerOver,
-  onPointerOut,
-  fallback,
-}) => {
+// The photo-built model (geometry + materials, shared through the caches
+// above) for a product at the given size; undefined while the photo loads,
+// null when there is no usable photo. Exported for the instanced case
+// renderer in the v2 builder.
+export function usePhotoModel(
+  product: Pick<PlacedProduct, 'imageUrl' | 'label' | 'width' | 'height' | 'depth'>,
+): { geometry: THREE.BufferGeometry; material: THREE.Material | THREE.Material[] } | null | undefined {
   const asset = usePhotoAsset(product.imageUrl)
   const dims = { width: product.width, height: product.height, depth: product.depth }
 
-  const model = useMemo(() => {
+  return useMemo(() => {
+    if (asset === undefined) return undefined
     if (!asset) return null
     const round = looksRound(dims, product.label ?? '', asset.profile)
     const key = `${product.imageUrl}|${dims.width}|${dims.height}|${dims.depth}|${round}`
@@ -222,6 +208,32 @@ export const PhotoProductModel: React.FC<PhotoProductModelProps> = ({
     // dims are primitives read above; product identity beyond them is irrelevant.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset, product.imageUrl, product.label, dims.width, dims.height, dims.depth])
+
+}
+
+interface PhotoProductModelProps {
+  product: PlacedProduct
+  position: [number, number, number]
+  rotation?: [number, number, number]
+  scale?: [number, number, number]
+  onClick?: () => void
+  onPointerOver?: () => void
+  onPointerOut?: () => void
+  // Rendered until the photo is analyzed, or if it cannot be.
+  fallback: React.ReactNode
+}
+
+export const PhotoProductModel: React.FC<PhotoProductModelProps> = ({
+  product,
+  position,
+  rotation = [0, 0, 0],
+  scale = [1, 1, 1],
+  onClick,
+  onPointerOver,
+  onPointerOut,
+  fallback,
+}) => {
+  const model = usePhotoModel(product)
 
   if (!model) return <>{fallback}</>
 
